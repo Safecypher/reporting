@@ -1,0 +1,61 @@
+<!DOCTYPE html>
+<!-- @dsCard group="Brand" name="Logo · Lockup" subtitle="Primary on white & inverted on Cypher Blue" viewport="700x180" -->
+<html lang="en">
+<head>
+<meta charset="utf-8"/>
+<title>Safecypher · Logo lockup</title>
+<style>
+/* INLINE-TOKENS */
+/* Brand fonts — local TTFs (offline-safe; source of truth = /fonts) */
+@font-face { font-family: 'Poppins'; src: url('../fonts/Poppins-Light.ttf') format('truetype');        font-weight: 300; font-style: normal; font-display: swap; }
+@font-face { font-family: 'Poppins'; src: url('../fonts/Poppins-LightItalic.ttf') format('truetype');  font-weight: 300; font-style: italic; font-display: swap; }
+@font-face { font-family: 'Poppins'; src: url('../fonts/Poppins-Regular.ttf') format('truetype');      font-weight: 400; font-style: normal; font-display: swap; }
+@font-face { font-family: 'Poppins'; src: url('../fonts/Poppins-Italic.ttf') format('truetype');       font-weight: 400; font-style: italic; font-display: swap; }
+@font-face { font-family: 'Poppins'; src: url('../fonts/Poppins-Medium.ttf') format('truetype');       font-weight: 500; font-style: normal; font-display: swap; }
+@font-face { font-family: 'Poppins'; src: url('../fonts/Poppins-MediumItalic.ttf') format('truetype'); font-weight: 500; font-style: italic; font-display: swap; }
+@font-face { font-family: 'Poppins'; src: url('../fonts/Poppins-SemiBold.ttf') format('truetype');     font-weight: 600; font-style: normal; font-display: swap; }
+@font-face { font-family: 'Poppins'; src: url('../fonts/Poppins-SemiBoldItalic.ttf') format('truetype'); font-weight: 600; font-style: italic; font-display: swap; }
+@font-face { font-family: 'Poppins'; src: url('../fonts/Poppins-Bold.ttf') format('truetype');         font-weight: 700; font-style: normal; font-display: swap; }
+@font-face { font-family: 'Poppins'; src: url('../fonts/Poppins-BoldItalic.ttf') format('truetype');   font-weight: 700; font-style: italic; font-display: swap; }
+@font-face { font-family: 'EB Garamond'; src: url('../fonts/EBGaramond-VariableFont_wght.ttf') format('truetype-variations'), url('../fonts/EBGaramond-VariableFont_wght.ttf') format('truetype'); font-weight: 400 800; font-style: normal; font-display: swap; }
+@font-face { font-family: 'EB Garamond'; src: url('../fonts/EBGaramond-Italic-VariableFont_wght.ttf') format('truetype-variations'), url('../fonts/EBGaramond-Italic-VariableFont_wght.ttf') format('truetype'); font-weight: 400 800; font-style: italic; font-display: swap; }
+@font-face { font-family: 'EB Garamond'; src: url('../fonts/EBGaramond-Regular.ttf') format('truetype');  font-weight: 400; font-style: normal; font-display: swap; }
+@font-face { font-family: 'EB Garamond'; src: url('../fonts/EBGaramond-Italic.ttf') format('truetype');   font-weight: 400; font-style: italic; font-display: swap; }
+@font-face { font-family: 'EB Garamond'; src: url('../fonts/EBGaramond-Medium.ttf') format('truetype');   font-weight: 500; font-style: normal; font-display: swap; }
+@font-face { font-family: 'EB Garamond'; src: url('../fonts/EBGaramond-SemiBold.ttf') format('truetype'); font-weight: 600; font-style: normal; font-display: swap; }
+@font-face { font-family: 'EB Garamond'; src: url('../fonts/EBGaramond-Bold.ttf') format('truetype');     font-weight: 700; font-style: normal; font-display: swap; }
+
+:root {
+  --cypher-blue:#382aff; --cypher-black:#37373a; --cypher-grey:#c1c1c1; --cypher-white:#fff;
+  --fg-3:#8a8a8d;
+  --font-sans:'Poppins',system-ui,-apple-system,'Segoe UI',Roboto,sans-serif;
+  --font-mono:ui-monospace,'SF Mono',Menlo,Consolas,monospace;
+}
+
+html,body{margin:0;padding:0;font-family:var(--font-sans);color:var(--cypher-black);background:#fff}
+
+.wrap{padding:18px 24px;display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.cell{border:1px solid var(--cypher-grey);border-radius:10px;height:120px;display:flex;align-items:center;justify-content:center;padding:10px;box-sizing:border-box}
+.cell.inv{background:var(--cypher-blue);border-color:var(--cypher-blue)}
+.cell svg, .cell img{max-width:78%;max-height:70%;height:auto;display:block}
+
+.meta{margin-top:6px;font-family:var(--font-mono);font-size:11px;color:var(--fg-3);text-align:center}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div>
+    <div class="cell">
+      <img src="assets/logo.svg" alt="Safecypher"/>
+    </div>
+    <div class="meta">Primary — default on white</div>
+  </div>
+  <div>
+    <div class="cell inv">
+      <img src="assets/logo-white.svg" alt="Safecypher (inverted)"/>
+    </div>
+    <div class="meta">Secondary — reversed on Cypher Blue</div>
+  </div>
+</div>
+</body>
+</html>

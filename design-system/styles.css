@@ -1,0 +1,49 @@
+/* =========================================================
+   Safecypher · styles.css
+   ---------------------------------------------------------
+   Canonical entry stylesheet for the design system.
+   Import THIS file into any HTML artifact:
+
+       <link rel="stylesheet" href="styles.css">
+       /* or */  @import url('styles.css');
+
+   It self-hosts the two brand families from the local TTFs in
+   /fonts (no CDN dependency), then re-exports the full token
+   set + element styles from colors_and_type.css.
+   ========================================================= */
+
+/* ---------------------------------------------------------
+   Brand fonts — self-hosted local TTFs.
+   Declared inline here (not only via @import) so the family
+   declarations are reachable directly from this file.
+   --------------------------------------------------------- */
+
+/* Poppins — 300/400/500/600/700, upright + italic */
+@font-face { font-family: 'Poppins'; src: url('fonts/Poppins-Light.ttf') format('truetype');          font-weight: 300; font-style: normal; font-display: swap; }
+@font-face { font-family: 'Poppins'; src: url('fonts/Poppins-LightItalic.ttf') format('truetype');    font-weight: 300; font-style: italic; font-display: swap; }
+@font-face { font-family: 'Poppins'; src: url('fonts/Poppins-Regular.ttf') format('truetype');        font-weight: 400; font-style: normal; font-display: swap; }
+@font-face { font-family: 'Poppins'; src: url('fonts/Poppins-Italic.ttf') format('truetype');         font-weight: 400; font-style: italic; font-display: swap; }
+@font-face { font-family: 'Poppins'; src: url('fonts/Poppins-Medium.ttf') format('truetype');         font-weight: 500; font-style: normal; font-display: swap; }
+@font-face { font-family: 'Poppins'; src: url('fonts/Poppins-MediumItalic.ttf') format('truetype');   font-weight: 500; font-style: italic; font-display: swap; }
+@font-face { font-family: 'Poppins'; src: url('fonts/Poppins-SemiBold.ttf') format('truetype');       font-weight: 600; font-style: normal; font-display: swap; }
+@font-face { font-family: 'Poppins'; src: url('fonts/Poppins-SemiBoldItalic.ttf') format('truetype'); font-weight: 600; font-style: italic; font-display: swap; }
+@font-face { font-family: 'Poppins'; src: url('fonts/Poppins-Bold.ttf') format('truetype');           font-weight: 700; font-style: normal; font-display: swap; }
+@font-face { font-family: 'Poppins'; src: url('fonts/Poppins-BoldItalic.ttf') format('truetype');     font-weight: 700; font-style: italic; font-display: swap; }
+
+/* EB Garamond — variable cuts (400–800) + static fallbacks */
+@font-face { font-family: 'EB Garamond'; src: url('fonts/EBGaramond-VariableFont_wght.ttf') format('truetype-variations'), url('fonts/EBGaramond-VariableFont_wght.ttf') format('truetype'); font-weight: 400 800; font-style: normal; font-display: swap; }
+@font-face { font-family: 'EB Garamond'; src: url('fonts/EBGaramond-Italic-VariableFont_wght.ttf') format('truetype-variations'), url('fonts/EBGaramond-Italic-VariableFont_wght.ttf') format('truetype'); font-weight: 400 800; font-style: italic; font-display: swap; }
+@font-face { font-family: 'EB Garamond'; src: url('fonts/EBGaramond-Regular.ttf') format('truetype');  font-weight: 400; font-style: normal; font-display: swap; }
+@font-face { font-family: 'EB Garamond'; src: url('fonts/EBGaramond-Italic.ttf') format('truetype');   font-weight: 400; font-style: italic; font-display: swap; }
+@font-face { font-family: 'EB Garamond'; src: url('fonts/EBGaramond-Medium.ttf') format('truetype');   font-weight: 500; font-style: normal; font-display: swap; }
+@font-face { font-family: 'EB Garamond'; src: url('fonts/EBGaramond-SemiBold.ttf') format('truetype'); font-weight: 600; font-style: normal; font-display: swap; }
+@font-face { font-family: 'EB Garamond'; src: url('fonts/EBGaramond-Bold.ttf') format('truetype');     font-weight: 700; font-style: normal; font-display: swap; }
+@font-face { font-family: 'EB Garamond'; src: url('fonts/EBGaramond-ExtraBold.ttf') format('truetype'); font-weight: 800; font-style: normal; font-display: swap; }
+
+/* ---------------------------------------------------------
+   Tokens + element styles (palette, type scale, components).
+   colors_and_type.css ALSO declares the @font-face rules
+   above, so the families remain reachable through this
+   @import closure as well.
+   --------------------------------------------------------- */
+@import url('colors_and_type.css');

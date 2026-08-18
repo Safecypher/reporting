@@ -1,0 +1,1203 @@
+<!DOCTYPE html>
+<!-- @dsCard group="Components" name="Deck · Slide Layouts" subtitle="11 master slide templates, thumbnail grid" -->
+<html lang="en">
+<head>
+<meta charset="utf-8"/>
+<title>Safecypher · Deck · Layouts (thumbnails)</title>
+
+<meta charset="utf-8"/>
+<title>Safecypher · Master Deck Templates</title>
+<style>
+/* ========== Inlined from /colors_and_type.css ========== */
+/* =========================================================
+   Safecypher · Colors & Type
+   ---------------------------------------------------------
+   Source of truth for the brand's visual foundations. Import
+   this file (or the fonts + these variables) into any HTML
+   artifact that should carry the Safecypher identity.
+
+   Fonts: Poppins (body + display), EB Garamond (accent).
+   Poppins is served from Google Fonts; EB Garamond ships
+   with this design system in /fonts as the brand-approved
+   TTFs (variable + static cuts).
+   ========================================================= */
+
+@import url('https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap');
+
+/* Poppins — local TTFs (300/400/500/600/700, upright + italic). Takes priority over the Google CDN @import above. */
+@font-face { font-family: 'Poppins'; src: url('../fonts/Poppins-Light.ttf') format('truetype');        font-weight: 300; font-style: normal; font-display: swap; }
+@font-face { font-family: 'Poppins'; src: url('../fonts/Poppins-LightItalic.ttf') format('truetype');  font-weight: 300; font-style: italic; font-display: swap; }
+@font-face { font-family: 'Poppins'; src: url('../fonts/Poppins-Regular.ttf') format('truetype');      font-weight: 400; font-style: normal; font-display: swap; }
+@font-face { font-family: 'Poppins'; src: url('../fonts/Poppins-Italic.ttf') format('truetype');       font-weight: 400; font-style: italic; font-display: swap; }
+@font-face { font-family: 'Poppins'; src: url('../fonts/Poppins-Medium.ttf') format('truetype');       font-weight: 500; font-style: normal; font-display: swap; }
+@font-face { font-family: 'Poppins'; src: url('../fonts/Poppins-MediumItalic.ttf') format('truetype'); font-weight: 500; font-style: italic; font-display: swap; }
+@font-face { font-family: 'Poppins'; src: url('../fonts/Poppins-SemiBold.ttf') format('truetype');     font-weight: 600; font-style: normal; font-display: swap; }
+@font-face { font-family: 'Poppins'; src: url('../fonts/Poppins-SemiBoldItalic.ttf') format('truetype'); font-weight: 600; font-style: italic; font-display: swap; }
+@font-face { font-family: 'Poppins'; src: url('../fonts/Poppins-Bold.ttf') format('truetype');         font-weight: 700; font-style: normal; font-display: swap; }
+@font-face { font-family: 'Poppins'; src: url('../fonts/Poppins-BoldItalic.ttf') format('truetype');   font-weight: 700; font-style: italic; font-display: swap; }
+
+/* EB Garamond — variable font (covers 400–800, upright + italic) */
+@font-face {
+  font-family: 'EB Garamond';
+  src: url('../fonts/EBGaramond-VariableFont_wght.ttf') format('truetype-variations'),
+       url('../fonts/EBGaramond-VariableFont_wght.ttf') format('truetype');
+  font-weight: 400 800;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: 'EB Garamond';
+  src: url('../fonts/EBGaramond-Italic-VariableFont_wght.ttf') format('truetype-variations'),
+       url('../fonts/EBGaramond-Italic-VariableFont_wght.ttf') format('truetype');
+  font-weight: 400 800;
+  font-style: italic;
+  font-display: swap;
+}
+
+/* EB Garamond — static cuts (fallback for renderers without variable-font support) */
+@font-face { font-family: 'EB Garamond'; src: url('../fonts/EBGaramond-Regular.ttf') format('truetype');         font-weight: 400; font-style: normal; font-display: swap; }
+@font-face { font-family: 'EB Garamond'; src: url('../fonts/EBGaramond-Italic.ttf') format('truetype');          font-weight: 400; font-style: italic; font-display: swap; }
+@font-face { font-family: 'EB Garamond'; src: url('../fonts/EBGaramond-Medium.ttf') format('truetype');          font-weight: 500; font-style: normal; font-display: swap; }
+@font-face { font-family: 'EB Garamond'; src: url('../fonts/EBGaramond-MediumItalic.ttf') format('truetype');    font-weight: 500; font-style: italic; font-display: swap; }
+@font-face { font-family: 'EB Garamond'; src: url('../fonts/EBGaramond-SemiBold.ttf') format('truetype');        font-weight: 600; font-style: normal; font-display: swap; }
+@font-face { font-family: 'EB Garamond'; src: url('../fonts/EBGaramond-SemiBoldItalic.ttf') format('truetype');  font-weight: 600; font-style: italic; font-display: swap; }
+@font-face { font-family: 'EB Garamond'; src: url('../fonts/EBGaramond-Bold.ttf') format('truetype');            font-weight: 700; font-style: normal; font-display: swap; }
+@font-face { font-family: 'EB Garamond'; src: url('../fonts/EBGaramond-BoldItalic.ttf') format('truetype');      font-weight: 700; font-style: italic; font-display: swap; }
+@font-face { font-family: 'EB Garamond'; src: url('../fonts/EBGaramond-ExtraBold.ttf') format('truetype');       font-weight: 800; font-style: normal; font-display: swap; }
+@font-face { font-family: 'EB Garamond'; src: url('../fonts/EBGaramond-ExtraBoldItalic.ttf') format('truetype'); font-weight: 800; font-style: italic; font-display: swap; }
+
+:root {
+  /* --- Brand palette — THE LEADS ------------------------ */
+  --cypher-blue:   #382aff;   /* Primary — logomark, data, links */
+  --cypher-accent: #00ede6;   /* Accent — emphasis, anchors, highlights */
+  --cypher-black:  #37373a;   /* Neutral ink — body copy, headings */
+  --cypher-grey:   #c1c1c1;   /* Dividers, rules, quiet surfaces */
+  --cypher-white:  #ffffff;
+
+  /* --- Extended neutrals (derived, kept quiet) ---------- */
+  --cypher-ink-90: #37373a;
+  --cypher-ink-70: #5b5b5e;
+  --cypher-ink-50: #8a8a8d;
+  --cypher-ink-30: #c1c1c1;
+  --cypher-ink-15: #e3e3e4;
+  --cypher-ink-08: #f1f1f2;
+  --cypher-ink-04: #f8f8f9;
+
+  /* --- Tints of Cypher Blue (for backgrounds / hovers) -- */
+  --blue-tint-04:  #f2f1ff;
+  --blue-tint-08:  #e6e4ff;
+  --blue-tint-12:  #d6d3ff;
+  --blue-hover:    #2d21d6;   /* Pressed / hover of primary */
+  --blue-press:    #241ab0;
+
+  /* --- Semantic ---------------------------------------- */
+  --fg-1: var(--cypher-black);        /* Primary text */
+  --fg-2: var(--cypher-ink-70);       /* Secondary text */
+  --fg-3: var(--cypher-ink-50);       /* Muted / captions */
+  --fg-invert: var(--cypher-white);
+
+  --bg-1: var(--cypher-white);        /* Default surface */
+  --bg-2: var(--cypher-ink-04);       /* Quiet surface */
+  --bg-3: var(--cypher-ink-08);       /* Card on quiet */
+  --bg-ink: var(--cypher-black);      /* Dark surface */
+  --bg-brand: var(--cypher-blue);     /* Brand flood */
+
+  --accent: var(--cypher-accent);
+  --link: var(--cypher-blue);
+  --rule: var(--cypher-grey);         /* 1pt hairlines */
+  --rule-strong: var(--cypher-ink-70);
+
+  --focus-ring: 0 0 0 3px rgba(56, 42, 255, 0.35);
+
+  /* --- Type families ----------------------------------- */
+  --font-sans:    'Poppins', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+  --font-accent:  'EB Garamond', 'Iowan Old Style', Georgia, serif;
+  --font-mono:    ui-monospace, 'SF Mono', Menlo, Consolas, monospace;
+
+  /* --- Type scale (fluid-ish, but deterministic) ------- */
+  --fs-display:   72px;
+  --fs-h1:        48px;
+  --fs-h2:        36px;
+  --fs-h3:        28px;
+  --fs-h4:        22px;
+  --fs-subtitle:  16px;   /* Poppins Medium, uppercase-ish label */
+  --fs-body:      16px;
+  --fs-small:     14px;
+  --fs-micro:     12px;
+
+  --lh-tight:     1.1;
+  --lh-snug:      1.25;
+  --lh-normal:    1.45;
+  --lh-relaxed:   1.6;
+
+  /* --- Weights ----------------------------------------- */
+  --fw-light:     300;   /* Body copy (Poppins Light) */
+  --fw-regular:   400;
+  --fw-medium:    500;   /* Subtitles */
+  --fw-semibold:  600;
+  --fw-bold:      700;   /* Data + metrics */
+
+  /* --- Spacing ----------------------------------------- */
+  --space-1:  4px;
+  --space-2:  8px;
+  --space-3:  12px;
+  --space-4:  16px;
+  --space-5:  24px;
+  --space-6:  32px;
+  --space-7:  48px;
+  --space-8:  64px;
+  --space-9:  96px;
+
+  /* --- Radius ------------------------------------------ */
+  --radius-none: 0px;
+  --radius-sm:   4px;
+  --radius-md:   8px;
+  --radius-lg:   14px;
+  --radius-xl:   22px;
+  --radius-pill: 999px;
+
+  /* --- Shadows (used sparingly — brand prefers rules) -- */
+  --shadow-xs: 0 1px 2px rgba(55, 55, 58, 0.06);
+  --shadow-sm: 0 2px 6px rgba(55, 55, 58, 0.08);
+  --shadow-md: 0 8px 24px rgba(55, 55, 58, 0.10);
+  --shadow-lg: 0 18px 48px rgba(55, 55, 58, 0.14);
+  --shadow-brand: 0 14px 40px rgba(56, 42, 255, 0.25);
+
+  /* --- Borders ----------------------------------------- */
+  --border-hair:   1px solid var(--rule);         /* 1pt, per brand */
+  --border-strong: 1px solid var(--cypher-black);
+  --border-brand:  1px solid var(--cypher-blue);
+
+  /* --- Motion ------------------------------------------ */
+  --ease-out:      cubic-bezier(0.22, 0.61, 0.36, 1);
+  --ease-in-out:   cubic-bezier(0.65, 0, 0.35, 1);
+  --dur-quick:     120ms;
+  --dur-base:      200ms;
+  --dur-slow:      380ms;
+}
+
+/* =========================================================
+   Semantic element styles — use these directly on tags when
+   you want the "default" Safecypher typography without
+   hand-assembling the tokens.
+   ========================================================= */
+
+html, body {
+  font-family: var(--font-sans);
+  font-weight: var(--fw-light);
+  font-size: var(--fs-body);
+  line-height: var(--lh-relaxed);
+  color: var(--fg-1);
+  background: var(--bg-1);
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+
+h1, .h1 {
+  font-family: var(--font-sans);
+  font-weight: var(--fw-medium);
+  font-size: var(--fs-h1);
+  line-height: var(--lh-tight);
+  letter-spacing: -0.015em;
+  color: var(--fg-1);
+}
+h2, .h2 {
+  font-family: var(--font-sans);
+  font-weight: var(--fw-medium);
+  font-size: var(--fs-h2);
+  line-height: var(--lh-snug);
+  letter-spacing: -0.012em;
+  color: var(--fg-1);
+}
+h3, .h3 {
+  font-family: var(--font-sans);
+  font-weight: var(--fw-medium);
+  font-size: var(--fs-h3);
+  line-height: var(--lh-snug);
+  color: var(--fg-1);
+}
+h4, .h4 {
+  font-family: var(--font-sans);
+  font-weight: var(--fw-medium);
+  font-size: var(--fs-h4);
+  line-height: var(--lh-snug);
+  color: var(--fg-1);
+}
+
+/* Display — the EB Garamond accent headline that appears in
+   statements like "The Simple Answer for Issuers." */
+.accent, .display-accent {
+  font-family: var(--font-accent);
+  font-weight: var(--fw-regular);
+  font-size: var(--fs-display);
+  line-height: 1.08;
+  letter-spacing: -0.005em;
+  color: var(--fg-1);
+}
+
+/* Subtitle — the small Poppins-Medium label above sections:
+   "PRIMARY (DEFAULT)", "ARCHITECTURE PRINCIPLES", etc.
+   Per brand: sentence case OR uppercase label — we expose both. */
+.subtitle {
+  font-family: var(--font-sans);
+  font-weight: var(--fw-medium);
+  font-size: var(--fs-subtitle);
+  line-height: var(--lh-snug);
+  color: var(--fg-1);
+}
+.eyebrow {
+  font-family: var(--font-sans);
+  font-weight: var(--fw-medium);
+  font-size: var(--fs-micro);
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--cypher-blue);
+}
+
+/* Body copy — Poppins Light, per brand */
+p, .body {
+  font-family: var(--font-sans);
+  font-weight: var(--fw-light);
+  font-size: var(--fs-body);
+  line-height: var(--lh-relaxed);
+  color: var(--fg-1);
+  text-wrap: pretty;
+}
+.body-sm { font-size: var(--fs-small); }
+.caption { font-size: var(--fs-micro); color: var(--fg-3); }
+
+/* Links — underlined, Cypher Blue */
+a, .link {
+  color: var(--link);
+  text-decoration: underline;
+  text-decoration-thickness: 1px;
+  text-underline-offset: 2px;
+  transition: color var(--dur-quick) var(--ease-out);
+}
+a:hover, .link:hover { color: var(--blue-hover); }
+
+/* Data & metrics — big, Cypher Blue, with Accent underline */
+.metric {
+  font-family: var(--font-sans);
+  font-weight: var(--fw-bold);
+  font-size: 96px;
+  line-height: 1;
+  letter-spacing: -0.02em;
+  color: var(--cypher-blue);
+}
+.metric-label {
+  font-family: var(--font-sans);
+  font-weight: var(--fw-light);
+  font-size: var(--fs-small);
+  color: var(--fg-1);
+  padding-top: var(--space-3);
+  border-top: 2px solid var(--cypher-blue);
+  display: block;
+}
+.metric-label--accent { border-top-color: var(--cypher-accent); }
+
+/* Inline emphasis */
+strong, b { font-weight: var(--fw-medium); }
+em, i    { font-style: italic; }
+
+/* Horizontal / vertical rules — 1pt Cypher Grey, per brand */
+hr {
+  border: none;
+  border-top: 1px solid var(--rule);
+  margin: var(--space-7) 0;
+}
+.v-rule { width: 1px; background: var(--rule); align-self: stretch; }
+
+/* Monospace — used for codes, card numbers, CVVs */
+code, kbd, pre, .mono {
+  font-family: var(--font-mono);
+  font-size: 0.95em;
+}
+
+/* Selection */
+::selection { background: var(--cypher-accent); color: var(--cypher-black); }
+
+/* Focus */
+:focus-visible { outline: none; box-shadow: var(--focus-ring); border-radius: var(--radius-sm); }
+
+</style>
+
+<style>
+  html, body { margin: 0; padding: 0; background: #000; }
+
+  /* All slides share these foundations */
+  .slide {
+    font-family: var(--font-sans);
+    color: var(--cypher-black);
+    background: var(--cypher-white);
+    display: grid;
+    overflow: hidden;
+  }
+  .slide, .slide * { box-sizing: border-box; }
+
+  /* ============================================================
+     Shared chrome — footer lockup, page number, safe margins
+     (Master deck uses 1920×1080; keeps generous 96px outer safe area)
+     ============================================================ */
+  .chrome-footer {
+    position: absolute; left: 96px; right: 96px; bottom: 48px;
+    display: flex; align-items: center; justify-content: space-between;
+    font-size: 14px; color: var(--cypher-ink-50); letter-spacing: 0.04em;
+    font-weight: 500;
+  }
+  .chrome-footer .left { display: flex; align-items: center; gap: 14px; }
+  .chrome-footer .wordmark {
+    font-family: var(--font-sans); font-weight: 700; letter-spacing: -0.01em;
+    font-size: 18px; color: var(--cypher-black);
+  }
+  .chrome-footer .wordmark span.blue { color: var(--cypher-blue); }
+  .chrome-footer .divider { width: 1px; height: 14px; background: var(--cypher-ink-30); }
+  .page-num {
+    font-family: var(--font-mono); font-size: 13px; color: var(--cypher-ink-50);
+    font-variant-numeric: tabular-nums;
+  }
+  .eyebrow {
+    font-size: 14px; font-weight: 600; letter-spacing: 0.14em; text-transform: uppercase;
+    color: var(--cypher-blue);
+  }
+
+  /* Accent italic, EB Garamond */
+  .accent-italic { font-family: var(--font-accent); font-style: italic; font-weight: 500; }
+
+  /* ============================================================
+     SLIDE 1 — Cover
+     ============================================================ */
+  .s-cover {
+    background: var(--cypher-white);
+    grid-template-columns: 1fr 1fr;
+  }
+  .s-cover .left {
+    display: flex; flex-direction: column; justify-content: space-between;
+    padding: 120px 72px 64px 96px;
+  }
+  .s-cover .logo-stack { display: flex; flex-direction: column; gap: 12px; }
+  .s-cover .logo-stack .wordmark {
+    font-size: 96px; font-weight: 700; letter-spacing: -0.035em; line-height: 0.95;
+    color: var(--cypher-black);
+  }
+  .s-cover .logo-stack .wordmark span.blue { color: var(--cypher-blue); }
+  .s-cover .strapline {
+    font-family: var(--font-accent); font-style: italic; font-size: 32px;
+    color: var(--cypher-black); font-weight: 400; letter-spacing: 0.02em;
+  }
+  .s-cover .meta {
+    display: flex; flex-direction: column; gap: 8px;
+    font-size: 16px; color: var(--cypher-ink-70);
+  }
+  .s-cover .meta a { color: var(--cypher-blue); text-decoration: none; font-weight: 500; }
+  .s-cover .meta .copy { color: var(--cypher-ink-50); font-size: 13px; }
+  .s-cover .right {
+    position: relative; background: linear-gradient(160deg, #e6e4ff 0%, #d6d3ff 100%);
+    overflow: hidden;
+  }
+  .s-cover .right::before {
+    content: ""; position: absolute; inset: 0;
+    background: radial-gradient(circle at 70% 40%, rgba(255,255,255,0.6), transparent 60%);
+  }
+  .s-cover .phone-frame {
+    position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);
+    width: 420px; height: 780px; border-radius: 60px;
+    background: linear-gradient(180deg, rgba(255,255,255,0.7), rgba(255,255,255,0.4));
+    border: 2px solid rgba(255,255,255,0.6);
+    box-shadow:
+      0 40px 80px rgba(56,42,255,0.15),
+      inset 0 2px 4px rgba(255,255,255,0.8),
+      0 0 0 1px rgba(56,42,255,0.08);
+    backdrop-filter: blur(20px);
+    display: flex; flex-direction: column; padding: 40px 32px;
+  }
+  .s-cover .phone-bar {
+    display: flex; justify-content: space-between; font-size: 14px;
+    color: var(--cypher-blue); font-weight: 600; margin-bottom: 160px;
+  }
+  .s-cover .card-back {
+    width: 100%; height: 240px; border-radius: 16px;
+    background: linear-gradient(145deg, rgba(255,255,255,0.8), rgba(230,228,255,0.6));
+    border: 1px solid rgba(255,255,255,0.7);
+    box-shadow: 0 20px 40px rgba(56,42,255,0.18);
+    padding: 24px; display: flex; flex-direction: column; gap: 18px;
+    position: relative;
+  }
+  .s-cover .mag-stripe {
+    width: 100%; height: 44px; background: #1a1a1f; border-radius: 2px;
+  }
+  .s-cover .cvv-row {
+    display: flex; align-items: center; gap: 12px;
+    background: var(--cypher-white); padding: 10px 14px; border-radius: 4px;
+  }
+  .s-cover .cvv-signature { flex: 1; height: 12px; background: repeating-linear-gradient(-45deg, transparent 0 4px, var(--cypher-ink-15) 4px 6px); }
+  .s-cover .cvv {
+    font-family: var(--font-mono); font-weight: 700; font-size: 20px;
+    color: var(--cypher-black); letter-spacing: 0.05em;
+    font-variant-numeric: tabular-nums;
+  }
+  .s-cover .fineprint {
+    font-size: 7px; color: var(--cypher-ink-50); letter-spacing: 0.04em;
+    text-align: center; line-height: 1.3;
+  }
+
+  /* ============================================================
+     SLIDE 2 — Stat Hero (800,000)
+     ============================================================ */
+  .s-stathero {
+    background: var(--cypher-white);
+    grid-template-columns: 1.2fr 1fr;
+    padding: 120px 96px;
+    gap: 96px;
+  }
+  .s-stathero .col-left { display: flex; flex-direction: column; justify-content: center; }
+  .s-stathero .huge-stat {
+    font-family: var(--font-sans); font-weight: 700;
+    font-size: 200px; line-height: 0.92; letter-spacing: -0.05em;
+    color: var(--cypher-blue);
+    margin-bottom: 24px;
+  }
+  .s-stathero .stat-label {
+    font-size: 28px; color: var(--cypher-black); font-weight: 500; line-height: 1.3;
+    max-width: 560px;
+  }
+  .s-stathero .col-right { display: flex; flex-direction: column; justify-content: center; gap: 20px; }
+  .s-stathero h3 {
+    font-size: 20px; font-weight: 600; color: var(--cypher-blue);
+    margin: 0 0 8px 0; letter-spacing: 0.06em; text-transform: uppercase;
+  }
+  .s-stathero p {
+    font-size: 18px; line-height: 1.55; color: var(--cypher-ink-70);
+    margin: 0; max-width: 520px;
+  }
+
+  /* ============================================================
+     SLIDE 3 — Split narrative + KPI
+     ============================================================ */
+  .s-split {
+    grid-template-columns: 1fr 1fr;
+  }
+  .s-split .col-left {
+    padding: 120px 72px 96px 96px;
+    display: flex; flex-direction: column; justify-content: space-between;
+    background: var(--cypher-white);
+  }
+  .s-split .hed { max-width: 640px; }
+  .s-split .hed .accent-italic { font-size: 52px; color: var(--cypher-blue); line-height: 1.05; display: block; margin-bottom: 12px; }
+  .s-split .hed .serious { font-size: 68px; font-weight: 700; color: var(--cypher-black); letter-spacing: -0.02em; line-height: 1.02; }
+  .s-split .copy {
+    font-size: 18px; line-height: 1.6; color: var(--cypher-ink-70); max-width: 560px;
+    margin-top: 56px;
+  }
+  .s-split .copy .key { color: var(--cypher-black); font-weight: 600; }
+  .s-split .col-right {
+    background: var(--cypher-black);
+    color: var(--cypher-white);
+    display: flex; flex-direction: column; justify-content: center; align-items: flex-start;
+    padding: 120px 96px;
+    position: relative;
+    overflow: hidden;
+  }
+  .s-split .col-right::before {
+    content: ""; position: absolute;
+    inset: 0;
+    background:
+      radial-gradient(circle at 80% 20%, rgba(56,42,255,0.4), transparent 60%),
+      radial-gradient(circle at 20% 80%, rgba(0,237,230,0.15), transparent 60%);
+  }
+  .s-split .kpi-number {
+    font-size: 180px; font-weight: 700; letter-spacing: -0.045em; line-height: 0.95;
+    color: var(--cypher-white); position: relative;
+  }
+  .s-split .kpi-label {
+    font-size: 20px; font-weight: 500; color: rgba(255,255,255,0.7);
+    margin-top: 16px; max-width: 400px; line-height: 1.4; position: relative;
+  }
+
+  /* ============================================================
+     SLIDE 4 — 3-column pillars (Transactions / People / Agents)
+     ============================================================ */
+  .s-pillars {
+    background: var(--cypher-white);
+    padding: 96px 96px 80px;
+    grid-template-rows: auto auto 1fr;
+    gap: 48px;
+  }
+  .s-pillars .header { max-width: 1200px; }
+  .s-pillars .accent-italic { font-size: 52px; color: var(--cypher-blue); display: block; line-height: 1.05; margin-bottom: 12px; }
+  .s-pillars h1 {
+    font-size: 64px; font-weight: 700; color: var(--cypher-black);
+    letter-spacing: -0.02em; line-height: 1.02; margin: 0;
+  }
+  .s-pillars .sub {
+    font-size: 18px; line-height: 1.55; color: var(--cypher-ink-70);
+    max-width: 780px; margin: 0;
+  }
+  .s-pillars .cols {
+    display: grid; grid-template-columns: repeat(3, 1fr); gap: 24px;
+  }
+  .s-pillars .pillar {
+    background: var(--cypher-ink-04);
+    border: 1px solid var(--cypher-ink-15);
+    border-radius: 20px;
+    padding: 40px 36px 36px;
+    display: flex; flex-direction: column; gap: 20px;
+    position: relative;
+  }
+  .s-pillars .pillar .icon-badge {
+    width: 56px; height: 56px; border-radius: 14px;
+    background: var(--cypher-blue); color: white;
+    display: grid; place-items: center;
+  }
+  .s-pillars .pillar .icon-badge svg { width: 28px; height: 28px; stroke: white; stroke-width: 1.8; fill: none; }
+  .s-pillars .pillar h3 {
+    font-size: 24px; font-weight: 600; color: var(--cypher-black);
+    margin: 0; letter-spacing: -0.01em;
+  }
+  .s-pillars .pillar p {
+    font-size: 15px; line-height: 1.6; color: var(--cypher-ink-70); margin: 0;
+  }
+  .s-pillars .pillar .tag {
+    font-size: 12px; font-weight: 600; letter-spacing: 0.14em;
+    text-transform: uppercase; color: var(--cypher-blue);
+    margin-top: auto;
+  }
+
+  /* ============================================================
+     SLIDE 5 — 3 KPI cards with quote
+     ============================================================ */
+  .s-kpi3 {
+    background: var(--cypher-white);
+    padding: 96px;
+    grid-template-columns: 1fr 1fr 1fr;
+    grid-template-rows: auto auto 1fr;
+    gap: 32px;
+  }
+  .s-kpi3 .header { grid-column: 1 / -1; max-width: 900px; }
+  .s-kpi3 .accent-italic { font-size: 44px; color: var(--cypher-blue); display: block; line-height: 1.05; }
+  .s-kpi3 h1 { font-size: 64px; font-weight: 700; margin: 8px 0 0; color: var(--cypher-black); letter-spacing: -0.02em; line-height: 1.02; }
+  .s-kpi3 .kpi {
+    background: linear-gradient(160deg, #f2f1ff 0%, #e6e4ff 100%);
+    border-radius: 20px; padding: 40px 36px;
+    display: flex; flex-direction: column; gap: 10px;
+  }
+  .s-kpi3 .kpi .value {
+    font-size: 88px; font-weight: 700; color: var(--cypher-blue);
+    letter-spacing: -0.035em; line-height: 1;
+  }
+  .s-kpi3 .kpi .metric {
+    font-size: 14px; font-weight: 600; color: var(--cypher-ink-70);
+    letter-spacing: 0.12em; text-transform: uppercase;
+  }
+  .s-kpi3 .kpi .note {
+    font-size: 15px; color: var(--cypher-ink-70); line-height: 1.5; margin-top: auto;
+  }
+  .s-kpi3 .quote {
+    grid-column: 1 / -1;
+    border-left: 3px solid var(--cypher-blue);
+    padding: 16px 0 16px 24px;
+    margin-top: 16px;
+  }
+  .s-kpi3 .quote .q {
+    font-family: var(--font-accent); font-style: italic; font-weight: 500;
+    font-size: 28px; color: var(--cypher-black); line-height: 1.35; max-width: 1200px;
+  }
+  .s-kpi3 .quote .attrib {
+    font-size: 14px; color: var(--cypher-ink-50); margin-top: 12px;
+  }
+  .s-kpi3 .quote .attrib strong { color: var(--cypher-black); font-weight: 600; }
+
+  /* ============================================================
+     SLIDE 6 — Results + 3 columns with image
+     ============================================================ */
+  .s-results {
+    background: var(--cypher-white);
+    grid-template-columns: 1fr 1fr;
+  }
+  .s-results .col-left {
+    padding: 96px 72px 80px 96px;
+    display: flex; flex-direction: column; gap: 32px;
+  }
+  .s-results .hed .accent-italic { font-size: 44px; color: var(--cypher-blue); display: block; line-height: 1.05; }
+  .s-results .hed h1 { font-size: 64px; font-weight: 700; margin: 8px 0 0; color: var(--cypher-black); letter-spacing: -0.02em; line-height: 1.02; }
+  .s-results .bullets { display: flex; flex-direction: column; gap: 28px; margin-top: 16px; }
+  .s-results .bullet { display: grid; grid-template-columns: 28px 1fr; gap: 16px; align-items: start; }
+  .s-results .bullet .num {
+    font-family: var(--font-mono); font-size: 14px; font-weight: 600;
+    color: var(--cypher-blue); letter-spacing: 0.06em;
+  }
+  .s-results .bullet p { margin: 0; font-size: 16px; line-height: 1.6; color: var(--cypher-ink-70); }
+  .s-results .bullet p strong { color: var(--cypher-black); font-weight: 600; }
+  .s-results .col-right {
+    background: linear-gradient(160deg, #d6d3ff 0%, #b8b3ff 100%);
+    position: relative; overflow: hidden;
+    display: grid; place-items: center;
+  }
+  .s-results .col-right::before {
+    content: ""; position: absolute; inset: 0;
+    background: radial-gradient(circle at 30% 20%, rgba(255,255,255,0.5), transparent 60%);
+  }
+  .s-results .placeholder-badge {
+    position: absolute; top: 24px; right: 24px;
+    font-family: var(--font-mono); font-size: 11px; color: rgba(56,42,255,0.6);
+    padding: 6px 10px; background: rgba(255,255,255,0.5); border-radius: 4px;
+    letter-spacing: 0.08em; text-transform: uppercase;
+  }
+  .s-results .card-iso {
+    width: 60%; height: 45%; border-radius: 18px;
+    background: linear-gradient(145deg, rgba(255,255,255,0.9), rgba(230,228,255,0.7));
+    box-shadow: 0 40px 80px rgba(56,42,255,0.2), inset 0 2px 4px rgba(255,255,255,0.8);
+    border: 1px solid rgba(255,255,255,0.6);
+    transform: rotate(-4deg) perspective(1000px) rotateX(10deg);
+    display: flex; flex-direction: column; padding: 32px; gap: 20px; justify-content: flex-end;
+  }
+  .s-results .card-iso .stripe { height: 56px; background: #1a1a1f; border-radius: 3px; }
+  .s-results .card-iso .sig { background: white; height: 34px; border-radius: 3px; display: flex; align-items: center; justify-content: flex-end; padding: 0 14px; }
+  .s-results .card-iso .sig span { font-family: var(--font-mono); font-weight: 700; font-size: 20px; color: var(--cypher-black); }
+
+  /* ============================================================
+     SLIDE 7 — 3-KPI grid
+     ============================================================ */
+  .s-kpigrid {
+    background: var(--cypher-white);
+    padding: 96px;
+    grid-template-rows: auto 1fr;
+    gap: 48px;
+  }
+  .s-kpigrid .header .accent-italic { font-size: 52px; color: var(--cypher-blue); display: inline; }
+  .s-kpigrid .header .bold { font-size: 64px; font-weight: 700; color: var(--cypher-black); letter-spacing: -0.02em; line-height: 1.02; display: block; margin-top: 4px; }
+  .s-kpigrid .header .sub { font-size: 22px; color: var(--cypher-ink-70); margin-top: 12px; font-weight: 400; display: block; }
+  .s-kpigrid .grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 24px; }
+  .s-kpigrid .kpi {
+    background: var(--cypher-black); color: var(--cypher-white);
+    border-radius: 20px; padding: 48px 44px; position: relative; overflow: hidden;
+    display: flex; flex-direction: column; gap: 16px; justify-content: flex-end;
+    min-height: 440px;
+  }
+  .s-kpigrid .kpi:nth-child(2) { background: var(--cypher-blue); }
+  .s-kpigrid .kpi:nth-child(3) { background: var(--cypher-ink-04); color: var(--cypher-black); }
+  .s-kpigrid .kpi .value { font-size: 112px; font-weight: 700; letter-spacing: -0.04em; line-height: 1; }
+  .s-kpigrid .kpi:nth-child(3) .value { color: var(--cypher-blue); }
+  .s-kpigrid .kpi .label { font-size: 18px; line-height: 1.4; opacity: 0.85; max-width: 320px; }
+  .s-kpigrid .kpi:nth-child(3) .label { color: var(--cypher-ink-70); opacity: 1; }
+
+  /* ============================================================
+     SLIDE 8 — Big statement (Eliminate. Not reduce.)
+     ============================================================ */
+  .s-statement {
+    background: var(--cypher-black); color: var(--cypher-white);
+    padding: 96px;
+    grid-template-columns: 1fr 1fr;
+    gap: 96px;
+    align-items: center;
+  }
+  .s-statement .col-left { display: flex; flex-direction: column; gap: 24px; }
+  .s-statement .eyebrow { color: var(--cypher-accent); }
+  .s-statement .statement {
+    font-size: 140px; font-weight: 700; letter-spacing: -0.045em; line-height: 0.98;
+    color: var(--cypher-white);
+  }
+  .s-statement .statement .struck {
+    display: block; color: rgba(255,255,255,0.3);
+    font-family: var(--font-accent); font-style: italic; font-size: 72px;
+    font-weight: 400; text-decoration: line-through; text-decoration-thickness: 3px;
+    letter-spacing: 0;
+  }
+  .s-statement .col-right {
+    display: flex; flex-direction: column; justify-content: center; gap: 16px;
+  }
+  .s-statement .col-right h3 {
+    font-size: 20px; font-weight: 600; color: var(--cypher-accent);
+    letter-spacing: 0.14em; text-transform: uppercase; margin: 0 0 8px;
+  }
+  .s-statement .col-right p {
+    font-size: 18px; line-height: 1.6; color: rgba(255,255,255,0.75); margin: 0;
+    max-width: 540px;
+  }
+
+  /* ============================================================
+     SLIDE 9 — Integrate once. Unlock everything.
+     ============================================================ */
+  .s-unlock {
+    background: var(--cypher-white);
+    padding: 96px;
+    grid-template-columns: 1.2fr 1fr;
+    gap: 64px;
+    align-items: center;
+  }
+  .s-unlock .hed { display: flex; flex-direction: column; gap: 16px; }
+  .s-unlock .hed .accent-italic { font-size: 56px; color: var(--cypher-blue); line-height: 1.02; }
+  .s-unlock .hed .big { font-size: 84px; font-weight: 700; letter-spacing: -0.03em; color: var(--cypher-black); line-height: 0.98; }
+  .s-unlock .hed .big .blue { color: var(--cypher-blue); }
+  .s-unlock .body { display: flex; flex-direction: column; gap: 24px; }
+  .s-unlock .lead {
+    font-size: 18px; line-height: 1.6; color: var(--cypher-ink-70); max-width: 640px; margin: 0;
+  }
+  .s-unlock .kpi-inline {
+    display: flex; align-items: baseline; gap: 20px;
+    padding: 32px 40px;
+    background: linear-gradient(90deg, #f2f1ff 0%, transparent 100%);
+    border-left: 4px solid var(--cypher-blue); border-radius: 4px;
+  }
+  .s-unlock .kpi-inline .v { font-size: 80px; font-weight: 700; color: var(--cypher-blue); letter-spacing: -0.04em; line-height: 0.95; }
+  .s-unlock .kpi-inline .m { font-size: 16px; color: var(--cypher-ink-70); line-height: 1.4; max-width: 220px; }
+
+  /* ============================================================
+     SLIDE 10 — The human cost (1 in 4 / £360)
+     ============================================================ */
+  .s-humancost {
+    background: var(--cypher-white);
+    padding: 96px;
+    grid-template-rows: auto auto 1fr auto;
+    gap: 48px;
+  }
+  .s-humancost .eyebrow { color: var(--cypher-blue); }
+  .s-humancost h1 {
+    font-size: 72px; font-weight: 700; color: var(--cypher-black);
+    letter-spacing: -0.025em; line-height: 1.02; margin: 0; max-width: 900px;
+  }
+  .s-humancost h1 .italic {
+    font-family: var(--font-accent); font-style: italic; font-weight: 500; color: var(--cypher-blue);
+  }
+  .s-humancost .stats { display: grid; grid-template-columns: 1fr 1fr; gap: 64px; }
+  .s-humancost .stat {
+    display: grid; grid-template-columns: auto 1fr; gap: 32px; align-items: start;
+    padding: 40px 0;
+    border-top: 1px solid var(--cypher-ink-15);
+  }
+  .s-humancost .stat .fraction {
+    font-size: 140px; font-weight: 700; color: var(--cypher-blue);
+    letter-spacing: -0.04em; line-height: 0.95; display: flex; align-items: baseline; gap: 6px;
+  }
+  .s-humancost .stat .fraction .word {
+    font-family: var(--font-accent); font-style: italic; font-weight: 400;
+    font-size: 48px; color: var(--cypher-ink-70);
+  }
+  .s-humancost .stat .copy { padding-top: 24px; }
+  .s-humancost .stat .copy p { font-size: 16px; line-height: 1.6; color: var(--cypher-ink-70); margin: 0; max-width: 340px; }
+
+  /* ============================================================
+     SLIDE 11 — Five beliefs (numbered list)
+     ============================================================ */
+  .s-beliefs {
+    background: var(--cypher-white);
+    padding: 96px;
+    grid-template-columns: 1fr 2fr;
+    gap: 80px;
+  }
+  .s-beliefs .col-left { display: flex; flex-direction: column; gap: 24px; justify-content: space-between; }
+  .s-beliefs .col-left .eyebrow { color: var(--cypher-blue); }
+  .s-beliefs .col-left h1 {
+    font-size: 56px; font-weight: 700; color: var(--cypher-black);
+    letter-spacing: -0.02em; line-height: 1.02; margin: 0;
+  }
+  .s-beliefs .col-left h1 .it { font-family: var(--font-accent); font-style: italic; font-weight: 500; color: var(--cypher-blue); display: block; }
+  .s-beliefs .col-left .footnote {
+    font-size: 14px; color: var(--cypher-ink-50); max-width: 340px; line-height: 1.5;
+  }
+  .s-beliefs .list { display: flex; flex-direction: column; }
+  .s-beliefs .belief {
+    display: grid; grid-template-columns: 72px 1fr; gap: 28px;
+    padding: 24px 0; border-top: 1px solid var(--cypher-ink-15);
+    align-items: baseline;
+  }
+  .s-beliefs .belief:last-child { border-bottom: 1px solid var(--cypher-ink-15); }
+  .s-beliefs .belief .num {
+    font-family: var(--font-mono); font-weight: 500; font-size: 14px;
+    color: var(--cypher-blue); letter-spacing: 0.1em;
+  }
+  .s-beliefs .belief .text {
+    font-size: 32px; font-weight: 600; color: var(--cypher-black);
+    letter-spacing: -0.01em; line-height: 1.15;
+  }
+  .s-beliefs .belief .text .it { font-family: var(--font-accent); font-style: italic; font-weight: 500; color: var(--cypher-blue); }
+</style>
+
+<style>
+  html, body { margin: 0; padding: 0; background: #fff; font-family: var(--font-sans); }
+  .wrap { padding: 24px; display: grid; grid-template-columns: repeat(4, 1fr); gap: 20px; }
+  .thumb {
+    position: relative;
+    aspect-ratio: 16 / 9;
+    border-radius: 10px;
+    border: 1px solid var(--cypher-ink-15);
+    overflow: hidden;
+    background: var(--cypher-ink-04);
+  }
+  .thumb-inner {
+    position: absolute; top: 0; left: 0;
+    width: 1920px;
+    height: 1080px;
+    transform: scale(var(--scale, 0.2));
+    transform-origin: top left;
+  }
+  .thumb-inner .slide {
+    position: static;
+    width: 1920px;
+    height: 1080px;
+  }
+  .label {
+    position: absolute; left: 10px; bottom: 8px;
+    font-size: 11px; font-weight: 600;
+    color: var(--cypher-ink-70);
+    background: rgba(255,255,255,0.9);
+    padding: 3px 8px; border-radius: 4px;
+    font-variant-numeric: tabular-nums; z-index: 2;
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="thumb">
+    <div class="thumb-inner">
+      <section class="slide s-cover" style="width:1920px;height:1080px;">
+    <div class="left">
+      <div class="eyebrow">Master Deck · Q2 2026</div>
+      <div class="logo-stack">
+        <div class="wordmark"><span class="blue">Safe</span>cypher</div>
+        <div class="strapline">Authenticating Trust.</div>
+      </div>
+      <div class="meta">
+        <a href="#">www.safecypher.com</a>
+        <div class="copy">© 2026 SafeCypher Ltd. All rights reserved.</div>
+      </div>
+    </div>
+    <div class="right">
+      <div class="phone-frame">
+        <div class="phone-bar"><span>•••• 5G</span><span>10:30</span></div>
+        <div class="card-back">
+          <div class="mag-stripe"></div>
+          <div class="cvv-row">
+            <div class="cvv-signature"></div>
+            <div class="cvv">734</div>
+          </div>
+          <div class="fineprint">
+            AUTHORIZED SIGNATURE · NOT VALID UNLESS SIGNED · ISSUED BY PAYSPHERE BANK<br>
+            +1-800-123-4567 · FOR LOST OR STOLEN CARDS · WWW.PAYSPHERE.COM
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+    </div>
+    <div class="label">01 · Cover</div>
+  </div>
+
+  <div class="thumb">
+    <div class="thumb-inner">
+      <section class="slide s-stathero" style="width:1920px;height:1080px;">
+    <div class="col-left">
+      <div class="huge-stat">800,000</div>
+      <div class="stat-label">card-not-present transactions processed through SafeCypher's pilot issuers in Q1 2026.</div>
+    </div>
+    <div class="col-right">
+      <h3>The story</h3>
+      <p>Every one of them authenticated with a dynamic code that expired before it could be stolen. Zero CNP fraud recorded across the pilot window.</p>
+      <p>Static credentials can be copied. Dynamic ones can't. That's the entire thesis, reduced to a single quarter of production traffic.</p>
+    </div>
+    <div class="chrome-footer">
+      <div class="left"><span class="wordmark"><span class="blue">Safe</span>cypher</span><span class="divider"></span><span>Pilot results · 2026</span></div>
+      <div class="page-num">02 / 11</div>
+    </div>
+  </section>
+    </div>
+    <div class="label">02 · Stat Hero</div>
+  </div>
+
+  <div class="thumb">
+    <div class="thumb-inner">
+      <section class="slide s-split" style="width:1920px;height:1080px;">
+    <div class="col-left">
+      <div class="hed">
+        <span class="accent-italic">AI is accelerating fraud.<br>Static credentials can't fight back.</span>
+        <span class="serious">The simple answer for issuers.</span>
+      </div>
+      <p class="copy"><span class="key">SafeCypher puts control back in the issuer's hands.</span> A single integration replaces the static CVV with a dynamic code that changes every few seconds — so stolen card data is worthless by the time a fraudster tries to use it. No new hardware. No cardholder retraining. No disruption to the existing rails.</p>
+    </div>
+    <div class="col-right">
+      <div class="kpi-number">$12bn+</div>
+      <div class="kpi-label">Annual card-not-present fraud losses in the US — still climbing as AI-enabled attacks scale.</div>
+    </div>
+    <div class="chrome-footer" style="color: rgba(255,255,255,0.5);">
+      <div class="left"><span class="wordmark" style="color: white;"><span class="blue">Safe</span>cypher</span><span class="divider" style="background: rgba(255,255,255,0.2);"></span><span>The problem</span></div>
+      <div class="page-num" style="color: rgba(255,255,255,0.5);">03 / 11</div>
+    </div>
+  </section>
+    </div>
+    <div class="label">03 · Simple Answer</div>
+  </div>
+
+  <div class="thumb">
+    <div class="thumb-inner">
+      <section class="slide s-pillars" style="width:1920px;height:1080px;">
+    <div class="header">
+      <span class="accent-italic">Zero compromise.</span>
+      <h1>One integration. Three audiences.</h1>
+    </div>
+    <p class="sub">SafeCypher replaces static payment credentials across every way a card is used today — and every way it will be used tomorrow. One protocol, three surfaces.</p>
+    <div class="cols">
+      <div class="pillar">
+        <div class="icon-badge">
+          <svg viewBox="0 0 24 24"><rect x="3" y="6" width="18" height="13" rx="2"/><path d="M3 10h18"/><path d="M7 15h4"/></svg>
+        </div>
+        <h3>Transactions</h3>
+        <p>Dynamic codes replace static CVVs. Every code is unique, single-use, and expires in seconds. Nothing static remains to steal.</p>
+        <span class="tag">For merchants · PSPs</span>
+      </div>
+      <div class="pillar">
+        <div class="icon-badge">
+          <svg viewBox="0 0 24 24"><circle cx="12" cy="8" r="4"/><path d="M4 21c0-4.4 3.6-8 8-8s8 3.6 8 8"/></svg>
+        </div>
+        <h3>People</h3>
+        <p>Cryptographic identity verification replaces KBA and OTPs. The device itself becomes the credential — no password to phish.</p>
+        <span class="tag">For cardholders</span>
+      </div>
+      <div class="pillar">
+        <div class="icon-badge">
+          <svg viewBox="0 0 24 24"><rect x="5" y="7" width="14" height="12" rx="2"/><path d="M9 7V5a3 3 0 1 1 6 0v2"/><circle cx="12" cy="13" r="1.5"/></svg>
+        </div>
+        <h3>Agents</h3>
+        <p>Human-in-the-loop controls for AI commerce. Every autonomous transaction requires cardholder approval before it clears.</p>
+        <span class="tag">For agentic payments</span>
+      </div>
+    </div>
+    <div class="chrome-footer">
+      <div class="left"><span class="wordmark"><span class="blue">Safe</span>cypher</span><span class="divider"></span><span>Platform overview</span></div>
+      <div class="page-num">04 / 11</div>
+    </div>
+  </section>
+    </div>
+    <div class="label">04 · Three Audiences</div>
+  </div>
+
+  <div class="thumb">
+    <div class="thumb-inner">
+      <section class="slide s-kpi3" style="width:1920px;height:1080px;">
+    <div class="header">
+      <span class="accent-italic">Eliminated.</span>
+      <h1>Zero fraud. Not reduced.</h1>
+    </div>
+    <div class="kpi">
+      <div class="value">$11.3m</div>
+      <div class="metric">Chargeback losses avoided</div>
+      <div class="note">Across the pilot window at a single US issuer, over six months of CNP volume.</div>
+    </div>
+    <div class="kpi">
+      <div class="value">$15.7m</div>
+      <div class="metric">Recovered transaction value</div>
+      <div class="note">Transactions previously declined as high-risk that now clear because authentication is cryptographic.</div>
+    </div>
+    <div class="kpi">
+      <div class="value">$242m</div>
+      <div class="metric">Annualised exposure eliminated</div>
+      <div class="note">Full-portfolio rollout projection. Based on the issuer's historical CNP loss rate × SafeCypher coverage.</div>
+    </div>
+    <div class="quote">
+      <div class="q">"Invisible payments depend on invisible trust. Trust has to be built in, not bolted on."</div>
+      <div class="attrib"><strong>Karen Webster</strong>, CEO, PYMNTS · PYMNTS.com, 2025</div>
+    </div>
+    <div class="chrome-footer">
+      <div class="left"><span class="wordmark"><span class="blue">Safe</span>cypher</span><span class="divider"></span><span>Pilot economics</span></div>
+      <div class="page-num">05 / 11</div>
+    </div>
+  </section>
+    </div>
+    <div class="label">05 · Zero Fraud</div>
+  </div>
+
+  <div class="thumb">
+    <div class="thumb-inner">
+      <section class="slide s-results" style="width:1920px;height:1080px;">
+    <div class="col-left">
+      <div class="hed">
+        <span class="accent-italic">Real results.</span>
+        <h1>Verified at scale.</h1>
+      </div>
+      <div class="bullets">
+        <div class="bullet">
+          <div class="num">01</div>
+          <p><strong>Six months in production</strong> at a top-10 US issuer. Dynamic codes delivered for 100% of eligible CNP transactions with no measured cardholder drop-off.</p>
+        </div>
+        <div class="bullet">
+          <div class="num">02</div>
+          <p><strong>Authorisation lift</strong> on transactions previously flagged as risky. Cryptographic trust lets the issuer approve what it would have declined.</p>
+        </div>
+        <div class="bullet">
+          <div class="num">03</div>
+          <p><strong>Zero cardholder friction</strong>. The dynamic code refreshes in the background; customers see what they've always seen. Only fraudsters notice.</p>
+        </div>
+      </div>
+    </div>
+    <div class="col-right">
+      <div class="placeholder-badge">Product photo</div>
+      <div class="card-iso">
+        <div class="stripe"></div>
+        <div class="sig"><span>734</span></div>
+      </div>
+    </div>
+    <div class="chrome-footer" style="position: absolute; left: 96px; right: auto; width: calc(50% - 96px);">
+      <div class="left"><span class="wordmark"><span class="blue">Safe</span>cypher</span><span class="divider"></span><span>Evidence</span></div>
+      <div class="page-num">06 / 11</div>
+    </div>
+  </section>
+    </div>
+    <div class="label">06 · Results</div>
+  </div>
+
+  <div class="thumb">
+    <div class="thumb-inner">
+      <section class="slide s-kpigrid" style="width:1920px;height:1080px;">
+    <div class="header">
+      <span class="accent-italic">Eliminating </span><span class="accent-italic" style="font-weight:600;">fraud</span>
+      <span class="bold">across every transaction type.</span>
+      <span class="sub">Pilot data across three attack surfaces — each one a growing vector. SafeCypher closes all three.</span>
+    </div>
+    <div class="grid">
+      <div class="kpi">
+        <div class="value">450%</div>
+        <div class="label">Increase in AI agent–driven CNP attempts year-over-year (Visa, 2025).</div>
+      </div>
+      <div class="kpi">
+        <div class="value">80%</div>
+        <div class="label">Of live card details are already circulating on the dark web.</div>
+      </div>
+      <div class="kpi">
+        <div class="value">£360</div>
+        <div class="label">Average loss per CNP fraud victim — often unrecovered at the point it's reported.</div>
+      </div>
+    </div>
+    <div class="chrome-footer">
+      <div class="left"><span class="wordmark"><span class="blue">Safe</span>cypher</span><span class="divider"></span><span>Market context</span></div>
+      <div class="page-num">07 / 11</div>
+    </div>
+  </section>
+    </div>
+    <div class="label">07 · Across All Types</div>
+  </div>
+
+  <div class="thumb">
+    <div class="thumb-inner">
+      <section class="slide s-statement" style="width:1920px;height:1080px;">
+    <div class="col-left">
+      <div class="eyebrow">The SafeCypher position</div>
+      <div class="statement">
+        <span class="struck">Not reduce.</span>
+        Eliminate.
+      </div>
+    </div>
+    <div class="col-right">
+      <h3>Why "eliminate" matters</h3>
+      <p>Every fraud strategy in the market today is a reduction strategy — ML scoring, 3DS challenges, step-up auth. They all assume some fraction will get through and try to minimise it.</p>
+      <p>SafeCypher is different. A dynamic code that expires in seconds can't be stolen, replayed, or phished. The attack surface isn't minimised; it ceases to exist.</p>
+    </div>
+  </section>
+    </div>
+    <div class="label">08 · Eliminate</div>
+  </div>
+
+  <div class="thumb">
+    <div class="thumb-inner">
+      <section class="slide s-unlock" style="width:1920px;height:1080px;">
+    <div class="hed">
+      <span class="accent-italic">Integrate once.</span>
+      <span class="big">Unlock <span class="blue">everything.</span></span>
+    </div>
+    <div class="body">
+      <p class="lead">One API call on the issuer side. Zero changes required at the merchant, the network, or the cardholder. SafeCypher rides the existing rails — we just change what's travelling on them.</p>
+      <div class="kpi-inline">
+        <div class="v">$12B+</div>
+        <div class="m">Annual CNP fraud losses (US) addressable with a single integration.</div>
+      </div>
+    </div>
+    <div class="chrome-footer">
+      <div class="left"><span class="wordmark"><span class="blue">Safe</span>cypher</span><span class="divider"></span><span>Integration</span></div>
+      <div class="page-num">09 / 11</div>
+    </div>
+  </section>
+    </div>
+    <div class="label">09 · Integrate Once</div>
+  </div>
+
+  <div class="thumb">
+    <div class="thumb-inner">
+      <section class="slide s-humancost" style="width:1920px;height:1080px;">
+    <div class="eyebrow">The human cost</div>
+    <h1>Behind every fraudulent transaction is <span class="italic">a real person.</span></h1>
+    <div class="stats">
+      <div class="stat">
+        <div class="fraction">1<span class="word">in</span>4</div>
+        <div class="copy">
+          <p>Cardholders have been a victim of payment fraud. Most never recover the full amount.</p>
+        </div>
+      </div>
+      <div class="stat">
+        <div class="fraction">£360</div>
+        <div class="copy">
+          <p>Average loss per CNP fraud victim — often unrecoverable by the time it's reported.</p>
+        </div>
+      </div>
+    </div>
+    <div class="chrome-footer">
+      <div class="left"><span class="wordmark"><span class="blue">Safe</span>cypher</span><span class="divider"></span><span>Why this matters</span></div>
+      <div class="page-num">10 / 11</div>
+    </div>
+  </section>
+    </div>
+    <div class="label">10 · Human Cost</div>
+  </div>
+
+  <div class="thumb">
+    <div class="thumb-inner">
+      <section class="slide s-beliefs" style="width:1920px;height:1080px;">
+    <div class="col-left">
+      <div>
+        <div class="eyebrow">Our principles</div>
+        <h1><span class="it">Five beliefs that shape</span> everything we build.</h1>
+      </div>
+      <div class="footnote">The five ideas we return to when a product decision is ambiguous. They're why SafeCypher exists and how every feature gets judged.</div>
+    </div>
+    <div class="list">
+      <div class="belief">
+        <div class="num">01</div>
+        <div class="text"><span class="it">Don't reduce.</span> Eliminate.</div>
+      </div>
+      <div class="belief">
+        <div class="num">02</div>
+        <div class="text">Dynamic data. <span class="it">Applied intelligence.</span></div>
+      </div>
+      <div class="belief">
+        <div class="num">03</div>
+        <div class="text">Nothing there. <span class="it">Nothing to steal.</span></div>
+      </div>
+      <div class="belief">
+        <div class="num">04</div>
+        <div class="text">Not probability, but <span class="it">certainty.</span></div>
+      </div>
+      <div class="belief">
+        <div class="num">05</div>
+        <div class="text">Easier for users. <span class="it">Impossible for fraudsters.</span></div>
+      </div>
+    </div>
+  </section>
+    </div>
+    <div class="label">11 · Five Beliefs</div>
+  </div></div>
+
+<script>
+  function fit() {
+    document.querySelectorAll('.thumb').forEach(t => {
+      const w = t.clientWidth;
+      const inner = t.querySelector('.thumb-inner');
+      if (inner) inner.style.setProperty('--scale', (w / 1920).toFixed(4));
+    });
+  }
+  fit();
+  window.addEventListener('resize', fit);
+  if (window.ResizeObserver) {
+    const ro = new ResizeObserver(fit);
+    document.querySelectorAll('.thumb').forEach(t => ro.observe(t));
+  }
+  if (document.fonts && document.fonts.ready) document.fonts.ready.then(fit);
+</script>
+</body>
+</html>

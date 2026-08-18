@@ -1,0 +1,69 @@
+<!DOCTYPE html>
+<!-- @dsCard group="Brand" name="Logo · Strapline & mark" subtitle="Authenticating Trust lockup + S mark" viewport="700x170" -->
+<html lang="en">
+<head>
+<meta charset="utf-8"/>
+<title>Safecypher · Logo with strapline</title>
+<style>
+/* Brand fonts — local TTFs (offline-safe; source of truth = /fonts) */
+@font-face { font-family: 'Poppins'; src: url('../fonts/Poppins-Light.ttf') format('truetype');        font-weight: 300; font-style: normal; font-display: swap; }
+@font-face { font-family: 'Poppins'; src: url('../fonts/Poppins-LightItalic.ttf') format('truetype');  font-weight: 300; font-style: italic; font-display: swap; }
+@font-face { font-family: 'Poppins'; src: url('../fonts/Poppins-Regular.ttf') format('truetype');      font-weight: 400; font-style: normal; font-display: swap; }
+@font-face { font-family: 'Poppins'; src: url('../fonts/Poppins-Italic.ttf') format('truetype');       font-weight: 400; font-style: italic; font-display: swap; }
+@font-face { font-family: 'Poppins'; src: url('../fonts/Poppins-Medium.ttf') format('truetype');       font-weight: 500; font-style: normal; font-display: swap; }
+@font-face { font-family: 'Poppins'; src: url('../fonts/Poppins-MediumItalic.ttf') format('truetype'); font-weight: 500; font-style: italic; font-display: swap; }
+@font-face { font-family: 'Poppins'; src: url('../fonts/Poppins-SemiBold.ttf') format('truetype');     font-weight: 600; font-style: normal; font-display: swap; }
+@font-face { font-family: 'Poppins'; src: url('../fonts/Poppins-SemiBoldItalic.ttf') format('truetype'); font-weight: 600; font-style: italic; font-display: swap; }
+@font-face { font-family: 'Poppins'; src: url('../fonts/Poppins-Bold.ttf') format('truetype');         font-weight: 700; font-style: normal; font-display: swap; }
+@font-face { font-family: 'Poppins'; src: url('../fonts/Poppins-BoldItalic.ttf') format('truetype');   font-weight: 700; font-style: italic; font-display: swap; }
+@font-face { font-family: 'EB Garamond'; src: url('../fonts/EBGaramond-VariableFont_wght.ttf') format('truetype-variations'), url('../fonts/EBGaramond-VariableFont_wght.ttf') format('truetype'); font-weight: 400 800; font-style: normal; font-display: swap; }
+@font-face { font-family: 'EB Garamond'; src: url('../fonts/EBGaramond-Italic-VariableFont_wght.ttf') format('truetype-variations'), url('../fonts/EBGaramond-Italic-VariableFont_wght.ttf') format('truetype'); font-weight: 400 800; font-style: italic; font-display: swap; }
+@font-face { font-family: 'EB Garamond'; src: url('../fonts/EBGaramond-Regular.ttf') format('truetype');  font-weight: 400; font-style: normal; font-display: swap; }
+@font-face { font-family: 'EB Garamond'; src: url('../fonts/EBGaramond-Italic.ttf') format('truetype');   font-weight: 400; font-style: italic; font-display: swap; }
+@font-face { font-family: 'EB Garamond'; src: url('../fonts/EBGaramond-Medium.ttf') format('truetype');   font-weight: 500; font-style: normal; font-display: swap; }
+@font-face { font-family: 'EB Garamond'; src: url('../fonts/EBGaramond-SemiBold.ttf') format('truetype'); font-weight: 600; font-style: normal; font-display: swap; }
+@font-face { font-family: 'EB Garamond'; src: url('../fonts/EBGaramond-Bold.ttf') format('truetype');     font-weight: 700; font-style: normal; font-display: swap; }
+
+:root{
+  --cypher-blue:#382aff; --cypher-accent:#00ede6; --cypher-black:#37373a; --cypher-grey:#c1c1c1;
+  --fg-3:#8a8a8d;
+  --font-sans:'Poppins',system-ui,-apple-system,'Segoe UI',Roboto,sans-serif;
+  --font-accent:'EB Garamond','Iowan Old Style',Georgia,serif;
+  --font-mono:ui-monospace,'SF Mono',Menlo,Consolas,monospace;
+}
+
+html,body{margin:0;padding:0;font-family:var(--font-sans);color:var(--cypher-black);background:#fff}
+
+.wrap{padding:18px 24px;display:grid;grid-template-columns:1fr auto;gap:28px;align-items:center}
+
+.lock{display:flex;flex-direction:column;align-items:flex-start;gap:8px}
+.lock .mark{height:58px;width:auto;display:block}
+
+.rule{width:2px;background:var(--cypher-accent);height:14px;margin:2px 0}
+.strap{font-family:var(--font-accent);font-size:26px;color:var(--cypher-black);letter-spacing:-0.005em;font-style:italic}
+
+.favicon{width:80px;height:80px;border:1px solid var(--cypher-grey);border-radius:10px;display:flex;align-items:center;justify-content:center;overflow:hidden}
+.favicon svg{width:64px;height:64px}
+.favicon .s{font-family:var(--font-sans);font-weight:700;font-size:112px;fill:var(--cypher-blue);letter-spacing:-0.04em}
+
+.caption{margin-top:8px;font-family:var(--font-mono);font-size:11px;color:var(--fg-3);text-align:center}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="lock">
+    <img class="mark" src="assets/logo.svg" alt="Safecypher"/>
+    <div class="rule"></div>
+    <div class="strap">Authenticating Trust</div>
+  </div>
+  <div>
+    <div class="favicon">
+      <svg viewBox="0 0 120 120" role="img" aria-label="Safecypher mark">
+        <text class="s" x="60" y="95" text-anchor="middle">S</text>
+      </svg>
+    </div>
+    <div class="caption">favicon · mark</div>
+  </div>
+</div>
+</body>
+</html>

@@ -1,0 +1,325 @@
+/* =========================================================
+   Safecypher · Colors & Type
+   ---------------------------------------------------------
+   Source of truth for the brand's visual foundations. Import
+   this file (or the fonts + these variables) into any HTML
+   artifact that should carry the Safecypher identity.
+
+   Fonts: Poppins (body + display), EB Garamond (accent).
+   Both families are self-hosted from the brand-approved TTFs
+   in /fonts (variable + static cuts). No CDN dependency.
+   ========================================================= */
+
+/* Poppins — self-hosted local TTFs (300/400/500/600/700, upright + italic). */
+@font-face { font-family: 'Poppins'; src: url('fonts/Poppins-Light.ttf') format('truetype');        font-weight: 300; font-style: normal; font-display: swap; }
+@font-face { font-family: 'Poppins'; src: url('fonts/Poppins-LightItalic.ttf') format('truetype');  font-weight: 300; font-style: italic; font-display: swap; }
+@font-face { font-family: 'Poppins'; src: url('fonts/Poppins-Regular.ttf') format('truetype');      font-weight: 400; font-style: normal; font-display: swap; }
+@font-face { font-family: 'Poppins'; src: url('fonts/Poppins-Italic.ttf') format('truetype');       font-weight: 400; font-style: italic; font-display: swap; }
+@font-face { font-family: 'Poppins'; src: url('fonts/Poppins-Medium.ttf') format('truetype');       font-weight: 500; font-style: normal; font-display: swap; }
+@font-face { font-family: 'Poppins'; src: url('fonts/Poppins-MediumItalic.ttf') format('truetype'); font-weight: 500; font-style: italic; font-display: swap; }
+@font-face { font-family: 'Poppins'; src: url('fonts/Poppins-SemiBold.ttf') format('truetype');     font-weight: 600; font-style: normal; font-display: swap; }
+@font-face { font-family: 'Poppins'; src: url('fonts/Poppins-SemiBoldItalic.ttf') format('truetype'); font-weight: 600; font-style: italic; font-display: swap; }
+@font-face { font-family: 'Poppins'; src: url('fonts/Poppins-Bold.ttf') format('truetype');         font-weight: 700; font-style: normal; font-display: swap; }
+@font-face { font-family: 'Poppins'; src: url('fonts/Poppins-BoldItalic.ttf') format('truetype');   font-weight: 700; font-style: italic; font-display: swap; }
+
+/* EB Garamond — variable font (covers 400–800, upright + italic) */
+@font-face {
+  font-family: 'EB Garamond';
+  src: url('fonts/EBGaramond-VariableFont_wght.ttf') format('truetype-variations'),
+       url('fonts/EBGaramond-VariableFont_wght.ttf') format('truetype');
+  font-weight: 400 800;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: 'EB Garamond';
+  src: url('fonts/EBGaramond-Italic-VariableFont_wght.ttf') format('truetype-variations'),
+       url('fonts/EBGaramond-Italic-VariableFont_wght.ttf') format('truetype');
+  font-weight: 400 800;
+  font-style: italic;
+  font-display: swap;
+}
+
+/* EB Garamond — static cuts (fallback for renderers without variable-font support) */
+@font-face { font-family: 'EB Garamond'; src: url('fonts/EBGaramond-Regular.ttf') format('truetype');         font-weight: 400; font-style: normal; font-display: swap; }
+@font-face { font-family: 'EB Garamond'; src: url('fonts/EBGaramond-Italic.ttf') format('truetype');          font-weight: 400; font-style: italic; font-display: swap; }
+@font-face { font-family: 'EB Garamond'; src: url('fonts/EBGaramond-Medium.ttf') format('truetype');          font-weight: 500; font-style: normal; font-display: swap; }
+@font-face { font-family: 'EB Garamond'; src: url('fonts/EBGaramond-MediumItalic.ttf') format('truetype');    font-weight: 500; font-style: italic; font-display: swap; }
+@font-face { font-family: 'EB Garamond'; src: url('fonts/EBGaramond-SemiBold.ttf') format('truetype');        font-weight: 600; font-style: normal; font-display: swap; }
+@font-face { font-family: 'EB Garamond'; src: url('fonts/EBGaramond-SemiBoldItalic.ttf') format('truetype');  font-weight: 600; font-style: italic; font-display: swap; }
+@font-face { font-family: 'EB Garamond'; src: url('fonts/EBGaramond-Bold.ttf') format('truetype');            font-weight: 700; font-style: normal; font-display: swap; }
+@font-face { font-family: 'EB Garamond'; src: url('fonts/EBGaramond-BoldItalic.ttf') format('truetype');      font-weight: 700; font-style: italic; font-display: swap; }
+@font-face { font-family: 'EB Garamond'; src: url('fonts/EBGaramond-ExtraBold.ttf') format('truetype');       font-weight: 800; font-style: normal; font-display: swap; }
+@font-face { font-family: 'EB Garamond'; src: url('fonts/EBGaramond-ExtraBoldItalic.ttf') format('truetype'); font-weight: 800; font-style: italic; font-display: swap; }
+
+:root {
+  /* --- Brand palette — THE LEADS ------------------------ */
+  --cypher-blue:   #382aff;   /* Primary — logomark, data, links */
+  --cypher-accent: #00ede6;   /* Accent — emphasis, anchors, highlights */
+  --cypher-black:  #37373a;   /* Neutral ink — body copy, headings */
+  --cypher-grey:   #c1c1c1;   /* Dividers, rules, quiet surfaces */
+  --cypher-white:  #ffffff;
+
+  /* --- Extended neutrals (derived, kept quiet) ---------- */
+  --cypher-ink-90: #37373a;
+  --cypher-ink-70: #5b5b5e;
+  --cypher-ink-50: #8a8a8d;
+  --cypher-ink-30: #c1c1c1;
+  --cypher-ink-15: #e3e3e4;
+  --cypher-ink-08: #f1f1f2;
+  --cypher-ink-04: #f8f8f9;
+
+  /* --- Tints of Cypher Blue (for backgrounds / hovers) -- */
+  --blue-tint-04:  #f2f1ff;
+  --blue-tint-08:  #e6e4ff;
+  --blue-tint-12:  #d6d3ff;
+  --blue-hover:    #2d21d6;   /* Pressed / hover of primary */
+  --blue-press:    #241ab0;
+
+  /* --- Semantic ---------------------------------------- */
+  --fg-1: var(--cypher-black);        /* Primary text */
+  --fg-2: var(--cypher-ink-70);       /* Secondary text */
+  --fg-3: var(--cypher-ink-50);       /* Muted / captions */
+  --fg-invert: var(--cypher-white);
+
+  --bg-1: var(--cypher-white);        /* Default surface */
+  --bg-2: var(--cypher-ink-04);       /* Quiet surface */
+  --bg-3: var(--cypher-ink-08);       /* Card on quiet */
+  --bg-ink: var(--cypher-black);      /* Dark surface */
+  --bg-brand: var(--cypher-blue);     /* Brand flood */
+
+  --accent: var(--cypher-accent);
+  --link: var(--cypher-blue);
+  --rule: var(--cypher-grey);         /* 1pt hairlines */
+  --rule-strong: var(--cypher-ink-70);
+
+  --focus-ring: 0 0 0 3px rgba(56, 42, 255, 0.35);
+
+  /* --- Semantic status ---------------------------------- */
+  /* Promoted from the brand preview components (badges.html, inputs.html)
+     so reporting UI (status pills, SLA breaches, reconciliation flags)
+     references tokens rather than literals. */
+  --success:        #0a7a4b;   /* OK / balanced / live — badge.live foreground */
+  --success-bg:     #e6f6ee;
+  --success-border: #b9e3cd;
+  --warning:        #8a6d00;   /* needs-review / paused — badge.paused foreground */
+  --warning-bg:     #fff6d6;
+  --warning-border: #f0dc95;
+  --error:          #c1121f;   /* destructive / form error — inputs.html error */
+  --error-strong:   #a4161a;   /* status-pill error — badge.err foreground */
+  --error-bg:       #fde8e8;
+  --error-border:   #f2bdc0;
+
+  /* --- Type families ----------------------------------- */
+  --font-sans:    'Poppins', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+  --font-accent:  'EB Garamond', 'Iowan Old Style', Georgia, serif;
+  --font-mono:    ui-monospace, 'SF Mono', Menlo, Consolas, monospace;
+
+  /* --- Type scale (fluid-ish, but deterministic) ------- */
+  --fs-display:   72px;
+  --fs-h1:        48px;
+  --fs-h2:        36px;
+  --fs-h3:        28px;
+  --fs-h4:        22px;
+  --fs-subtitle:  16px;   /* Poppins Medium, uppercase-ish label */
+  --fs-body:      16px;
+  --fs-small:     14px;
+  --fs-micro:     12px;
+
+  --lh-tight:     1.1;   /* @kind font */
+  --lh-snug:      1.25;  /* @kind font */
+  --lh-normal:    1.45;  /* @kind font */
+  --lh-relaxed:   1.6;   /* @kind font */
+
+  /* --- Weights ----------------------------------------- */
+  /* Body copy (Poppins Light) */
+  --fw-light:     300;   /* @kind font */
+  --fw-regular:   400;   /* @kind font */
+  /* Subtitles */
+  --fw-medium:    500;   /* @kind font */
+  --fw-semibold:  600;   /* @kind font */
+  /* Data + metrics */
+  --fw-bold:      700;   /* @kind font */
+
+  /* --- Spacing ----------------------------------------- */
+  --space-1:  4px;
+  --space-2:  8px;
+  --space-3:  12px;
+  --space-4:  16px;
+  --space-5:  24px;
+  --space-6:  32px;
+  --space-7:  48px;
+  --space-8:  64px;
+  --space-9:  96px;
+
+  /* --- Radius ------------------------------------------ */
+  --radius-none: 0px;
+  --radius-sm:   4px;
+  --radius-md:   8px;
+  --radius-lg:   14px;
+  --radius-xl:   22px;
+  --radius-pill: 999px;
+
+  /* --- Shadows (used sparingly — brand prefers rules) -- */
+  --shadow-xs: 0 1px 2px rgba(55, 55, 58, 0.06);
+  --shadow-sm: 0 2px 6px rgba(55, 55, 58, 0.08);
+  --shadow-md: 0 8px 24px rgba(55, 55, 58, 0.10);
+  --shadow-lg: 0 18px 48px rgba(55, 55, 58, 0.14);
+  --shadow-brand: 0 14px 40px rgba(56, 42, 255, 0.25);
+
+  /* --- Borders ----------------------------------------- */
+  --border-hair:   1px solid var(--rule);         /* 1pt, per brand */
+  --border-strong: 1px solid var(--cypher-black);
+  --border-brand:  1px solid var(--cypher-blue);
+
+  /* --- Motion ------------------------------------------ */
+  --ease-out:      cubic-bezier(0.22, 0.61, 0.36, 1);  /* @kind other */
+  --ease-in-out:   cubic-bezier(0.65, 0, 0.35, 1);     /* @kind other */
+  --dur-quick:     120ms;  /* @kind other */
+  --dur-base:      200ms;  /* @kind other */
+  --dur-slow:      380ms;  /* @kind other */
+}
+
+/* =========================================================
+   Semantic element styles — use these directly on tags when
+   you want the "default" Safecypher typography without
+   hand-assembling the tokens.
+   ========================================================= */
+
+html, body {
+  font-family: var(--font-sans);
+  font-weight: var(--fw-light);
+  font-size: var(--fs-body);
+  line-height: var(--lh-relaxed);
+  color: var(--fg-1);
+  background: var(--bg-1);
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+
+h1, .h1 {
+  font-family: var(--font-sans);
+  font-weight: var(--fw-medium);
+  font-size: var(--fs-h1);
+  line-height: var(--lh-tight);
+  letter-spacing: -0.015em;
+  color: var(--fg-1);
+}
+h2, .h2 {
+  font-family: var(--font-sans);
+  font-weight: var(--fw-medium);
+  font-size: var(--fs-h2);
+  line-height: var(--lh-snug);
+  letter-spacing: -0.012em;
+  color: var(--fg-1);
+}
+h3, .h3 {
+  font-family: var(--font-sans);
+  font-weight: var(--fw-medium);
+  font-size: var(--fs-h3);
+  line-height: var(--lh-snug);
+  color: var(--fg-1);
+}
+h4, .h4 {
+  font-family: var(--font-sans);
+  font-weight: var(--fw-medium);
+  font-size: var(--fs-h4);
+  line-height: var(--lh-snug);
+  color: var(--fg-1);
+}
+
+/* Display — the EB Garamond accent headline that appears in
+   statements like "The Simple Answer for Issuers." */
+.accent, .display-accent {
+  font-family: var(--font-accent);
+  font-weight: var(--fw-regular);
+  font-size: var(--fs-display);
+  line-height: 1.08;
+  letter-spacing: -0.005em;
+  color: var(--fg-1);
+}
+
+/* Subtitle — the small Poppins-Medium label above sections:
+   "PRIMARY (DEFAULT)", "ARCHITECTURE PRINCIPLES", etc.
+   Per brand: sentence case OR uppercase label — we expose both. */
+.subtitle {
+  font-family: var(--font-sans);
+  font-weight: var(--fw-medium);
+  font-size: var(--fs-subtitle);
+  line-height: var(--lh-snug);
+  color: var(--fg-1);
+}
+.eyebrow {
+  font-family: var(--font-sans);
+  font-weight: var(--fw-medium);
+  font-size: var(--fs-micro);
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--cypher-blue);
+}
+
+/* Body copy — Poppins Light, per brand */
+p, .body {
+  font-family: var(--font-sans);
+  font-weight: var(--fw-light);
+  font-size: var(--fs-body);
+  line-height: var(--lh-relaxed);
+  color: var(--fg-1);
+  text-wrap: pretty;
+}
+.body-sm { font-size: var(--fs-small); }
+.caption { font-size: var(--fs-micro); color: var(--fg-3); }
+
+/* Links — underlined, Cypher Blue */
+a, .link {
+  color: var(--link);
+  text-decoration: underline;
+  text-decoration-thickness: 1px;
+  text-underline-offset: 2px;
+  transition: color var(--dur-quick) var(--ease-out);
+}
+a:hover, .link:hover { color: var(--blue-hover); }
+
+/* Data & metrics — big, Cypher Blue, with Accent underline */
+.metric {
+  font-family: var(--font-sans);
+  font-weight: var(--fw-bold);
+  font-size: 96px;
+  line-height: 1;
+  letter-spacing: -0.02em;
+  color: var(--cypher-blue);
+}
+.metric-label {
+  font-family: var(--font-sans);
+  font-weight: var(--fw-light);
+  font-size: var(--fs-small);
+  color: var(--fg-1);
+  padding-top: var(--space-3);
+  border-top: 2px solid var(--cypher-blue);
+  display: block;
+}
+.metric-label--accent { border-top-color: var(--cypher-accent); }
+
+/* Inline emphasis */
+strong, b { font-weight: var(--fw-medium); }
+em, i    { font-style: italic; }
+
+/* Horizontal / vertical rules — 1pt Cypher Grey, per brand */
+hr {
+  border: none;
+  border-top: 1px solid var(--rule);
+  margin: var(--space-7) 0;
+}
+.v-rule { width: 1px; background: var(--rule); align-self: stretch; }
+
+/* Monospace — used for codes, card numbers, CVVs */
+code, kbd, pre, .mono {
+  font-family: var(--font-mono);
+  font-size: 0.95em;
+}
+
+/* Selection */
+::selection { background: var(--cypher-accent); color: var(--cypher-black); }
+
+/* Focus */
+:focus-visible { outline: none; box-shadow: var(--focus-ring); border-radius: var(--radius-sm); }

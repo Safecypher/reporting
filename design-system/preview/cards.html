@@ -1,0 +1,77 @@
+<!DOCTYPE html>
+<!-- @dsCard group="Components" name="Cards" subtitle="Light and dark surface cards" viewport="700x200" -->
+<html lang="en">
+<head>
+<meta charset="utf-8"/>
+<title>Safecypher · Cards</title>
+<style>
+/* INLINE-TOKENS */
+/* Brand fonts — local TTFs (offline-safe; source of truth = /fonts) */
+@font-face { font-family: 'Poppins'; src: url('../fonts/Poppins-Light.ttf') format('truetype');        font-weight: 300; font-style: normal; font-display: swap; }
+@font-face { font-family: 'Poppins'; src: url('../fonts/Poppins-LightItalic.ttf') format('truetype');  font-weight: 300; font-style: italic; font-display: swap; }
+@font-face { font-family: 'Poppins'; src: url('../fonts/Poppins-Regular.ttf') format('truetype');      font-weight: 400; font-style: normal; font-display: swap; }
+@font-face { font-family: 'Poppins'; src: url('../fonts/Poppins-Italic.ttf') format('truetype');       font-weight: 400; font-style: italic; font-display: swap; }
+@font-face { font-family: 'Poppins'; src: url('../fonts/Poppins-Medium.ttf') format('truetype');       font-weight: 500; font-style: normal; font-display: swap; }
+@font-face { font-family: 'Poppins'; src: url('../fonts/Poppins-MediumItalic.ttf') format('truetype'); font-weight: 500; font-style: italic; font-display: swap; }
+@font-face { font-family: 'Poppins'; src: url('../fonts/Poppins-SemiBold.ttf') format('truetype');     font-weight: 600; font-style: normal; font-display: swap; }
+@font-face { font-family: 'Poppins'; src: url('../fonts/Poppins-SemiBoldItalic.ttf') format('truetype'); font-weight: 600; font-style: italic; font-display: swap; }
+@font-face { font-family: 'Poppins'; src: url('../fonts/Poppins-Bold.ttf') format('truetype');         font-weight: 700; font-style: normal; font-display: swap; }
+@font-face { font-family: 'Poppins'; src: url('../fonts/Poppins-BoldItalic.ttf') format('truetype');   font-weight: 700; font-style: italic; font-display: swap; }
+@font-face { font-family: 'EB Garamond'; src: url('../fonts/EBGaramond-VariableFont_wght.ttf') format('truetype-variations'), url('../fonts/EBGaramond-VariableFont_wght.ttf') format('truetype'); font-weight: 400 800; font-style: normal; font-display: swap; }
+@font-face { font-family: 'EB Garamond'; src: url('../fonts/EBGaramond-Italic-VariableFont_wght.ttf') format('truetype-variations'), url('../fonts/EBGaramond-Italic-VariableFont_wght.ttf') format('truetype'); font-weight: 400 800; font-style: italic; font-display: swap; }
+@font-face { font-family: 'EB Garamond'; src: url('../fonts/EBGaramond-Regular.ttf') format('truetype');  font-weight: 400; font-style: normal; font-display: swap; }
+@font-face { font-family: 'EB Garamond'; src: url('../fonts/EBGaramond-Italic.ttf') format('truetype');   font-weight: 400; font-style: italic; font-display: swap; }
+@font-face { font-family: 'EB Garamond'; src: url('../fonts/EBGaramond-Medium.ttf') format('truetype');   font-weight: 500; font-style: normal; font-display: swap; }
+@font-face { font-family: 'EB Garamond'; src: url('../fonts/EBGaramond-SemiBold.ttf') format('truetype'); font-weight: 600; font-style: normal; font-display: swap; }
+@font-face { font-family: 'EB Garamond'; src: url('../fonts/EBGaramond-Bold.ttf') format('truetype');     font-weight: 700; font-style: normal; font-display: swap; }
+
+:root {
+  --cypher-blue:#382aff; --cypher-accent:#00ede6; --cypher-black:#37373a; --cypher-grey:#c1c1c1; --cypher-white:#fff;
+  --cypher-ink-90:#37373a; --cypher-ink-70:#5b5b5e; --cypher-ink-50:#8a8a8d; --cypher-ink-30:#c1c1c1; --cypher-ink-15:#e3e3e4; --cypher-ink-08:#f1f1f2; --cypher-ink-04:#f8f8f9;
+  --blue-tint-04:#f2f1ff; --blue-tint-08:#e6e4ff; --blue-tint-12:#d6d3ff; --blue-hover:#2d21d6; --blue-press:#241ab0;
+  --fg-1:#37373a; --fg-2:#5b5b5e; --fg-3:#8a8a8d; --bg-1:#fff; --bg-2:#f8f8f9; --bg-3:#f1f1f2; --rule:#c1c1c1;
+  --font-sans:'Poppins',system-ui,-apple-system,'Segoe UI',Roboto,sans-serif;
+  --font-accent:'EB Garamond','Iowan Old Style',Georgia,serif;
+  --font-mono:ui-monospace,'SF Mono',Menlo,Consolas,monospace;
+  --fw-light:300; --fw-regular:400; --fw-medium:500; --fw-semibold:600; --fw-bold:700;
+  --fs-micro:11px; --fs-small:13px; --fs-body:15px; --fs-subtitle:18px; --fs-h4:22px; --fs-h3:28px; --fs-h2:40px; --fs-h1:56px; --fs-display:72px;
+  --space-1:4px; --space-2:8px; --space-3:12px; --space-4:16px; --space-5:24px; --space-6:32px; --space-7:48px; --space-8:64px; --space-9:96px;
+  --radius-0:0; --radius-1:4px; --radius-2:8px; --radius-3:14px; --radius-4:22px; --radius-pill:999px;
+  --shadow-sm:0 1px 2px rgba(55,55,58,.06),0 1px 3px rgba(55,55,58,.04);
+  --shadow-md:0 4px 12px rgba(55,55,58,.08),0 2px 4px rgba(55,55,58,.04);
+  --shadow-lg:0 12px 32px rgba(55,55,58,.10),0 4px 8px rgba(55,55,58,.05);
+  --shadow-brand:0 8px 24px rgba(56,42,255,.18);
+  --dur-quick:120ms; --dur-base:200ms; --dur-slow:380ms;
+  --ease-out:cubic-bezier(0.22,0.61,0.36,1); --ease-in-out:cubic-bezier(0.65,0,0.35,1);
+}
+html, body { font-family: var(--font-sans); color: var(--fg-1); background: var(--bg-1); }
+
+
+  html,body{margin:0;padding:0}
+  .wrap{padding:18px 24px;display:grid;grid-template-columns:1fr 1fr;gap:14px}
+  .card{border:1px solid var(--cypher-grey);border-radius:14px;padding:18px;background:#fff;transition:border-color 120ms var(--ease-out)}
+  .card:hover{border-color:var(--cypher-black)}
+  .eyebrow{font-family:var(--font-sans);font-weight:500;font-size:11px;letter-spacing:0.12em;text-transform:uppercase;color:var(--cypher-blue);margin-bottom:10px}
+  .ttl{font-family:var(--font-sans);font-weight:500;font-size:18px;color:var(--cypher-black);margin:0 0 6px}
+  .bd{font-family:var(--font-sans);font-weight:300;font-size:13px;color:var(--fg-2);margin:0;line-height:1.5}
+  .card.ink{background:var(--cypher-black);border-color:var(--cypher-black)}
+  .card.ink .ttl{color:#fff}
+  .card.ink .bd{color:#e3e3e4}
+  .card.ink .eyebrow{color:var(--cypher-accent)}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="card">
+    <div class="eyebrow">Issuer · Active</div>
+    <h3 class="ttl">Platinum Debit · 4539</h3>
+    <p class="bd">412,304 cards live. Dynamic CVV rotating every 30 seconds.</p>
+  </div>
+  <div class="card ink">
+    <div class="eyebrow">Dark surface</div>
+    <h3 class="ttl">Technical bulletin</h3>
+    <p class="bd">Data-dense sections reverse out of Cypher Black. Accent becomes eyebrow colour.</p>
+  </div>
+</div>
+</body>
+</html>
