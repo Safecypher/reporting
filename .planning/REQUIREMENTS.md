@@ -102,13 +102,38 @@ Which phases cover which requirements. Updated during roadmap creation.
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| (populated by roadmapper) | — | Pending |
+| AUTH-01 | Phase 1 | Pending |
+| AUTH-02 | Phase 1 | Pending |
+| AUTH-03 | Phase 1 | Pending |
+| INGEST-01 | Phase 1 | Pending |
+| INGEST-02 | Phase 1 | Pending |
+| INGEST-03 | Phase 1 | Pending |
+| INGEST-04 | Phase 1 | Pending |
+| INGEST-05 | Phase 1 | Pending |
+| DATA-02 | Phase 1 | Pending |
+| DATA-06 | Phase 1 | Pending |
+| DATA-07 | Phase 1 | Pending |
+| DASH-01 | Phase 1 | Pending |
+| DASH-04 | Phase 1 | Pending |
+| DATA-01 | Phase 2 | Pending |
+| DATA-04 | Phase 2 | Pending |
+| DATA-05 | Phase 2 | Pending |
+| DATA-03 | Phase 3 | Pending |
+| REV-01 | Phase 3 | Pending |
+| REV-02 | Phase 3 | Pending |
+| SLA-01 | Phase 3 | Pending |
+| ADMIN-01 | Phase 3 | Pending |
+| DASH-03 | Phase 3 | Pending |
+| RECON-01 | Phase 4 | Pending |
+| RECON-02 | Phase 4 | Pending |
+| RECON-03 | Phase 4 | Pending |
+| DASH-02 | Phase 4 | Pending |
 
 **Coverage:**
-- v1 requirements: 24 total
-- Mapped to phases: 0 (pending roadmap)
-- Unmapped: 24 ⚠️
+- v1 requirements: 26 total (the prior "24" summary was a stale undercount; all 26 listed requirements are mapped)
+- Mapped to phases: 26 ✓
+- Unmapped: 0
 
 ---
 *Requirements defined: 2026-08-18*
-*Last updated: 2026-08-18 after initial definition*
+*Last updated: 2026-08-18 after roadmap creation (traceability populated)*
