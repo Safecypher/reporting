@@ -29,7 +29,15 @@ Decimal phases appear between their surrounding integers in numeric order.
   2. A user can drag-and-drop the verification report (CSV); it is auto-classified, unrecognised files are rejected, and the user sees a per-upload summary of rows accepted / duplicates skipped / rows rejected with reasons.
   3. Re-uploading the same verification file leaves counts unchanged (idempotent — no double-count), and the raw normalised rows remain queryable with their source-file lineage and ingestion audit entry.
   4. The verifications-over-time view shows daily/weekly/monthly counts split authenticated vs failed, carries an "as of last import" timestamp, and excludes pre-13-Aug-2026 data (timestamps normalised to UTC).
-**Plans**: TBD
+**Plans**: 7 plans
+Plans:
+- [ ] 01-01-PLAN.md — Scaffold Next 16 + brand foundation + Supabase wiring + proxy.ts route gate
+- [ ] 01-02-PLAN.md — Login (email/password) + auth-gated app shell + sign out
+- [ ] 01-03-PLAN.md — Schema migrations (verifications row_hash dedup, ingested_files audit, daily view, RLS + private Storage) + push + types
+- [ ] 01-04-PLAN.md — Source-agnostic ingestion core (classify/parse/normalise/ingest) TDD against the real sample CSV
+- [ ] 01-05-PLAN.md — Upload adapter (Node Route Handler) + Supabase writer + drag-and-drop UI with per-upload feedback
+- [ ] 01-06-PLAN.md — Verifications-over-time dashboard (chart + KPI + granularity/timezone toggles + freshness)
+- [ ] 01-07-PLAN.md — Historical data seed via the shared ingest() path (demo readiness, D-07)
 **UI hint**: yes
 
 ### Phase 2: Complete the Six Sources
@@ -76,7 +84,7 @@ Phases execute in numeric order: 1 → 2 → 3 → 4 (Phase 3 may run in paralle
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
-| 1. End-to-End Spine | 0/TBD | Not started | - |
+| 1. End-to-End Spine | 0/7 | Planned | - |
 | 2. Complete the Six Sources | 0/TBD | Not started | - |
 | 3. Revenue, SLA & Drill-down | 0/TBD | Not started | - |
 | 4. Reconciliation & Discrepancy Flagging | 0/TBD | Not started | - |
