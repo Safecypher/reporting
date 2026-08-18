@@ -1,10 +1,11 @@
 ---
 phase: 1
 slug: end-to-end-spine
-status: draft
+status: approved
 shadcn_initialized: false
 preset: none
 created: 2026-08-18
+reviewed_at: 2026-08-18
 ---
 
 # Phase 1 — UI Design Contract
@@ -39,6 +40,20 @@ created: 2026-08-18
 | Numeric rendering | `font-variant-numeric: tabular-nums` on all counts, metrics, and numeric table columns so digits align in columns |
 
 **Init note for executor:** run `npx shadcn@latest init` after scaffolding the Next.js app, choosing the preset values above. Then `npx shadcn@latest add button input label card table badge dialog sonner tabs toggle-group chart separator skeleton sidebar`. The drag-and-drop zone is a **custom component built on `react-dropzone`** (per STACK.md), not a registry block.
+
+---
+
+## Visual Hierarchy & Focal Points
+
+Each screen has one declared primary visual anchor so the executor does not have to guess where the eye should land.
+
+| Screen | Primary anchor (focal point) | Secondary anchors | Tertiary / chrome |
+|--------|------------------------------|-------------------|-------------------|
+| Login | The sign-in `card` centred in the viewport, with the `Sign in` primary button as the action focus | Heading `Sign in to Safecypher Reporting` | Muted helper text, background |
+| Upload surface | The drag-and-drop zone (largest interactive surface, dashed border, centred prompt) | Post-upload result summary card (accepted / duplicates / rejected) | Uploads history table below |
+| **Verifications-over-time dashboard** | **The time-series chart** (authenticated vs failed over time) — it is the largest element, top of content, and the reason the screen exists (DASH-01) | The KPI **Display (28px)** metric cards (e.g. total verifications, % authenticated) sit as a secondary row that summarises the chart | The `Daily/Weekly/Monthly` toggle, the `Data as of last import` badge, and the data-window caption are supporting controls/meta, not focal points |
+
+**Verifications dashboard layout intent:** chart occupies the dominant upper region as the single focal point; the 28px KPI Display values form a secondary summarising band (glanceable numbers that the chart explains); the granularity toggle sits adjacent to the chart title; freshness badge and data-window caption are quiet meta near the header. Colour emphasis (accent blue / amber series) lives in the chart — the surrounding chrome stays neutral so the data reads first.
 
 ---
 
@@ -175,11 +190,11 @@ No third-party registries declared. Registry vetting gate: **not applicable** �
 
 ## Checker Sign-Off
 
-- [ ] Dimension 1 Copywriting: PASS
-- [ ] Dimension 2 Visuals: PASS
-- [ ] Dimension 3 Color: PASS
-- [ ] Dimension 4 Typography: PASS
-- [ ] Dimension 5 Spacing: PASS
-- [ ] Dimension 6 Registry Safety: PASS
+- [x] Dimension 1 Copywriting: PASS
+- [x] Dimension 2 Visuals: PASS
+- [x] Dimension 3 Color: PASS
+- [x] Dimension 4 Typography: PASS
+- [x] Dimension 5 Spacing: PASS
+- [x] Dimension 6 Registry Safety: PASS
 
-**Approval:** pending
+**Approval:** approved 2026-08-18
