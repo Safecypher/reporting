@@ -1,0 +1,7 @@
+# Supabase project configuration (minimal — Phase 1)
+# Linked cloud project ref. Migrations in ./migrations are applied to this project.
+project_id = "gditxlxfdwlvnyhhxybf"
+
+[db]
+# Postgres major version of the linked Supabase project.
+major_version = 15
