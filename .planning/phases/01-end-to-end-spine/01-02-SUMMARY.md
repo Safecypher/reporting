@@ -127,3 +127,10 @@ None beyond what the plan's own `<threat_model>` already covers (T-02-01 through
 ## Outstanding: Human Checkpoint
 
 This plan is `autonomous: false` and ends in a `checkpoint:human-verify` gate (`Checkpoint: Verify login, session persistence, gating, sign-out`) that requires a live login against the real Supabase project with a manually-seeded account. This cannot be automated or faked — see the `## CHECKPOINT REACHED` section returned alongside this summary for exact verification steps.
+
+## Post-checkpoint deviation (orchestrator, human-verify approved 2026-08-19)
+Human login test approved (a–e). One interim fix was required to make sign-out reachable:
+
+- `app/(dashboard)/page.tsx` previously did `redirect("/verifications")`. Since `/verifications` is not built until Wave 3 (01-06), every authenticated route bounced to a 404 and the app shell (sidebar + Sign out) was unreachable — so the must-have "a signed-in user can sign out" could not be satisfied.
+- Fix: the dashboard index now renders a lightweight placeholder **inside** the shell instead of redirecting. Login (`router.push("/")`) now lands on a working shell rather than a 404. Marked INTERIM — 01-06 restores the real verifications view.
+- Verified: unauthenticated `/` still 307→`/login`; authenticated `/` renders the shell; sign-out returns to `/login` (user-confirmed). build + lint green.

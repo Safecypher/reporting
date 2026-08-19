@@ -24,3 +24,6 @@ yarn-error.log*
 *.pem
 .vscode/
 .idea/
+
+# TypeScript incremental build info
+*.tsbuildinfo
