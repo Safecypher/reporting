@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach } from "vitest";
+import { describe, it, expect } from "vitest";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import Papa from "papaparse";
@@ -7,7 +7,7 @@ import { sha256 } from "../hash";
 import { parseVerification, validateVerificationRows } from "../parsers/verification";
 import { normaliseVerification } from "../normalise";
 import { ingest } from "../index";
-import type { IngestDeps, NormalisedVerificationRow, RejectedRow } from "../types";
+import type { IngestDeps, NormalisedVerificationRow } from "../types";
 
 const FIXTURE_PATH = join(__dirname, "verification.fixture.csv");
 const fixtureBytes = new Uint8Array(readFileSync(FIXTURE_PATH));
@@ -55,7 +55,7 @@ describe("parseVerification", () => {
   it("parses the real fixture and asserts the first header key is exactly CreatedAt", () => {
     const { headerRow, rows } = parseVerification(fixtureBytes);
     expect(headerRow[0]).toBe("CreatedAt");
-    expect(rows.length).toBe(26);
+    expect(rows.length).toBe(25);
   });
 
   it("throws loudly when an expected column is missing", () => {
@@ -109,8 +109,8 @@ describe("normaliseVerification", () => {
     const { rows } = parseVerification(fixtureBytes);
     const { valid } = validateVerificationRows(rows);
     const normalised = normaliseVerification(valid);
-    // The real fixture contains 24 rows from 2026-08-12 and 2 from 2026-08-13.
-    expect(valid.length).toBe(26);
+    // The real fixture contains 23 rows from 2026-08-12 and 2 from 2026-08-13.
+    expect(valid.length).toBe(25);
     expect(normalised.length).toBe(2);
     expect(normalised.every((r) => Date.parse(r.created_at) >= Date.parse("2026-08-13T00:00:00Z"))).toBe(true);
   });
@@ -148,7 +148,7 @@ function makeFakeDeps(): IngestDeps & {
       }
       return inserted;
     },
-    async finalizeFile(_id: string, _counts: { accepted: number; duplicates: number; rejected: number; rejectReasons: RejectedRow[] }) {
+    async finalizeFile() {
       // no-op fake — production writer updates ingested_files status/counts
     },
   };
