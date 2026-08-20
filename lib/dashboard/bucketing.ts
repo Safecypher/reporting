@@ -34,10 +34,13 @@ function bucketKeyAndLabel(
   granularity: Granularity,
   timeZone: BucketTimeZone,
 ): { key: string; label: string } {
-  // `day_utc` is a UTC calendar day with no time-of-day component. Interpret
-  // it as UTC midnight, then shift into the selected zone via date-fns-tz
-  // (never hand-rolled offset arithmetic — DST is handled for us).
-  const utcMidnight = new Date(`${dayUtc}T00:00:00Z`);
+  // `day_utc` is a UTC-truncated day. Supabase/Postgres returns it as a full
+  // timestamptz string ("2026-08-13 00:00:00+00"), while unit fixtures may use a
+  // bare date ("2026-08-13"). Take the first 10 chars (the YYYY-MM-DD calendar
+  // day) in both cases and reconstruct UTC midnight — the same instant — then
+  // shift into the selected zone via date-fns-tz (no hand-rolled offset math).
+  const datePart = dayUtc.slice(0, 10);
+  const utcMidnight = new Date(`${datePart}T00:00:00Z`);
   const zoned = toZonedTime(utcMidnight, timeZone);
 
   if (granularity === "daily") {
@@ -69,7 +72,7 @@ export function rebucket(
   const buckets = new Map<string, BucketPoint>();
 
   for (const row of rows) {
-    if (row.day_utc < DATA_WINDOW_START) continue;
+    if (row.day_utc.slice(0, 10) < DATA_WINDOW_START) continue;
 
     const { key, label } = bucketKeyAndLabel(row.day_utc, granularity, timeZone);
     const existing = buckets.get(key);

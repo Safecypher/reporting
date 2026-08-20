@@ -27,6 +27,26 @@ describe("rebucket", () => {
     ]);
   });
 
+  it("handles the real Postgres timestamptz day_utc format ('YYYY-MM-DD HH:MM:SS+00'), not just bare dates", () => {
+    // Regression: Supabase returns v_verifications_daily.day_utc as a full
+    // timestamptz string, which broke `new Date(\`${dayUtc}T00:00:00Z\`)` with
+    // "Invalid time value". rebucket must take the calendar-day portion robustly.
+    const rows: DailyRow[] = [
+      { day_utc: "2026-08-13 00:00:00+00", authenticated_count: 0, failed_count: 2 },
+    ];
+
+    const result = rebucket(rows, "daily", "UTC");
+
+    expect(result).toEqual([
+      {
+        bucketKey: "2026-08-13",
+        label: "2026-08-13",
+        authenticated: 0,
+        failed: 2,
+      },
+    ]);
+  });
+
   it("groups days into ISO (Monday-start) weeks and sums both series", () => {
     const rows: DailyRow[] = [
       { day_utc: "2026-08-17", authenticated_count: 10, failed_count: 1 },
