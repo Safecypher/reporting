@@ -15,28 +15,49 @@ const DATA_WINDOW_START = Date.parse("2026-08-13T00:00:00Z");
  * cheaply re-derived under a different assumed source zone without
  * re-uploading files, if this assumption turns out to be wrong.
  */
-function naiveToUtcIso(raw: string): string {
-  // Appending "Z" tells the parser to interpret the naive wall-clock string
-  // as UTC rather than the host's local timezone.
-  return new Date(`${raw}Z`).toISOString();
+/**
+ * Parse a naive wall-clock string as UTC. Appending "Z" tells the parser to
+ * interpret it as UTC rather than the host's local timezone. Returns the epoch
+ * ms (NaN if unparseable) so callers can check validity WITHOUT risking the
+ * RangeError that `new Date(invalid).toISOString()` throws.
+ */
+function naiveToUtcMs(raw: string): number {
+  return Date.parse(`${raw}Z`);
+}
+
+export interface NormaliseResult {
+  rows: NormalisedVerificationRow[];
+  /**
+   * Count of valid rows dropped by the DATA-06 cutoff (before 2026-08-13).
+   * Returned — never silently swallowed — so `ingest()` can account for every
+   * parsed row (accepted + duplicates + rejected + excluded === total). CR-02.
+   */
+  excludedPreWindow: number;
 }
 
 /**
  * Convert validated verification rows into the shape `IngestDeps.upsertVerifications`
  * expects, and apply the DATA-06 cutoff. `row_hash` is deliberately absent —
  * it is a Postgres `GENERATED ALWAYS ... STORED` column (see 01-03 migrations).
+ *
+ * Rows before the data window are counted in `excludedPreWindow` rather than
+ * dropped silently. CreatedAt is guaranteed parseable by the Zod schema, so an
+ * unparseable value would have been rejected upstream; the defensive check here
+ * treats any residual unparseable value as excluded too (still counted, never
+ * silently lost).
  */
-export function normaliseVerification(rows: VerificationRow[]): NormalisedVerificationRow[] {
+export function normaliseVerification(rows: VerificationRow[]): NormaliseResult {
   const normalised: NormalisedVerificationRow[] = [];
+  let excludedPreWindow = 0;
 
   for (const row of rows) {
-    const createdAtIso = naiveToUtcIso(row.CreatedAt);
-    const createdAtMs = Date.parse(createdAtIso);
+    const createdAtMs = naiveToUtcMs(row.CreatedAt);
     if (!Number.isFinite(createdAtMs) || createdAtMs < DATA_WINDOW_START) {
+      excludedPreWindow += 1;
       continue;
     }
     normalised.push({
-      created_at: createdAtIso,
+      created_at: new Date(createdAtMs).toISOString(),
       raw_created_at: row.CreatedAt,
       external_card_reference: row.ExternalCardReference,
       cvi2_value: row.Cvi2Value,
@@ -45,5 +66,5 @@ export function normaliseVerification(rows: VerificationRow[]): NormalisedVerifi
     });
   }
 
-  return normalised;
+  return { rows: normalised, excludedPreWindow };
 }

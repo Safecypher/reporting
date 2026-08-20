@@ -1,6 +1,6 @@
 import { createClient as createSupabaseClient, type SupabaseClient } from "@supabase/supabase-js";
 import type { Database } from "@/types/db";
-import type { IngestDeps, NormalisedVerificationRow, RejectedRow } from "./types";
+import type { IngestDeps, NormalisedVerificationRow, RejectedRow, ReportType } from "./types";
 
 /** Private Storage bucket created in the 01-03 migrations (public = false). */
 const REPORTS_BUCKET = "reports";
@@ -22,8 +22,19 @@ function buildSecretClient(): SupabaseClient<Database> {
   });
 }
 
+/**
+ * CR-03: `fileName` is client-controlled (the multipart Content-Disposition
+ * name — attacker-settable independent of the UI). Strip path separators and
+ * anything outside a conservative allow-list before it ever touches a Storage
+ * key, so it can't escape the `<sha256>/` prefix or inject `/`/`..` segments.
+ */
+function sanitiseFileName(name: string): string {
+  const base = name.replace(/[\\/]/g, "_").replace(/[^a-zA-Z0-9._-]/g, "_");
+  return base.slice(-200) || "upload";
+}
+
 function storagePath(contentSha256: string, fileName: string): string {
-  return `${contentSha256}/${fileName}`;
+  return `${contentSha256}/${sanitiseFileName(fileName)}`;
 }
 
 /**
@@ -46,22 +57,32 @@ export function createSupabaseWriter(client?: SupabaseClient<Database>): IngestD
     async findFileByHash(sha256) {
       const { data, error } = await supabase
         .from("ingested_files")
-        .select("id, uploaded_at")
+        .select("id, uploaded_at, report_type")
         .eq("content_sha256", sha256)
         .maybeSingle();
 
       if (error) throw error;
-      return data;
+      if (!data) return null;
+      return {
+        id: data.id,
+        uploaded_at: data.uploaded_at,
+        // report_type is a free-text column; narrow back to the domain type.
+        report_type: (data.report_type as ReportType | null) ?? null,
+      };
     },
 
     async recordFile(meta) {
       const path = storagePath(meta.contentSha256, meta.fileName);
 
+      // WR-01: upsert:true so a retry after a partial failure (storage
+      // succeeded, DB insert failed → no audit row, so no dup short-circuit)
+      // is never blocked by an orphaned object at the same key. The DB row +
+      // content_sha256 UNIQUE constraint remain the real dedup guarantee.
       const { error: uploadError } = await supabase.storage
         .from(REPORTS_BUCKET)
         .upload(path, meta.bytes, {
           contentType: "text/csv",
-          upsert: false,
+          upsert: true,
         });
       if (uploadError) throw uploadError;
 
@@ -111,20 +132,35 @@ export function createSupabaseWriter(client?: SupabaseClient<Database>): IngestD
 
     async finalizeFile(
       id: string,
-      counts: { accepted: number; duplicates: number; rejected: number; rejectReasons: RejectedRow[]; status: "done" | "failed" }
+      counts: {
+        accepted: number;
+        duplicates: number;
+        rejected: number;
+        excluded: number;
+        rejectReasons: RejectedRow[];
+        status: "done" | "failed";
+      }
     ) {
-      const { error } = await supabase
-        .from("ingested_files")
-        .update({
-          status: counts.status,
-          rows_accepted: counts.accepted,
-          rows_duplicate: counts.duplicates,
-          rows_rejected: counts.rejected,
-          reject_reasons: counts.rejectReasons as unknown as Database["public"]["Tables"]["ingested_files"]["Update"]["reject_reasons"],
-        })
-        .eq("id", id);
+      // WR-04: verifications may already be committed by the time we finalize —
+      // if this update blips, the audit row would be stuck at 'pending' despite
+      // the data being safely inserted. Retry a couple of times before giving up.
+      const update = {
+        status: counts.status,
+        rows_accepted: counts.accepted,
+        rows_duplicate: counts.duplicates,
+        rows_rejected: counts.rejected,
+        rows_excluded: counts.excluded,
+        reject_reasons:
+          counts.rejectReasons as unknown as Database["public"]["Tables"]["ingested_files"]["Update"]["reject_reasons"],
+      };
 
-      if (error) throw error;
+      let lastError: unknown = null;
+      for (let attempt = 0; attempt < 3; attempt++) {
+        const { error } = await supabase.from("ingested_files").update(update).eq("id", id);
+        if (!error) return;
+        lastError = error;
+      }
+      throw lastError;
     },
   };
 }

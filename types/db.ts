@@ -23,6 +23,7 @@ export type Database = {
           report_type: string | null
           rows_accepted: number | null
           rows_duplicate: number | null
+          rows_excluded: number | null
           rows_rejected: number | null
           status: string
           storage_path: string | null
@@ -37,6 +38,7 @@ export type Database = {
           report_type?: string | null
           rows_accepted?: number | null
           rows_duplicate?: number | null
+          rows_excluded?: number | null
           rows_rejected?: number | null
           status?: string
           storage_path?: string | null
@@ -51,6 +53,7 @@ export type Database = {
           report_type?: string | null
           rows_accepted?: number | null
           rows_duplicate?: number | null
+          rows_excluded?: number | null
           rows_rejected?: number | null
           status?: string
           storage_path?: string | null

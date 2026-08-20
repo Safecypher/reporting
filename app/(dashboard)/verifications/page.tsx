@@ -151,7 +151,10 @@ async function VerificationsBody() {
       .maybeSingle(),
   ]);
 
-  if (dailyResult.error) {
+  // IN-03: surface a freshness-query failure as an error state rather than
+  // silently folding it into "no imports yet" (which is indistinguishable from
+  // a legitimately empty table and hides a real DB fault).
+  if (dailyResult.error || freshnessResult.error) {
     return (
       <>
         <PageHeader uploadedAt={null} />

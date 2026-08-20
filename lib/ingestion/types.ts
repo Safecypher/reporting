@@ -15,8 +15,12 @@ export interface IngestionInput {
   /** Raw uploaded bytes. Parsing must only ever happen server-side. */
   bytes: Uint8Array;
   contentType?: string;
-  /** Auth user id of the uploader (recorded for the audit trail). */
-  uploadedBy: string;
+  /**
+   * Auth user id of the uploader (recorded for the audit trail). May be null
+   * for non-interactive sources with no authenticated user (e.g. the historical
+   * seed script) — `ingested_files.uploaded_by` is a nullable FK to auth.users.
+   */
+  uploadedBy: string | null;
 }
 
 export interface RejectedRow {
@@ -29,6 +33,14 @@ export interface IngestionResult {
   accepted: number;
   duplicates: number;
   rejected: number;
+  /**
+   * Valid rows deliberately excluded by the DATA-06 data-window cutoff
+   * (before 2026-08-13). Tracked separately from `rejected` (which is malformed
+   * data) so the full accounting always holds — every parsed row lands in
+   * exactly one of accepted / duplicates / rejected / excluded, and none vanish
+   * silently. Core to the "trustworthy, no silent discrepancy" mandate.
+   */
+  excluded: number;
   rejectReasons: RejectedRow[];
   ingestedFileId: string | null;
   /** Set when this exact file content (by sha256) has already been ingested. */
@@ -57,11 +69,13 @@ export interface NormalisedVerificationRow {
  * implement it against an in-memory fake.
  */
 export interface IngestDeps {
-  findFileByHash(sha256: string): Promise<{ id: string; uploaded_at: string } | null>;
+  findFileByHash(
+    sha256: string
+  ): Promise<{ id: string; uploaded_at: string; report_type: ReportType | null } | null>;
   recordFile(meta: {
     fileName: string;
     contentSha256: string;
-    uploadedBy: string;
+    uploadedBy: string | null;
     reportType: ReportType | null;
     /**
      * Raw uploaded bytes, passed through so the writer can persist the file
@@ -78,12 +92,14 @@ export interface IngestDeps {
       accepted: number;
       duplicates: number;
       rejected: number;
+      /** Valid rows excluded by the DATA-06 cutoff — persisted for full accounting. */
+      excluded: number;
       rejectReasons: RejectedRow[];
       /**
        * Terminal status for the ingested_files audit row. 'done' when the file
        * was a recognised report and processed (even if some rows were rejected);
-       * 'failed' when the file was unrecognised and imported nothing — so the
-       * uploads history never shows a rejected file as a successful import.
+       * 'failed' when the file was unrecognised or unparsable and imported
+       * nothing — so the uploads history never shows a failed import as done.
        */
       status: "done" | "failed";
     }

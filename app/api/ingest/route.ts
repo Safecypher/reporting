@@ -21,6 +21,19 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
+  // WR-02: reject oversized bodies from the Content-Length header BEFORE
+  // buffering/parsing the whole multipart body into memory. The post-parse
+  // file.size check below still runs as a correctness backstop (a client can
+  // lie about or omit Content-Length), but this short-circuits the obvious
+  // resource-exhaustion case without buffering the payload.
+  const contentLength = Number(request.headers.get("content-length") ?? "");
+  if (Number.isFinite(contentLength) && contentLength > MAX_FILE_SIZE_BYTES) {
+    return NextResponse.json(
+      { error: "File too large. Report files should be at most a few MB." },
+      { status: 413 }
+    );
+  }
+
   const formData = await request.formData();
   const file = formData.get("file");
 

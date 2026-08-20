@@ -11,6 +11,11 @@ import type { IngestDeps, IngestionInput, IngestionResult, RejectedRow } from ".
  * parsing, validation, normalisation, or DB-write logic lives anywhere
  * else. The DB writer is injected via `deps` so this module never imports
  * a Supabase client and stays pure/unit-testable.
+ *
+ * Invariant (CR-02): every parsed row is accounted for —
+ *   accepted + duplicates + rejected + excluded === total parsed rows.
+ * Nothing is ever silently dropped. `excluded` = valid rows removed by the
+ * DATA-06 data-window cutoff; `rejected` = malformed rows (with reasons).
  */
 export async function ingest(input: IngestionInput, deps: IngestDeps): Promise<IngestionResult> {
   const contentSha256 = sha256(input.bytes);
@@ -18,10 +23,12 @@ export async function ingest(input: IngestionInput, deps: IngestDeps): Promise<I
   const existing = await deps.findFileByHash(contentSha256);
   if (existing) {
     return {
-      reportType: null,
+      // Report the real recorded type, not null (IN-02).
+      reportType: existing.report_type,
       accepted: 0,
       duplicates: 0,
       rejected: 0,
+      excluded: 0,
       rejectReasons: [],
       ingestedFileId: existing.id,
       alreadyUploaded: { date: existing.uploaded_at },
@@ -51,6 +58,7 @@ export async function ingest(input: IngestionInput, deps: IngestDeps): Promise<I
       accepted: 0,
       duplicates: 0,
       rejected: 0,
+      excluded: 0,
       rejectReasons,
       status: "failed",
     });
@@ -59,6 +67,7 @@ export async function ingest(input: IngestionInput, deps: IngestDeps): Promise<I
       accepted: 0,
       duplicates: 0,
       rejected: 0,
+      excluded: 0,
       rejectReasons,
       ingestedFileId,
     };
@@ -72,9 +81,37 @@ export async function ingest(input: IngestionInput, deps: IngestDeps): Promise<I
     bytes: input.bytes,
   });
 
-  const { rows } = parseVerification(input.bytes);
-  const { valid, rejected } = validateVerificationRows(rows);
-  const normalised = normaliseVerification(valid);
+  // CR-01: classify() can match on filename alone, so the file may still be
+  // unparsable here (missing columns, corrupt). Guard this second parse — an
+  // unguarded throw would leave the audit row stuck at 'pending' forever AND
+  // make every future re-upload falsely short-circuit as "already uploaded".
+  let rawRows: Record<string, string>[];
+  try {
+    rawRows = parseVerification(input.bytes).rows;
+  } catch (err) {
+    const reason = err instanceof Error ? err.message : "unparsable file";
+    const rejectReasons: RejectedRow[] = [{ row: 0, reasons: [reason] }];
+    await deps.finalizeFile(ingestedFileId, {
+      accepted: 0,
+      duplicates: 0,
+      rejected: 0,
+      excluded: 0,
+      rejectReasons,
+      status: "failed",
+    });
+    return {
+      reportType,
+      accepted: 0,
+      duplicates: 0,
+      rejected: 0,
+      excluded: 0,
+      rejectReasons,
+      ingestedFileId,
+    };
+  }
+
+  const { valid, rejected } = validateVerificationRows(rawRows);
+  const { rows: normalised, excludedPreWindow } = normaliseVerification(valid);
 
   const inserted = await deps.upsertVerifications(normalised);
   const duplicates = normalised.length - inserted;
@@ -83,6 +120,7 @@ export async function ingest(input: IngestionInput, deps: IngestDeps): Promise<I
     accepted: inserted,
     duplicates,
     rejected: rejected.length,
+    excluded: excludedPreWindow,
     rejectReasons: rejected,
     status: "done" as const,
   };
@@ -93,6 +131,7 @@ export async function ingest(input: IngestionInput, deps: IngestDeps): Promise<I
     accepted: inserted,
     duplicates,
     rejected: rejected.length,
+    excluded: excludedPreWindow,
     rejectReasons: rejected,
     ingestedFileId,
   };

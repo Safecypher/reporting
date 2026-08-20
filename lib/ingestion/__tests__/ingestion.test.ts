@@ -100,43 +100,58 @@ describe("normaliseVerification", () => {
     const { valid } = validateVerificationRows(rows);
     const target = valid.find((r) => r.CreatedAt === "2026-08-13T01:23:37.823");
     expect(target).toBeDefined();
-    const [normalised] = normaliseVerification([target!]);
-    expect(normalised.created_at).toBe("2026-08-13T01:23:37.823Z");
-    expect(normalised.raw_created_at).toBe("2026-08-13T01:23:37.823");
+    const { rows: normalisedRows } = normaliseVerification([target!]);
+    expect(normalisedRows[0].created_at).toBe("2026-08-13T01:23:37.823Z");
+    expect(normalisedRows[0].raw_created_at).toBe("2026-08-13T01:23:37.823");
   });
 
-  it("excludes rows dated before 2026-08-13T00:00:00Z (DATA-06)", () => {
+  it("excludes rows before 2026-08-13T00:00:00Z (DATA-06) and COUNTS them (excludedPreWindow) — no silent drop", () => {
     const { rows } = parseVerification(fixtureBytes);
     const { valid } = validateVerificationRows(rows);
-    const normalised = normaliseVerification(valid);
+    const { rows: normalisedRows, excludedPreWindow } = normaliseVerification(valid);
     // The real fixture contains 23 rows from 2026-08-12 and 2 from 2026-08-13.
     expect(valid.length).toBe(25);
-    expect(normalised.length).toBe(2);
-    expect(normalised.every((r) => Date.parse(r.created_at) >= Date.parse("2026-08-13T00:00:00Z"))).toBe(true);
+    expect(normalisedRows.length).toBe(2);
+    expect(excludedPreWindow).toBe(23);
+    // Full accounting: kept + excluded === total valid (CR-02).
+    expect(normalisedRows.length + excludedPreWindow).toBe(valid.length);
+    expect(
+      normalisedRows.every((r) => Date.parse(r.created_at) >= Date.parse("2026-08-13T00:00:00Z"))
+    ).toBe(true);
   });
 });
 
 function makeFakeDeps(): IngestDeps & {
-  filesByHash: Map<string, { id: string; uploaded_at: string }>;
+  filesByHash: Map<string, { id: string; uploaded_at: string; report_type: "verification" | null }>;
   storedRows: NormalisedVerificationRow[];
   finalizedStatus: () => "done" | "failed" | null;
+  finalizedCounts: () => { accepted: number; duplicates: number; rejected: number; excluded: number } | null;
 } {
-  const filesByHash = new Map<string, { id: string; uploaded_at: string }>();
+  const filesByHash = new Map<
+    string,
+    { id: string; uploaded_at: string; report_type: "verification" | null }
+  >();
   const storedRowKeys = new Set<string>();
   const storedRows: NormalisedVerificationRow[] = [];
   let lastStatus: "done" | "failed" | null = null;
+  let lastCounts: { accepted: number; duplicates: number; rejected: number; excluded: number } | null = null;
   let nextId = 1;
 
   return {
     filesByHash,
     storedRows,
     finalizedStatus: () => lastStatus,
+    finalizedCounts: () => lastCounts,
     async findFileByHash(sha256Hex: string) {
       return filesByHash.get(sha256Hex) ?? null;
     },
     async recordFile(meta) {
       const id = `file-${nextId++}`;
-      filesByHash.set(meta.contentSha256, { id, uploaded_at: new Date().toISOString() });
+      filesByHash.set(meta.contentSha256, {
+        id,
+        uploaded_at: new Date().toISOString(),
+        report_type: meta.reportType,
+      });
       return id;
     },
     async upsertVerifications(rows: NormalisedVerificationRow[]) {
@@ -152,14 +167,20 @@ function makeFakeDeps(): IngestDeps & {
       return inserted;
     },
     async finalizeFile(_id, counts) {
-      // fake — records the terminal status the production writer would persist
+      // fake — records what the production writer would persist
       lastStatus = counts.status;
+      lastCounts = {
+        accepted: counts.accepted,
+        duplicates: counts.duplicates,
+        rejected: counts.rejected,
+        excluded: counts.excluded,
+      };
     },
   };
 }
 
 describe("ingest", () => {
-  it("ingests the real fixture: 2 accepted (post-cutoff), 0 duplicates, 0 rejected", async () => {
+  it("ingests the real fixture: 2 accepted (post-cutoff), 23 excluded (pre-window), 0 rejected — full accounting (CR-02)", async () => {
     const deps = makeFakeDeps();
     const result = await ingest(
       { fileName: "daily-ver-report_2026-08-13.csv", bytes: fixtureBytes, uploadedBy: "user-1" },
@@ -169,11 +190,17 @@ describe("ingest", () => {
     expect(result.accepted).toBe(2);
     expect(result.duplicates).toBe(0);
     expect(result.rejected).toBe(0);
+    // The 23 pre-13-Aug rows are counted, never silently dropped (CR-02).
+    expect(result.excluded).toBe(23);
+    // Every parsed row is accounted for: accepted + duplicates + rejected + excluded === 25.
+    expect(result.accepted + result.duplicates + result.rejected + result.excluded).toBe(25);
     expect(result.ingestedFileId).not.toBeNull();
     expect(deps.finalizedStatus()).toBe("done");
+    // The persisted audit counts match the returned result exactly.
+    expect(deps.finalizedCounts()).toEqual({ accepted: 2, duplicates: 0, rejected: 0, excluded: 23 });
   });
 
-  it("returns alreadyUploaded on a repeat ingest of the identical file content", async () => {
+  it("returns alreadyUploaded (with the real reportType, not null) on a repeat ingest (IN-02)", async () => {
     const deps = makeFakeDeps();
     await ingest(
       { fileName: "daily-ver-report_2026-08-13.csv", bytes: fixtureBytes, uploadedBy: "user-1" },
@@ -184,8 +211,27 @@ describe("ingest", () => {
       deps
     );
     expect(second.alreadyUploaded).toBeDefined();
+    expect(second.reportType).toBe("verification");
     expect(second.accepted).toBe(0);
     expect(second.duplicates).toBe(0);
+    expect(second.excluded).toBe(0);
+  });
+
+  it("does not throw and marks status=failed when the filename matches but content is unparsable (CR-01)", async () => {
+    const deps = makeFakeDeps();
+    // Filename contains 'daily-ver' so classify() matches on name, but the
+    // content has none of the expected columns — the second parse would throw.
+    const badContent = new TextEncoder().encode("wrong,header\n1,2\n");
+    const result = await ingest(
+      { fileName: "daily-ver-report-old-format.csv", bytes: badContent, uploadedBy: "user-1" },
+      deps
+    );
+    expect(result.reportType).toBe("verification");
+    expect(result.accepted).toBe(0);
+    expect(result.ingestedFileId).not.toBeNull();
+    expect(result.rejectReasons.length).toBeGreaterThan(0);
+    // Must be marked failed (not stuck at 'pending') so it isn't a silent data-loss path.
+    expect(deps.finalizedStatus()).toBe("failed");
   });
 
   it("returns reportType null and a rejection reason for an unrecognised file", async () => {

@@ -27,5 +27,7 @@ export async function proxy(request: NextRequest) {
 }
 
 export const config = {
-  matcher: ["/((?!_next/static|_next/image|favicon.ico|login).*)"],
+  // IN-01: anchor `login` to a full segment boundary so a future route like
+  // `/login-help` isn't accidentally excluded from the auth gate by prefix match.
+  matcher: ["/((?!_next/static|_next/image|favicon.ico|login(?:/|$)).*)"],
 };

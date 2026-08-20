@@ -78,11 +78,9 @@ async function main() {
       fileName,
       bytes: new Uint8Array(buffer),
       contentType: "text/csv",
-      // Cast: IngestionInput.uploadedBy is typed as a required string in the
-      // shared contract (it always has a real value on the live upload
-      // path); the seed script is the one caller that may legitimately pass
-      // null when no seed account id is configured, per the FK note above.
-      uploadedBy: SEED_UPLOADED_BY as unknown as string,
+      // IngestionInput.uploadedBy is `string | null` — the seed legitimately
+      // passes null when no SEED_UPLOADED_BY is configured (nullable FK). No cast.
+      uploadedBy: SEED_UPLOADED_BY,
     };
 
     const result = await ingest(input, deps);
@@ -96,7 +94,8 @@ async function main() {
 
     console.log(
       `${fileName}: reportType=${result.reportType ?? "unrecognised"} ` +
-        `accepted=${result.accepted} duplicates=${result.duplicates} rejected=${result.rejected}`
+        `accepted=${result.accepted} duplicates=${result.duplicates} ` +
+        `rejected=${result.rejected} excluded=${result.excluded}`
     );
     if (result.rejectReasons.length > 0) {
       for (const r of result.rejectReasons) {

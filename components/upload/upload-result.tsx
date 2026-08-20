@@ -81,10 +81,18 @@ export function UploadResult({ result }: { result: IngestionResult }) {
           >
             {result.rejected} rejected
           </Badge>
+          {result.excluded > 0 && (
+            <Badge variant="outline" className="text-muted-foreground">
+              {result.excluded} excluded
+            </Badge>
+          )}
         </div>
         <p className="text-sm font-light text-foreground">
           Import complete — {result.accepted} rows accepted · {result.duplicates}{" "}
           duplicates skipped · {result.rejected} rejected
+          {result.excluded > 0
+            ? ` · ${result.excluded} excluded (before 13 Aug 2026 data window)`
+            : ""}
         </p>
         {result.rejectReasons.length > 0 && (
           <div className="text-sm font-light text-muted-foreground">

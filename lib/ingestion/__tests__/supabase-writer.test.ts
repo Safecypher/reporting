@@ -9,7 +9,7 @@ import type { NormalisedVerificationRow } from "../types";
  * asserted independently per table.
  */
 function makeFakeSupabase(overrides: {
-  findFileByHashResult?: { id: string; uploaded_at: string } | null;
+  findFileByHashResult?: { id: string; uploaded_at: string; report_type: string | null } | null;
   recordFileId?: string;
   insertedVerificationIds?: { id: number }[];
 } = {}) {
@@ -79,12 +79,20 @@ describe("createSupabaseWriter", () => {
 
   it("findFileByHash returns the prior row when content_sha256 already exists", async () => {
     const fake = makeFakeSupabase({
-      findFileByHashResult: { id: "existing-id", uploaded_at: "2026-08-13T00:00:00Z" },
+      findFileByHashResult: {
+        id: "existing-id",
+        uploaded_at: "2026-08-13T00:00:00Z",
+        report_type: "verification",
+      },
     });
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const writer = createSupabaseWriter(fake as any);
     const result = await writer.findFileByHash("deadbeef");
-    expect(result).toEqual({ id: "existing-id", uploaded_at: "2026-08-13T00:00:00Z" });
+    expect(result).toEqual({
+      id: "existing-id",
+      uploaded_at: "2026-08-13T00:00:00Z",
+      report_type: "verification",
+    });
   });
 
   it("recordFile uploads the raw bytes to the reports bucket and inserts an ingested_files row", async () => {
@@ -136,6 +144,7 @@ describe("createSupabaseWriter", () => {
       accepted: 2,
       duplicates: 1,
       rejected: 0,
+      excluded: 23,
       rejectReasons: [],
       status: "done",
     });

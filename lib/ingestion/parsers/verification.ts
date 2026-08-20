@@ -12,7 +12,14 @@ const EXPECTED_COLUMNS = [
 ] as const;
 
 export const VerificationRowSchema = z.object({
-  CreatedAt: z.string().min(1, "missing timestamp"),
+  // A1: CreatedAt is a naive timestamp interpreted as UTC. Require that it is
+  // actually parseable so a garbage value is REJECTED here with a reason rather
+  // than silently dropped in normalisation (see CR-02) — the parser's contract
+  // is that no malformed row disappears untracked.
+  CreatedAt: z
+    .string()
+    .min(1, "missing timestamp")
+    .refine((v) => Number.isFinite(Date.parse(`${v}Z`)), "unparseable timestamp"),
   ExternalCardReference: z.string().min(1, "missing card reference"),
   Cvi2Value: z.coerce.number({ error: "invalid Cvi2Value" }).int("invalid Cvi2Value"),
   duration: z.coerce.number({ error: "invalid duration" }).nonnegative("invalid duration"),
