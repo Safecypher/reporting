@@ -4,6 +4,9 @@
 .env*.local
 .mcp.json
 
+# Historical seed report data (D-07) — never commit real report data
+seed-data/*.csv
+
 # Supabase local
 supabase/.temp/
 supabase/.branches/
