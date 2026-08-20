@@ -71,7 +71,23 @@ Plans:
   2. Re-uploading the cumulative billing report never inflates totals (de-dup on `transactionId`); verification/dCVV rows de-dup on their deterministic composite key and daily snapshots on (report_date, card reference) — re-uploading any file never double-counts.
   3. Thesis XLSX dates import as real 2026 timestamps (not ~46000 serials), only the `APIGEE Calls` sheet is read (`Verify Outcome` skipped), and the first column of every CSV is populated (UTF-8 BOM stripped).
 
-**Plans**: TBD
+**Plans**: 7 plans
+Plans:
+**Wave 1**
+
+- [ ] 02-01-PLAN.md — ReportHandler registry refactor of the verification-hardcoded ingest()/IngestDeps (foundation; regression-gated)
+
+**Wave 2** *(blocked on Wave 1; the five report slices are parallel — no shared-file overlap)*
+
+- [ ] 02-02-PLAN.md — Billing slice (CSV, transactionId dedup, store all incl. authorised=False)
+- [ ] 02-03-PLAN.md — daily-dCVV slice (CSV, whole-row-hash dedup)
+- [ ] 02-04-PLAN.md — Card-inventory slice (CSV snapshot, report_date-from-filename, (report_date,card) dedup)
+- [ ] 02-05-PLAN.md — Removed-cards slice (CSV event log, whole-row-hash dedup)
+- [ ] 02-06-PLAN.md — Thesis APIGEE XLSX slice (ExcelJS, APIGEE-Calls-only, 46 rows incl. hidden, date-serial decode)
+
+**Wave 3** *(blocked on all Wave 2)*
+
+- [ ] 02-07-PLAN.md — [BLOCKING] schema push (0006-0010) + DB type regen + full six-source phase verification
 
 ### Phase 3: Revenue, SLA & Drill-down
 
