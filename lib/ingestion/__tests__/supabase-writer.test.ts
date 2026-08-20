@@ -137,6 +137,7 @@ describe("createSupabaseWriter", () => {
       duplicates: 1,
       rejected: 0,
       rejectReasons: [],
+      status: "done",
     });
     expect(fake.updateEqMock).toHaveBeenCalledWith("id", "file-1");
   });

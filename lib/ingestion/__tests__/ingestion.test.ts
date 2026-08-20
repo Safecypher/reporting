@@ -119,15 +119,18 @@ describe("normaliseVerification", () => {
 function makeFakeDeps(): IngestDeps & {
   filesByHash: Map<string, { id: string; uploaded_at: string }>;
   storedRows: NormalisedVerificationRow[];
+  finalizedStatus: () => "done" | "failed" | null;
 } {
   const filesByHash = new Map<string, { id: string; uploaded_at: string }>();
   const storedRowKeys = new Set<string>();
   const storedRows: NormalisedVerificationRow[] = [];
+  let lastStatus: "done" | "failed" | null = null;
   let nextId = 1;
 
   return {
     filesByHash,
     storedRows,
+    finalizedStatus: () => lastStatus,
     async findFileByHash(sha256Hex: string) {
       return filesByHash.get(sha256Hex) ?? null;
     },
@@ -148,8 +151,9 @@ function makeFakeDeps(): IngestDeps & {
       }
       return inserted;
     },
-    async finalizeFile() {
-      // no-op fake — production writer updates ingested_files status/counts
+    async finalizeFile(_id, counts) {
+      // fake — records the terminal status the production writer would persist
+      lastStatus = counts.status;
     },
   };
 }
@@ -166,6 +170,7 @@ describe("ingest", () => {
     expect(result.duplicates).toBe(0);
     expect(result.rejected).toBe(0);
     expect(result.ingestedFileId).not.toBeNull();
+    expect(deps.finalizedStatus()).toBe("done");
   });
 
   it("returns alreadyUploaded on a repeat ingest of the identical file content", async () => {
@@ -192,5 +197,7 @@ describe("ingest", () => {
     );
     expect(result.reportType).toBeNull();
     expect(result.rejectReasons[0].reasons).toContain("unrecognised report type");
+    // Audit integrity: an unrecognised file must never be marked a successful import.
+    expect(deps.finalizedStatus()).toBe("failed");
   });
 });

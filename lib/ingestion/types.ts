@@ -74,6 +74,18 @@ export interface IngestDeps {
   upsertVerifications(rows: NormalisedVerificationRow[]): Promise<number>;
   finalizeFile(
     id: string,
-    counts: { accepted: number; duplicates: number; rejected: number; rejectReasons: RejectedRow[] }
+    counts: {
+      accepted: number;
+      duplicates: number;
+      rejected: number;
+      rejectReasons: RejectedRow[];
+      /**
+       * Terminal status for the ingested_files audit row. 'done' when the file
+       * was a recognised report and processed (even if some rows were rejected);
+       * 'failed' when the file was unrecognised and imported nothing — so the
+       * uploads history never shows a rejected file as a successful import.
+       */
+      status: "done" | "failed";
+    }
   ): Promise<void>;
 }

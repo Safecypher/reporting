@@ -111,12 +111,12 @@ export function createSupabaseWriter(client?: SupabaseClient<Database>): IngestD
 
     async finalizeFile(
       id: string,
-      counts: { accepted: number; duplicates: number; rejected: number; rejectReasons: RejectedRow[] }
+      counts: { accepted: number; duplicates: number; rejected: number; rejectReasons: RejectedRow[]; status: "done" | "failed" }
     ) {
       const { error } = await supabase
         .from("ingested_files")
         .update({
-          status: "done",
+          status: counts.status,
           rows_accepted: counts.accepted,
           rows_duplicate: counts.duplicates,
           rows_rejected: counts.rejected,

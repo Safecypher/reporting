@@ -47,7 +47,13 @@ export async function ingest(input: IngestionInput, deps: IngestDeps): Promise<I
       bytes: input.bytes,
     });
     const rejectReasons: RejectedRow[] = [{ row: 0, reasons: ["unrecognised report type"] }];
-    await deps.finalizeFile(ingestedFileId, { accepted: 0, duplicates: 0, rejected: 0, rejectReasons });
+    await deps.finalizeFile(ingestedFileId, {
+      accepted: 0,
+      duplicates: 0,
+      rejected: 0,
+      rejectReasons,
+      status: "failed",
+    });
     return {
       reportType: null,
       accepted: 0,
@@ -78,6 +84,7 @@ export async function ingest(input: IngestionInput, deps: IngestDeps): Promise<I
     duplicates,
     rejected: rejected.length,
     rejectReasons: rejected,
+    status: "done" as const,
   };
   await deps.finalizeFile(ingestedFileId, counts);
 

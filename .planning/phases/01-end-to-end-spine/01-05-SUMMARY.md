@@ -166,3 +166,11 @@ This plan is `autonomous: false` and ends in a `checkpoint:human-verify` gate. A
 ---
 *Phase: 01-end-to-end-spine*
 *Completed: 2026-08-20*
+
+## Post-checkpoint fix (orchestrator, 2026-08-20) — audit status integrity
+Live upload test approved (a–d). MCP DB verification surfaced one issue: `finalizeFile` hardcoded `status:'done'`, so an unrecognised/rejected upload was persisted as `done` (misleading in the uploads history for an audit tool).
+
+- Fix: `IngestDeps.finalizeFile` now takes an explicit `status: 'done' | 'failed'`. `ingest()` passes `'failed'` for the unrecognised branch (imported nothing, matched no report) and `'done'` for recognised files (even with rejected rows). `supabase-writer.ts` writes `counts.status`.
+- Tests: added assertions that a recognised import finalizes `'done'` and an unrecognised file finalizes `'failed'` (26/26 green). Recording the audit row + storing the raw file for every upload is unchanged (per plan spec).
+- Data correction: the one existing misleading row (`Client Partner and Relationships (8).csv`) updated `done`→`failed` via MCP.
+- DB state confirmed: verifications=2, distinct_hashes=2, ingested_files=2 (1 done / 1 failed), stored_files=2, v_verifications_daily → 2026-08-13 auth=0 failed=2. Idempotency held (re-upload no double-count).
