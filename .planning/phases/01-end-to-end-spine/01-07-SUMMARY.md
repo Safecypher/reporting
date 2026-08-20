@@ -139,3 +139,10 @@ This plan is `autonomous: false` and ends in a `checkpoint:human-verify` gate. T
 - `npm run lint` exits 0
 - `npx tsc --noEmit` — no errors
 - `npm test` — 26/26 tests pass
+
+## Orchestrator seed run + fix (2026-08-20)
+Drove the checkpoint (CLI, no browser). Two issues/notes:
+
+- **Node 20 WebSocket fix:** `npm run seed` initially failed — `@supabase/supabase-js` constructs a Realtime client needing a global `WebSocket`, absent on Node 20 (Next polyfills it, so the app/upload path was unaffected; a standalone script is not). Added `ws@8` devDep and a polyfill shim at the top of `scripts/seed-historical.ts` (documented, remove on Node 22+). Follow-up recommended: move the project to Node 22 (react-dropzone + supabase-js both want it) via `.nvmrc`/engines.
+- **Idempotency demonstrated:** the only on-hand file was already ingested during the 01-05 upload test, so both seed runs reported `already uploaded … skipped (idempotent, no re-parse)`. MCP verification after two runs: verifications=2 (unchanged), v_verifications_daily → 2026-08-13 auth=0/failed=2. No double-count. Fresh inserts will occur when Richard's additional daily CSVs are dropped into `seed-data/`.
+- `seed-data/*.csv` is gitignored; the on-hand CSV was copied in locally and not committed.

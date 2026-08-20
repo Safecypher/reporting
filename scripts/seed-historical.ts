@@ -16,8 +16,18 @@
  * SUPABASE_SECRET_KEY (same as the live upload path) — the `seed` npm
  * script loads it via `node --env-file=.env.local`.
  */
+import { WebSocket as WsWebSocket } from "ws";
 import { readdir, readFile } from "node:fs/promises";
 import path from "node:path";
+
+// Node 20 has no global WebSocket, but @supabase/supabase-js constructs a
+// Realtime client (which requires one) eagerly in createClient — even though
+// this seed never uses realtime. Next.js polyfills WebSocket in its runtime, so
+// the live upload path works; a standalone script must supply it. Remove once
+// the project moves to Node 22+ (which has a native global WebSocket).
+if (!(globalThis as { WebSocket?: unknown }).WebSocket) {
+  (globalThis as { WebSocket?: unknown }).WebSocket = WsWebSocket;
+}
 import { ingest } from "../lib/ingestion";
 import { createSupabaseWriter } from "../lib/ingestion/supabase-writer";
 import type { IngestionInput } from "../lib/ingestion/types";

@@ -39,11 +39,13 @@
     "@types/papaparse": "5.5.2",
     "@types/react": "^19",
     "@types/react-dom": "^19",
+    "@types/ws": "^8.18.1",
     "eslint": "^9",
     "eslint-config-next": "16.3.1",
     "tailwindcss": "^4",
     "tsx": "^4.23.12",
     "typescript": "^5",
-    "vitest": "4.1.11"
+    "vitest": "4.1.11",
+    "ws": "^8.21.3"
   }
 }
