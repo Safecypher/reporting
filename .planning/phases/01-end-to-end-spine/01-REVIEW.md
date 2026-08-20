@@ -36,8 +36,18 @@ findings:
   warning: 4
   info: 4
   total: 11
-status: issues_found
+status: resolved
+resolved_at: 2026-08-20
+resolution_commit: see "fix(01): resolve code-review findings"
 ---
+
+> **RESOLUTION (2026-08-20):** All 11 findings addressed (CR-01–03, WR-01–04, IN-01–04).
+> Regression tests added (28/28 green); tsc/lint/build clean. CR-02 verified end-to-end
+> against the live DB — a fresh ingest of the sample records `accepted=2, duplicates=0,
+> rejected=0, excluded=23, total_accounted=25` (no silent row loss). See the fix commit for
+> the per-finding changes. Schema change: `ingested_files.rows_excluded` + explicit-UTC view
+> (migration 0005, applied via MCP).
+
 
 # Phase 1: Code Review Report
 
