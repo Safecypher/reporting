@@ -47,7 +47,7 @@ Plans:
 **Wave 3** *(blocked on Wave 2 completion)*
 
 - [x] 01-04-PLAN.md — Source-agnostic ingestion core (classify/parse/normalise/ingest) TDD against the real sample CSV
-- [ ] 01-06-PLAN.md — Verifications-over-time dashboard (chart + KPI + granularity/timezone toggles + freshness)
+- [x] 01-06-PLAN.md — Verifications-over-time dashboard (chart + KPI + granularity/timezone toggles + freshness)
 
 **Wave 4** *(blocked on Wave 3 completion)*
 
@@ -112,7 +112,7 @@ Phases execute in numeric order: 1 → 2 → 3 → 4 (Phase 3 may run in paralle
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
-| 1. End-to-End Spine | 4/7 | In Progress|  |
+| 1. End-to-End Spine | 5/7 | In Progress|  |
 | 2. Complete the Six Sources | 0/TBD | Not started | - |
 | 3. Revenue, SLA & Drill-down | 0/TBD | Not started | - |
 | 4. Reconciliation & Discrepancy Flagging | 0/TBD | Not started | - |
