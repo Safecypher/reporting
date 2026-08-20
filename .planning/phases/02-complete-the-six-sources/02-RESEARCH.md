@@ -484,17 +484,19 @@ create table if not exists card_inventory (
 | A2 | The Thesis XLSX workbook will always contain exactly two sheets (`APIGEE Calls`, `Verify Outcome`) in future deliveries, with `APIGEE Calls` always present | Architecture Patterns (Pattern 4), Common Pitfalls | If a future delivery renames or omits the `APIGEE Calls` sheet, `getWorksheet("APIGEE Calls")` returns `undefined` — the parser must throw a clear "missing sheet" rejection (not crash silently); this is defensive-coded above but the *assumption* that the sheet name stays stable is unverified beyond this one sample file |
 | A3 | ExcelJS's Date-coercion behaviour observed on this one sample file (numFmtId 22, a built-in date-time format) generalises to any future Thesis XLSX export from the same tool/process | Standard Stack, Code Examples | If a future export uses a different (e.g. custom/non-built-in) numFmt for the `Time` column, ExcelJS may return a raw number instead of a `Date` — the parser should defensively handle both (`typeof value === 'number' ? excelSerialToDate(value) : value`) as a fallback, not assume `Date` unconditionally forever |
 
-## Open Questions
+## Open Questions (RESOLVED)
 
 1. **Should the `ingest()` registry refactor happen as its own standalone task/wave before any of the five new parsers are written, or incrementally alongside the first new parser?**
    - What we know: The registry pattern (Pattern 1) is a moderate refactor of `index.ts` + `types.ts` touching the one already-passing verification path.
    - What's unclear: Whether the planner wants a dedicated "refactor ingest() to a registry, migrate verification into it, all Phase 1 tests still green" task before any new parser lands, vs. building the registry as part of the first new parser's task.
    - Recommendation: Do the registry refactor first, as its own task/wave, with the full existing Phase 1 test suite as the regression gate (zero behaviour change for verification) — then the five new parsers are pure additions to the registry, safely parallelisable per CONTEXT.md's "exploits the six-parser parallel fan-out" framing.
+   - RESOLVED: 02-01-PLAN.md does the registry refactor as its own standalone Wave 1 plan, gated by the full Phase 1 verification suite as a regression gate; the five report slices are pure Wave 2 additions.
 
 2. **Exact column/type choices for `raw_response_code` (APIGEE) and `raw_transaction_kind` etc. — should every raw source column be retained, or only the ones with a stated re-derivation need?**
    - What we know: DATA-07 requires immutable raw row-level lineage broadly; D-06 explicitly calls out billing's split date/time columns as "raw fields (lineage)."
    - What's unclear: Whether every single source column across all five formats needs a dedicated raw-string column, or whether some (e.g. billing's `region`, `verificationKind`) can be stored directly as their typed value with no separate "raw" shadow column, since they have no normalisation/reinterpretation risk (unlike timestamps).
    - Recommendation: Only timestamp-like columns need a `raw_*` shadow (the ones actually subject to a re-tunable interpretation, per D-01/D-06's stated rationale); non-temporal columns can be stored once, typed, with no raw duplicate — keeps the five new tables from ballooning with redundant columns for values that were never ambiguous.
+   - RESOLVED: each Wave-2 plan adds `raw_*` shadow columns only for timestamp-like columns (billing raw_transaction_date/time, dcvv raw_timestamp, card-inventory raw_created_at, removed-cards raw_removed_at, apigee raw_event_time + raw_path_suffix), per the D-01/D-06 re-tunable-interpretation rationale; non-temporal columns are stored once, typed, with no raw duplicate.
 
 ## Environment Availability
 
