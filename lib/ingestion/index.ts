@@ -44,6 +44,7 @@ export async function ingest(input: IngestionInput, deps: IngestDeps): Promise<I
       contentSha256,
       uploadedBy: input.uploadedBy,
       reportType: null,
+      bytes: input.bytes,
     });
     const rejectReasons: RejectedRow[] = [{ row: 0, reasons: ["unrecognised report type"] }];
     await deps.finalizeFile(ingestedFileId, { accepted: 0, duplicates: 0, rejected: 0, rejectReasons });
@@ -62,6 +63,7 @@ export async function ingest(input: IngestionInput, deps: IngestDeps): Promise<I
     contentSha256,
     uploadedBy: input.uploadedBy,
     reportType,
+    bytes: input.bytes,
   });
 
   const { rows } = parseVerification(input.bytes);

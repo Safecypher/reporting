@@ -63,6 +63,12 @@ export interface IngestDeps {
     contentSha256: string;
     uploadedBy: string;
     reportType: ReportType | null;
+    /**
+     * Raw uploaded bytes, passed through so the writer can persist the file
+     * to private storage (DATA-07) as part of recording the audit row.
+     * Added in Plan 01-05 — not present in Plan 01-04's original contract.
+     */
+    bytes: Uint8Array;
   }): Promise<string>;
   /** INSERT ... ON CONFLICT (row_hash) DO NOTHING RETURNING id; returns inserted count. */
   upsertVerifications(rows: NormalisedVerificationRow[]): Promise<number>;
