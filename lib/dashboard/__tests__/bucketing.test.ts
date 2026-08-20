@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { rebucket, type DailyRow } from "@/lib/dashboard/bucketing";
+import { rebucket, type DailyRow } from "../bucketing";
 
 describe("rebucket", () => {
   it("passes daily rows through unchanged in UTC", () => {
