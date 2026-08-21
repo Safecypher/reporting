@@ -35,6 +35,17 @@ function isDrillEntity(value: string | undefined): value is DrillEntity {
 }
 
 /**
+ * Strict `YYYY-MM-DD` shape check. Combined with `Date.parse` below to also
+ * reject calendar-invalid dates like `2026-13-99` (the regex alone would
+ * accept those) — see CR-02.
+ */
+const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
+
+function isValidDrillDate(value: string): boolean {
+  return DATE_RE.test(value) && !Number.isNaN(Date.parse(`${value}T00:00:00Z`));
+}
+
+/**
  * Parses raw URL search params into a whitelisted `DrillFilter`. Returns
  * `null` when `drill` is missing or not one of the exact allowed entities.
  * Any key not explicitly read below is silently dropped — this function is
@@ -47,8 +58,13 @@ export function parseDrillParams(params: RawSearchParams): DrillFilter | null {
 
   const filter: DrillFilter = { drill };
 
+  // CR-02: a malformed `date` (non-ISO, or calendar-invalid like
+  // 2026-13-99) is silently dropped rather than passed through — callers
+  // building a day-range query from `filter.date` would otherwise construct
+  // `new Date(NaN)` and throw `RangeError: Invalid time value` deep inside a
+  // Server Component render.
   const date = firstValue(params.date);
-  if (date !== undefined) {
+  if (date !== undefined && isValidDrillDate(date)) {
     filter.date = date;
   }
 

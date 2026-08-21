@@ -73,6 +73,23 @@ describe("parseDrillParams", () => {
     expect(result).not.toHaveProperty("externalCardReference");
   });
 
+  it("drops a malformed `date` (non-ISO string) rather than passing it through", () => {
+    const result = parseDrillParams({ drill: "sla-breach", date: "nope" });
+    expect(result).toEqual({ drill: "sla-breach" });
+    expect(result).not.toHaveProperty("date");
+  });
+
+  it("drops a calendar-invalid `date` (e.g. month 13)", () => {
+    const result = parseDrillParams({ drill: "sla-breach", date: "2026-13-99" });
+    expect(result).toEqual({ drill: "sla-breach" });
+    expect(result).not.toHaveProperty("date");
+  });
+
+  it("accepts a well-formed ISO `date`", () => {
+    const result = parseDrillParams({ drill: "sla-breach", date: "2026-08-14" });
+    expect(result).toEqual({ drill: "sla-breach", date: "2026-08-14" });
+  });
+
   it("takes the first value when a param is an array (repeated query key)", () => {
     const result = parseDrillParams({ drill: ["verification", "sla-breach"] });
     expect(result).toEqual({ drill: "verification" });
