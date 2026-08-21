@@ -37,8 +37,13 @@ findings:
   warning: 5
   info: 0
   total: 10
-status: issues_found
+  resolved: 10
+status: resolved
 ---
+
+> **RESOLVED 2026-08-21** — all 10 findings fixed and verified.
+> Fix commits: CR-01 `319c689`, CR-02 `b3c394b`, CR-03/CR-04/CR-05 `cab2e64` (+ migration `0015_pricing_tier_integrity.sql`), WR-03 `d6d4597`, WR-04/WR-05 `e4f7470`; types regen `4aa83c3`/`fix(03): regen db types`.
+> Verified: `tsc --noEmit` clean, `vitest` 143/143, `next build` green. Migration 0015 applied to the live DB and functionally verified against real Postgres (all rolled back): the transactional `save_pricing_tier_set` RPC produces the exact $215.0000 boundary result; the backdating guard rejects an earlier `effective_from`; the deferred integrity trigger rejects a bounded (non-open-ended) top tier. Security advisors clean (only the pre-existing leaked-password Auth toggle remains).
 
 # Phase 3: Code Review Report
 
