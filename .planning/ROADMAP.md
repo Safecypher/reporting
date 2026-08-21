@@ -75,7 +75,7 @@ Plans:
 Plans:
 **Wave 1**
 
-- [ ] 02-01-PLAN.md — ReportHandler registry refactor of the verification-hardcoded ingest()/IngestDeps (foundation; regression-gated)
+- [x] 02-01-PLAN.md — ReportHandler registry refactor of the verification-hardcoded ingest()/IngestDeps (foundation; regression-gated)
 
 **Wave 2** *(blocked on Wave 1; the five report slices are parallel — no shared-file overlap)*
 
@@ -129,6 +129,6 @@ Phases execute in numeric order: 1 → 2 → 3 → 4 (Phase 3 may run in paralle
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
 | 1. End-to-End Spine | 7/7 | Complete   | 2026-08-20 |
-| 2. Complete the Six Sources | 0/TBD | Not started | - |
+| 2. Complete the Six Sources | 1/7 | In Progress|  |
 | 3. Revenue, SLA & Drill-down | 0/TBD | Not started | - |
 | 4. Reconciliation & Discrepancy Flagging | 0/TBD | Not started | - |
