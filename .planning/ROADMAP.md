@@ -79,11 +79,11 @@ Plans:
 
 **Wave 2** *(blocked on Wave 1; the five report slices are parallel — no shared-file overlap)*
 
-- [ ] 02-02-PLAN.md — Billing slice (CSV, transactionId dedup, store all incl. authorised=False)
-- [ ] 02-03-PLAN.md — daily-dCVV slice (CSV, whole-row-hash dedup)
-- [ ] 02-04-PLAN.md — Card-inventory slice (CSV snapshot, report_date-from-filename, (report_date,card) dedup)
-- [ ] 02-05-PLAN.md — Removed-cards slice (CSV event log, whole-row-hash dedup)
-- [ ] 02-06-PLAN.md — Thesis APIGEE XLSX slice (ExcelJS, APIGEE-Calls-only, 46 rows incl. hidden, date-serial decode)
+- [x] 02-02-PLAN.md — Billing slice (CSV, transactionId dedup, store all incl. authorised=False)
+- [x] 02-03-PLAN.md — daily-dCVV slice (CSV, whole-row-hash dedup)
+- [x] 02-04-PLAN.md — Card-inventory slice (CSV snapshot, report_date-from-filename, (report_date,card) dedup)
+- [x] 02-05-PLAN.md — Removed-cards slice (CSV event log, whole-row-hash dedup)
+- [x] 02-06-PLAN.md — Thesis APIGEE XLSX slice (ExcelJS, APIGEE-Calls-only, 46 rows incl. hidden, date-serial decode)
 
 **Wave 3** *(blocked on all Wave 2)*
 
@@ -129,6 +129,6 @@ Phases execute in numeric order: 1 → 2 → 3 → 4 (Phase 3 may run in paralle
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
 | 1. End-to-End Spine | 7/7 | Complete   | 2026-08-20 |
-| 2. Complete the Six Sources | 1/7 | In Progress|  |
+| 2. Complete the Six Sources | 6/7 | In Progress|  |
 | 3. Revenue, SLA & Drill-down | 0/TBD | Not started | - |
 | 4. Reconciliation & Discrepancy Flagging | 0/TBD | Not started | - |
