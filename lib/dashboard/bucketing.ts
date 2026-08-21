@@ -27,9 +27,9 @@ export interface BucketPoint {
 }
 
 /** Mirrors the 13 Aug 2026 cutoff baked into `v_verifications_daily` (DATA-06). */
-const DATA_WINDOW_START = "2026-08-13";
+export const DATA_WINDOW_START = "2026-08-13";
 
-function bucketKeyAndLabel(
+export function bucketKeyAndLabel(
   dayUtc: string,
   granularity: Granularity,
   timeZone: BucketTimeZone,
