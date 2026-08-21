@@ -116,7 +116,7 @@ Plans:
 
 **Wave 3** *(blocked on 03-03 + 03-04)*
 
-- [ ] 03-05-PLAN.md — Revenue view page: Total revenue KPI (USD) + revenue chart + per-tier breakdown + reused controls (no-tiers = error)
+- [x] 03-05-PLAN.md — Revenue view page: Total revenue KPI (USD) + revenue chart + per-tier breakdown + reused controls (no-tiers = error)
 
 **Wave 4** *(blocked on 03-05 + 03-04)*
 
@@ -153,5 +153,5 @@ Phases execute in numeric order: 1 → 2 → 3 → 4 (Phase 3 may run in paralle
 |-------|----------------|--------|-----------|
 | 1. End-to-End Spine | 7/7 | Complete   | 2026-08-20 |
 | 2. Complete the Six Sources | 7/7 | Complete    | 2026-08-21 |
-| 3. Revenue, SLA & Drill-down | 4/7 | In Progress|  |
+| 3. Revenue, SLA & Drill-down | 5/7 | In Progress|  |
 | 4. Reconciliation & Discrepancy Flagging | 0/TBD | Not started | - |
