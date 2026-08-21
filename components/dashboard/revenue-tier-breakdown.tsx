@@ -2,6 +2,7 @@
 
 import { useMemo } from "react";
 
+import { DrillableMetric } from "@/components/dashboard/drillable-metric";
 import {
   Table,
   TableBody,
@@ -85,19 +86,29 @@ export function RevenueTierBreakdown({ rows }: RevenueTierBreakdownProps) {
           {totals.map((tier) => (
             <TableRow key={tier.tierOrder}>
               <TableCell>
-                <span className="flex items-center gap-2">
+                <DrillableMetric
+                  filter={{ drill: "revenue-tier", tierOrder: tier.tierOrder }}
+                  className="flex items-center gap-2"
+                  aria-label={`Drill into tier ${tier.tierOrder + 1} revenue`}
+                >
                   <span
                     aria-hidden="true"
                     className="inline-block size-2.5 rounded-full"
                     style={{ backgroundColor: tintForTier(tier.tierOrder, maxTierOrder) }}
                   />
                   {`Tier ${tier.tierOrder + 1}`}
-                </span>
+                </DrillableMetric>
               </TableCell>
               <TableCell className="text-right">
-                <span className="font-mono tabular-nums">
-                  {currencyFormatter.format(tier.revenue)}
-                </span>
+                <DrillableMetric
+                  filter={{ drill: "revenue-tier", tierOrder: tier.tierOrder }}
+                  className="ml-auto"
+                  aria-label={`Drill into tier ${tier.tierOrder + 1} revenue amount`}
+                >
+                  <span className="font-mono tabular-nums">
+                    {currencyFormatter.format(tier.revenue)}
+                  </span>
+                </DrillableMetric>
               </TableCell>
             </TableRow>
           ))}
