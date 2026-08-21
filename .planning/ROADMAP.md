@@ -106,8 +106,8 @@ Plans:
 Plans:
 **Wave 1**
 
-- [ ] 03-01-PLAN.md — Pricing schema (tier sets/tiers/audit) + first authenticated-INSERT RLS + audit trigger + Zod contiguity contract
-- [ ] 03-04-PLAN.md — SLA slice: v_sla_daily/v_sla_breaches views + trend chart (750ms ReferenceLine) + drillable breach table + page
+- [x] 03-01-PLAN.md — Pricing schema (tier sets/tiers/audit) + first authenticated-INSERT RLS + audit trigger + Zod contiguity contract
+- [x] 03-04-PLAN.md — SLA slice: v_sla_daily/v_sla_breaches views + trend chart (750ms ReferenceLine) + drillable breach table + page
 
 **Wave 2** *(blocked on 03-01)*
 
@@ -153,5 +153,5 @@ Phases execute in numeric order: 1 → 2 → 3 → 4 (Phase 3 may run in paralle
 |-------|----------------|--------|-----------|
 | 1. End-to-End Spine | 7/7 | Complete   | 2026-08-20 |
 | 2. Complete the Six Sources | 7/7 | Complete    | 2026-08-21 |
-| 3. Revenue, SLA & Drill-down | 0/7 | Planned | - |
+| 3. Revenue, SLA & Drill-down | 2/7 | In Progress|  |
 | 4. Reconciliation & Discrepancy Flagging | 0/TBD | Not started | - |
