@@ -524,7 +524,14 @@ export type Database = {
       }
     }
     Functions: {
-      [_ in never]: never
+      save_pricing_tier_set: {
+        Args: {
+          p_effective_from: string
+          p_reset_window: string
+          p_tiers: Json
+        }
+        Returns: string
+      }
     }
     Enums: {
       [_ in never]: never
