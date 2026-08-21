@@ -238,21 +238,21 @@ export type Database = {
           changed_by: string | null
           id: number
           summary: string
-          tier_set_id: string
+          tier_set_id: string | null
         }
         Insert: {
           changed_at?: string
           changed_by?: string | null
           id?: never
           summary: string
-          tier_set_id: string
+          tier_set_id?: string | null
         }
         Update: {
           changed_at?: string
           changed_by?: string | null
           id?: never
           summary?: string
-          tier_set_id?: string
+          tier_set_id?: string | null
         }
         Relationships: [
           {
@@ -524,6 +524,10 @@ export type Database = {
       }
     }
     Functions: {
+      delete_latest_pricing_tier_set: {
+        Args: { p_tier_set_id: string }
+        Returns: undefined
+      }
       save_pricing_tier_set: {
         Args: {
           p_effective_from: string
