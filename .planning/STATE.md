@@ -28,7 +28,7 @@ See: .planning/PROJECT.md (updated 2026-08-18)
 Phase: 4
 Plan: Not started
 Status: Ready to plan
-Last activity: 2026-08-21
+Last activity: 2026-08-21 - Completed quick task 260821-mgy: Phase 3 UAT fixes (RSC crash + delete-latest-pricing-tier)
 
 Progress: [░░░░░░░░░░] 0%
 
@@ -78,6 +78,12 @@ Carried from research (resolve during phase planning):
 - [Phase 2] Source timezone per report type must be established (not guessed) before finalising UTC normalisation — confirm with Joachim/Chris; store raw timestamp strings.
 - [Phase 3] MSA pricing tiers not yet received (Richard) — use configurable placeholder tiers; validate bracket contiguity/ordering.
 - [Phase 4] 6am/8am billing/others delivery offset — design reconciliation to tolerate the offset regardless of Joachim's alignment effort; event-timestamp + settling window.
+
+### Quick Tasks Completed
+
+| # | Description | Date | Commit | Directory |
+|---|-------------|------|--------|-----------|
+| 260821-mgy | Fix Phase 3 UAT: RSC function-passing crash on /verifications, /sla, /revenue (drill column defs moved into client wrappers) + delete-latest-pricing-tier-set action (migration 0016, guarded RPC, dialog UI) | 2026-08-21 | (see git log) | [260821-mgy-fix-phase-3-uat-rsc-function-passing-cra](./quick/260821-mgy-fix-phase-3-uat-rsc-function-passing-cra/) |
 
 ## Deferred Items
 
