@@ -49,8 +49,16 @@ export function normaliseCardInventory(
   let excludedPreWindow = 0;
 
   for (const row of rows) {
+    // CR-01: the DATA-06 window must be keyed off the SNAPSHOT day
+    // (`report_date`, derived from the filename), NOT each card's `CreatedAt`
+    // (per-card enrolment time). A card enrolled before the window is still
+    // legitimately present in a current snapshot and must be kept and counted
+    // — filtering on enrolment time silently drops most of the live card base
+    // and corrupts inventory reconciliation. `created_at` is still parsed from
+    // `CreatedAt` for storage.
     const createdAtMs = naiveToUtcMs(row.CreatedAt);
-    if (!Number.isFinite(createdAtMs) || createdAtMs < DATA_WINDOW_START) {
+    const reportDateMs = Date.parse(`${row.report_date}T00:00:00Z`);
+    if (!Number.isFinite(reportDateMs) || reportDateMs < DATA_WINDOW_START) {
       excludedPreWindow += 1;
       continue;
     }

@@ -102,9 +102,27 @@ describe("normaliseCardInventory", () => {
     const target = valid.find((r) => r.CreatedAt === "2026-08-12T19:14:33.59");
     expect(target).toBeDefined();
     const { rows: normalisedRows } = normaliseCardInventory([target!]);
-    // This row is before the DATA-06 cutoff (2026-08-13T00:00:00Z), so it is
-    // excluded here — assert via the dedicated cutoff test below instead.
+    // CR-01: the DATA-06 window keys off report_date (the 2026-08-13 snapshot
+    // day), NOT the per-card enrolment CreatedAt. A card enrolled 2026-08-12
+    // but present in the 2026-08-13 snapshot must be KEPT, not excluded.
+    expect(normalisedRows.length).toBe(1);
+    expect(normalisedRows[0].report_date).toBe("2026-08-13");
+    expect(normalisedRows[0].created_at).toBe("2026-08-12T19:14:33.590Z");
+    expect(normalisedRows[0].raw_created_at).toBe("2026-08-12T19:14:33.59");
+  });
+
+  it("excludes a row whose SNAPSHOT day (report_date, from the filename) is before the DATA-06 window — not its enrolment time (CR-01)", () => {
+    const { rows } = parseCardInventory(fixtureBytes, FIXTURE_NAME);
+    const { valid } = validateCardInventoryRows(rows);
+    // Force the snapshot day (report_date) to a pre-window date while keeping
+    // an in-window enrolment CreatedAt: the row must be EXCLUDED because the
+    // snapshot day is what the cutoff keys off.
+    const preWindowSnapshot = { ...valid[0], report_date: "2026-08-12" };
+    const { rows: normalisedRows, excludedPreWindow } = normaliseCardInventory([
+      preWindowSnapshot,
+    ]);
     expect(normalisedRows.length).toBe(0);
+    expect(excludedPreWindow).toBe(1);
   });
 
   it("full accounting: kept + excludedPreWindow === valid.length (CR-02), and report_date on kept rows equals the row's own value", () => {
