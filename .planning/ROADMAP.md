@@ -129,6 +129,6 @@ Phases execute in numeric order: 1 → 2 → 3 → 4 (Phase 3 may run in paralle
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
 | 1. End-to-End Spine | 7/7 | Complete   | 2026-08-20 |
-| 2. Complete the Six Sources | 7/7 | Complete   | 2026-08-21 |
+| 2. Complete the Six Sources | 7/7 | Complete    | 2026-08-21 |
 | 3. Revenue, SLA & Drill-down | 0/TBD | Not started | - |
 | 4. Reconciliation & Discrepancy Flagging | 0/TBD | Not started | - |

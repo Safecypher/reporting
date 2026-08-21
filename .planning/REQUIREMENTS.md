@@ -23,11 +23,11 @@ Requirements for the initial release (the PoC dashboard shown to Mark). Each map
 
 ### Data
 
-- [ ] **DATA-01**: System parses and normalises all six report schemas (card-inventory, removed-cards, verification, dCVV, billing, APIGEE) into a common Postgres model
+- [x] **DATA-01**: System parses and normalises all six report schemas (card-inventory, removed-cards, verification, dCVV, billing, APIGEE) into a common Postgres model
 - [ ] **DATA-02**: Timestamps are normalised to UTC (handling both Z-suffixed and naive values) and stored as `timestamptz`
 - [ ] **DATA-03**: Monetary/rate values use exact numeric representation (NUMERIC / integer minor units), never floats
-- [ ] **DATA-04**: Ingestion strips UTF-8 BOM and correctly decodes XLSX date serials (e.g. 46247.x → 2026-08-13)
-- [ ] **DATA-05**: Re-ingestion is idempotent — billing rows de-duplicate on `transactionId`; verification/dCVV rows de-duplicate on a deterministic composite key; daily snapshots de-duplicate on (report_date, card reference); re-uploading a file never double-counts
+- [x] **DATA-04**: Ingestion strips UTF-8 BOM and correctly decodes XLSX date serials (e.g. 46247.x → 2026-08-13)
+- [x] **DATA-05**: Re-ingestion is idempotent — billing rows de-duplicate on `transactionId`; verification/dCVV rows de-duplicate on a deterministic composite key; daily snapshots de-duplicate on (report_date, card reference); re-uploading a file never double-counts
 - [ ] **DATA-06**: Records before 13 Aug 2026 are excluded; the Thesis `Verify Outcome` tab is not ingested (only `APIGEE Calls`)
 - [ ] **DATA-07**: Raw normalised row-level records are retained and queryable (immutable) to support drill-down and traceability
 
@@ -115,9 +115,9 @@ Which phases cover which requirements. Updated during roadmap creation.
 | DATA-07 | Phase 1 | Pending |
 | DASH-01 | Phase 1 | Pending |
 | DASH-04 | Phase 1 | Pending |
-| DATA-01 | Phase 2 | Pending |
-| DATA-04 | Phase 2 | Pending |
-| DATA-05 | Phase 2 | Pending |
+| DATA-01 | Phase 2 | Complete |
+| DATA-04 | Phase 2 | Complete |
+| DATA-05 | Phase 2 | Complete |
 | DATA-03 | Phase 3 | Pending |
 | REV-01 | Phase 3 | Pending |
 | REV-02 | Phase 3 | Pending |
