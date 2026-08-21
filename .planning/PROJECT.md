@@ -14,14 +14,13 @@ It is used by a small internal Safecypher team (e.g. Mark W, Richard, Andy) and 
 
 ### Validated
 
-(None yet — ship to validate)
+- [x] Parse, normalise, and de-duplicate records from all six report types into a Supabase (Postgres) schema — *Validated in Phase 2: Complete the Six Sources (billing, verification, dCVV, card-inventory, removed-cards, APIGEE XLSX all live with dedup constraints + RLS)*
 
 ### Active
 
 <!-- v1 = PoC dashboard shown to Mark. All are hypotheses until shipped and validated. -->
 
 - [ ] Manual drag-and-drop upload of the six daily reports (CSV/XLSX), designed so an automated file-drop/webhook source can be added later without rework
-- [ ] Parse, normalise, and de-duplicate records from all six report types into a Supabase (Postgres) schema
 - [ ] Verifications-over-time view (daily / weekly / monthly counts, authenticated vs failed)
 - [ ] Revenue view computed from verifications × configurable tiered pricing (admin settings)
 - [ ] SLA / response-time view: average verification duration vs 750ms SLA, breaches highlighted
@@ -107,4 +106,4 @@ This document evolves at phase transitions and milestone boundaries.
 4. Update Context with current state
 
 ---
-*Last updated: 2026-08-18 after initialization*
+*Last updated: 2026-08-21 after Phase 2 completion (six-source ingestion)*
