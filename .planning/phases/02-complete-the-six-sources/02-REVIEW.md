@@ -42,7 +42,13 @@ findings:
   warning: 2
   info: 2
   total: 6
-status: issues_found
+status: resolved
+resolution:
+  critical_fixed: 2
+  critical_commits: [5a5155a, 449f0ca]
+  warnings_deferred: [WR-01, WR-02]
+  info_deferred: [IN-01, IN-02]
+  note: "Both blockers (CR-01 card-inventory window cutoff, CR-02 XLSX tab-order classification) fixed on master; 114 tests + tsc green. WR-01 (APIGEE same-second hash resolution) and WR-02 (billing DO NOTHING restatement) are design-confirm follow-ups; WR-01's cross-check is Phase 4 scope. IN-01/IN-02 are optional refactors."
 ---
 
 # Phase 2: Code Review Report
