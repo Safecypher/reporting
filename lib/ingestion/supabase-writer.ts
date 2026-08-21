@@ -37,6 +37,23 @@ function storagePath(contentSha256: string, fileName: string): string {
   return `${contentSha256}/${sanitiseFileName(fileName)}`;
 }
 
+/** ZIP magic number — XLSX is a ZIP container; CSV/text never starts with this. */
+function isXlsx(bytes: Uint8Array): boolean {
+  return bytes.length >= 4 && bytes[0] === 0x50 && bytes[1] === 0x4b;
+}
+
+/**
+ * Derive the Storage upload `contentType` from the uploaded bytes' own
+ * magic number, not the client-supplied `contentType`/extension — mirrors
+ * the same "detect format from bytes, never trust the client" principle
+ * `extractHeaderSignature` uses for classification (T-02-01).
+ */
+function detectContentType(bytes: Uint8Array): string {
+  return isXlsx(bytes)
+    ? "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+    : "text/csv";
+}
+
 /**
  * Builds the Supabase-backed `IngestDeps` implementation used by the real
  * upload path (`app/api/ingest/route.ts`). Optionally accepts an injected
@@ -81,7 +98,7 @@ export function createSupabaseWriter(client?: SupabaseClient<Database>): IngestD
       const { error: uploadError } = await supabase.storage
         .from(REPORTS_BUCKET)
         .upload(path, meta.bytes, {
-          contentType: "text/csv",
+          contentType: detectContentType(meta.bytes),
           upsert: true,
         });
       if (uploadError) throw uploadError;
@@ -123,6 +140,43 @@ export function createSupabaseWriter(client?: SupabaseClient<Database>): IngestD
             source_file_id: currentFileId as string,
           })),
           { onConflict: "row_hash", ignoreDuplicates: true }
+        )
+        .select("id");
+
+      if (error) throw error;
+      return data?.length ?? 0;
+    },
+
+    /**
+     * Generic upsert used by every Wave 2 report handler (verification
+     * keeps `upsertVerifications` above, untouched). The DB `UNIQUE` /
+     * `GENERATED ALWAYS ... STORED` hash column is the real de-dup
+     * guarantee (RESEARCH.md "Don't Hand-Roll") — this just picks
+     * INSERT-vs-upsert behaviour via `onConflict`/`ignoreDuplicates`.
+     */
+    async upsertRows(
+      table: string,
+      rows: Record<string, unknown>[],
+      opts: { onConflict: string; ignoreDuplicates: boolean }
+    ) {
+      if (rows.length === 0) return 0;
+      if (!currentFileId) {
+        throw new Error("upsertRows called before recordFile — no source_file_id available");
+      }
+
+      // `table` is a runtime-supplied name from a Wave 2 handler; the six
+      // new report tables don't exist in the generated `Database` types
+      // until their migrations land, so this method is intentionally
+      // typed as a generic escape hatch (mirrors the untyped-table
+      // pattern any generic upsert helper needs) — the DB's UNIQUE /
+      // GENERATED hash column remains the real, type-checked guarantee.
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const untypedSupabase = supabase as any;
+      const { data, error } = await untypedSupabase
+        .from(table)
+        .upsert(
+          rows.map((row) => ({ ...row, source_file_id: currentFileId as string })),
+          { onConflict: opts.onConflict, ignoreDuplicates: opts.ignoreDuplicates }
         )
         .select("id");
 

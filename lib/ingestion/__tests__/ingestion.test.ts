@@ -169,8 +169,27 @@ function makeFakeDeps(): IngestDeps & {
       }
       return inserted;
     },
-    async upsertRows(_table: string, _rows: Record<string, unknown>[], _opts: { onConflict: string }) {
-      throw new Error("RED probe: upsertRows not implemented yet");
+    async upsertRows(table: string, rows: Record<string, unknown>[], opts: { onConflict: string }) {
+      if (rows.length === 0) return 0;
+      let keys = upsertedKeysByTable.get(table);
+      if (!keys) {
+        keys = new Set<string>();
+        upsertedKeysByTable.set(table, keys);
+      }
+      const conflictCols =
+        opts.onConflict === "row_hash" ? null : opts.onConflict.split(",").map((c) => c.trim());
+      let inserted = 0;
+      for (const row of rows) {
+        const dedupKey =
+          conflictCols === null
+            ? JSON.stringify(row)
+            : conflictCols.map((c) => String(row[c])).join("|");
+        if (!keys.has(dedupKey)) {
+          keys.add(dedupKey);
+          inserted++;
+        }
+      }
+      return inserted;
     },
     async finalizeFile(_id, counts) {
       // fake — records what the production writer would persist
