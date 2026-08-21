@@ -1,13 +1,5 @@
+import { REPORT_HANDLERS } from "./index";
 import type { ReportType } from "./types";
-
-/** The five columns the verification report must have, in order, once any BOM is stripped. */
-const VERIFICATION_HEADER_SIGNATURE = [
-  "CreatedAt",
-  "ExternalCardReference",
-  "Cvi2Value",
-  "duration",
-  "Authenticated",
-] as const;
 
 /** Strip a leading UTF-8 BOM character from a header cell (Pitfall 4, D-12). */
 export function stripBom(value: string): string {
@@ -26,25 +18,25 @@ export function matchesHeader(headerRow: string[], expected: readonly string[]):
 }
 
 /**
- * Classify an uploaded file as a known `ReportType`, or `null` if
- * unrecognised (INGEST-02). Only the verification report is wired in
- * Phase 1; Phase 2 extends this with the other five report signatures.
+ * Compatibility wrapper (CSV-only) around the `REPORT_HANDLERS` registry
+ * (lib/ingestion/index.ts) — kept so the original Phase 1 classify test
+ * keeps passing unchanged. `ingest()` itself no longer calls this; it
+ * dispatches through `REPORT_HANDLERS` directly using the richer
+ * `HeaderSignature` (CSV-or-XLSX) produced by `extractHeaderSignature`.
  *
- * Matches by filename substring `daily-ver` OR by an exact header
- * signature — either signal alone is sufficient, so a header-only match
- * (e.g. a re-named file) still classifies correctly.
+ * Imports `REPORT_HANDLERS` from `./index` — a one-directional dependency
+ * (classify.ts -> index.ts). `index.ts` does not import from this module,
+ * so there is no import cycle.
  */
 export function classify(fileName: string, headerRow: string[]): ReportType | null {
-  const normalisedHeader = headerRow.map((h, i) => (i === 0 ? stripBom(h) : h));
+  const signature = { kind: "csv" as const, headerRow };
+  const handler = REPORT_HANDLERS.find((h) => {
+    try {
+      return h.classify(fileName, signature);
+    } catch {
+      return false;
+    }
+  });
 
-  const filenameMatches = fileName.toLowerCase().includes("daily-ver");
-  const headerMatches =
-    normalisedHeader.length === VERIFICATION_HEADER_SIGNATURE.length &&
-    VERIFICATION_HEADER_SIGNATURE.every((col, i) => normalisedHeader[i] === col);
-
-  if (filenameMatches || headerMatches) {
-    return "verification";
-  }
-
-  return null;
+  return handler ? handler.reportType : null;
 }
