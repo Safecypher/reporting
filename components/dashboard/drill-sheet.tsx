@@ -38,6 +38,13 @@ interface DrillSheetProps<TRow> {
   title: string;
   /** True while the page is still resolving the server-side row fetch. */
   loading?: boolean;
+  /**
+   * Total matching row count from the DB (WR-05), when known — used to show
+   * "Showing {rows.length} of {totalCount}" when the fetch was truncated by
+   * a row-limit cap. Omit/pass `null` when unavailable (e.g. no cap on this
+   * entity's fetch, or the count wasn't requested).
+   */
+  totalCount?: number | null;
 }
 
 /**
@@ -57,8 +64,10 @@ export function DrillSheet<TRow>({
   columns,
   title,
   loading = false,
+  totalCount = null,
 }: DrillSheetProps<TRow>) {
   const { closeDrill } = useDrill();
+  const isTruncated = totalCount !== null && totalCount > rows.length;
 
   const table = useReactTable({
     data: rows,
@@ -91,6 +100,13 @@ export function DrillSheet<TRow>({
             Copy link
           </Button>
         </SheetHeader>
+
+        {isTruncated && (
+          <p className="px-4 text-xs font-light text-muted-foreground">
+            Showing first {rows.length.toLocaleString()} of {totalCount!.toLocaleString()} rows —
+            refine the filter to see the rest.
+          </p>
+        )}
 
         <div className="flex-1 overflow-y-auto px-4 pb-4">
           {loading ? (

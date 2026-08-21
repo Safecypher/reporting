@@ -4,6 +4,7 @@ import type { Metadata } from "next";
 import { createColumnHelper, type ColumnDef } from "@tanstack/react-table";
 
 import { DrillSheet } from "@/components/dashboard/drill-sheet";
+import { verificationDrillColumns } from "@/components/dashboard/verification-drill-columns";
 import { RevenueViewControls } from "@/components/dashboard/revenue-view-controls";
 import type { RevenueTierRow } from "@/components/dashboard/revenue-tier-breakdown";
 import { Badge } from "@/components/ui/badge";
@@ -11,55 +12,21 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { createClient } from "@/lib/supabase/server";
 import type { RevenueDailyRow } from "@/lib/dashboard/revenue-bucketing";
 import { parseDrillParams } from "@/lib/dashboard/drill-params";
+import {
+  fetchVerificationDrillRows,
+  type VerificationDrillFetchResult,
+} from "@/lib/dashboard/verification-drill";
 
 export const metadata: Metadata = {
   title: "Revenue — Safecypher Reporting",
 };
 
 const DATA_WINDOW_CAPTION = "Excludes data before 13 Aug 2026.";
-const DATA_WINDOW_START = "2026-08-13T00:00:00Z";
-const DRILL_ROW_LIMIT = 500;
 
 const currencyFormatter = new Intl.NumberFormat("en-US", {
   style: "currency",
   currency: "USD",
 });
-
-/** Row shape for the "verification" drill entity (Total revenue KPI — D-02: all verifications, never filtered by authenticated). */
-interface VerificationDrillRow {
-  created_at: string;
-  external_card_reference: string;
-  duration_ms: number;
-  authenticated: boolean;
-}
-
-const verificationColumnHelper = createColumnHelper<VerificationDrillRow>();
-
-// eslint-disable-next-line @typescript-eslint/no-explicit-any -- matches DrillSheet's ColumnDef<TRow, any> prop shape.
-const verificationDrillColumns: ColumnDef<VerificationDrillRow, any>[] = [
-  verificationColumnHelper.accessor("created_at", {
-    header: "Time",
-    cell: (info) =>
-      new Date(info.getValue()).toLocaleString("en-GB", {
-        dateStyle: "medium",
-        timeStyle: "short",
-      }),
-  }),
-  verificationColumnHelper.accessor("external_card_reference", {
-    header: "Card reference",
-    cell: (info) => <span className="font-mono tabular-nums">{info.getValue()}</span>,
-  }),
-  verificationColumnHelper.accessor("duration_ms", {
-    header: "Duration (ms)",
-    cell: (info) => (
-      <span className="font-mono tabular-nums">{info.getValue().toLocaleString()}</span>
-    ),
-  }),
-  verificationColumnHelper.accessor("authenticated", {
-    header: "Authenticated",
-    cell: (info) => (info.getValue() ? "Yes" : "No"),
-  }),
-];
 
 /** Row shape for the "revenue-tier" drill entity — per-day contribution to one tier. */
 interface RevenueTierDrillRow {
@@ -250,28 +217,6 @@ function LoadingState() {
 type PageSearchParams = Promise<{ [key: string]: string | string[] | undefined }>;
 
 /**
- * Server-fetches raw verification rows for the "verification" drill entity
- * on the Revenue page (Total revenue KPI — D-02: revenue counts ALL
- * verifications, so this fetch never filters by `authenticated`).
- * Whitelisted/parameterised (T-03-19); session-scoped client for RLS
- * (T-03-20).
- */
-async function fetchVerificationDrillRows(
-  supabase: Awaited<ReturnType<typeof createClient>>,
-): Promise<VerificationDrillRow[]> {
-  const { data, error } = await supabase
-    .from("verifications")
-    .select("created_at, external_card_reference, duration_ms, authenticated")
-    .gte("created_at", DATA_WINDOW_START)
-    .order("created_at", { ascending: false })
-    .limit(DRILL_ROW_LIMIT)
-    .returns<VerificationDrillRow[]>();
-
-  if (error) return [];
-  return data ?? [];
-}
-
-/**
  * Server-fetches the per-day contribution rows for one tier (the
  * "revenue-tier" drill entity, D-07/D-11). `tierOrder` is validated as a
  * whitelisted integer by `parseDrillParams` before it ever reaches this
@@ -322,7 +267,7 @@ async function RevenueBody({ searchParams }: { searchParams: PageSearchParams })
     verificationCountsResult,
     pricingTierSetsResult,
     freshnessResult,
-    verificationDrillRows,
+    verificationDrillResult,
     revenueTierDrillRows,
   ] = await Promise.all([
     supabase
@@ -359,9 +304,13 @@ async function RevenueBody({ searchParams }: { searchParams: PageSearchParams })
       .limit(1)
       .returns<IngestedFileFreshness[]>()
       .maybeSingle(),
+    // D-02: revenue counts ALL verifications, so `authenticated` is
+    // deliberately omitted here (unlike verifications/page.tsx, which
+    // filters by it) — the shared fetcher's optional param makes that a
+    // caller-side choice, not a second code path.
     isVerificationDrill
       ? fetchVerificationDrillRows(supabase)
-      : Promise.resolve<VerificationDrillRow[]>([]),
+      : Promise.resolve<VerificationDrillFetchResult>({ rows: [], totalCount: null }),
     isRevenueTierDrill
       ? fetchRevenueTierDrillRows(supabase, drillFilter.tierOrder)
       : Promise.resolve<RevenueTierDrillRow[]>([]),
@@ -464,9 +413,10 @@ async function RevenueBody({ searchParams }: { searchParams: PageSearchParams })
       />
       <DrillSheet
         filter={isVerificationDrill ? drillFilter : null}
-        rows={verificationDrillRows}
+        rows={verificationDrillResult.rows}
         columns={verificationDrillColumns}
         title="Verifications — All"
+        totalCount={verificationDrillResult.totalCount}
       />
       <DrillSheet
         filter={isRevenueTierDrill ? drillFilter : null}
