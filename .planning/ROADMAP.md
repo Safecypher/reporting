@@ -120,7 +120,7 @@ Plans:
 
 **Wave 4** *(blocked on 03-05 + 03-04)*
 
-- [ ] 03-06-PLAN.md — Generic URL-synced drill-down Sheet (whitelisted params) wired to revenue/SLA/verification metrics
+- [x] 03-06-PLAN.md — Generic URL-synced drill-down Sheet (whitelisted params) wired to revenue/SLA/verification metrics
 
 **Wave 5** *(blocked on all)*
 
@@ -153,5 +153,5 @@ Phases execute in numeric order: 1 → 2 → 3 → 4 (Phase 3 may run in paralle
 |-------|----------------|--------|-----------|
 | 1. End-to-End Spine | 7/7 | Complete   | 2026-08-20 |
 | 2. Complete the Six Sources | 7/7 | Complete    | 2026-08-21 |
-| 3. Revenue, SLA & Drill-down | 5/7 | In Progress|  |
+| 3. Revenue, SLA & Drill-down | 6/7 | In Progress|  |
 | 4. Reconciliation & Discrepancy Flagging | 0/TBD | Not started | - |
