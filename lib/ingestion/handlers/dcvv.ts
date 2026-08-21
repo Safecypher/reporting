@@ -1,14 +1,18 @@
 import { matchesHeader } from "../classify";
-import type { HeaderSignature, ReportHandler } from "../types";
+import { normaliseDcvv } from "../normalise-dcvv";
+import { parseDcvv, validateDcvvRows } from "../parsers/dcvv";
+import type { HeaderSignature, IngestDeps, ReportHandler } from "../types";
 
 /** D-11 header signature — real sample columns, in order, once any BOM is stripped. */
 const DCVV_HEADER = ["timestamp", "duration", "ExternalReference"] as const;
 
 /**
- * Stub handler — real classification is fully wired (D-11) so dCVV files are
- * correctly routed in Wave 1, but `parse` throws until the Wave 2 dCVV slice
- * overwrites this module. The CR-01 defensive try/catch in `ingest()` turns
- * this throw into a clean `status: 'failed'` rejection, never a crash.
+ * dCVV wrapped as a `ReportHandler` (Wave 2 slice). No natural key exists for
+ * a dCVV fetch event, so `upsert` delegates to the generic
+ * `deps.upsertRows("dcvv_fetches", rows, { onConflict: "row_hash" })` —
+ * `row_hash` is a DB `GENERATED ALWAYS ... STORED` md5 over
+ * (raw_timestamp + duration_ms + external_reference) (D-04), never computed
+ * in TS.
  */
 export const dcvvHandler: ReportHandler = {
   reportType: "dcvv",
@@ -19,19 +23,24 @@ export const dcvvHandler: ReportHandler = {
     return filenameMatches || headerMatches;
   },
 
-  async parse(): Promise<{ rawRows: Record<string, unknown>[] }> {
-    throw new Error("dcvv parser not implemented yet");
+  async parse(bytes: Uint8Array) {
+    const parsed = parseDcvv(bytes);
+    return { rawRows: parsed.rows as unknown as Record<string, unknown>[] };
   },
 
-  validate() {
-    return { valid: [], rejected: [] };
+  validate(rawRows: Record<string, unknown>[]) {
+    return validateDcvvRows(rawRows as unknown as Record<string, string>[]);
   },
 
-  normalise() {
-    return { rows: [], excludedPreWindow: 0 };
+  normalise(valid: unknown[]) {
+    const result = normaliseDcvv(valid as Parameters<typeof normaliseDcvv>[0]);
+    return {
+      rows: result.rows as unknown as Record<string, unknown>[],
+      excludedPreWindow: result.excludedPreWindow,
+    };
   },
 
-  async upsert() {
-    return 0;
+  async upsert(deps: IngestDeps, rows: Record<string, unknown>[]) {
+    return deps.upsertRows("dcvv_fetches", rows, { onConflict: "row_hash", ignoreDuplicates: true });
   },
 };
