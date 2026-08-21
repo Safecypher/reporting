@@ -33,6 +33,13 @@ begin;
 -- resolution can't accidentally pick up production data during a live run.
 delete from pricing_tier_sets;
 
+-- Isolate from any pre-existing verifications too: the marginal-bracket math is
+-- cumulative, so even a couple of real seed rows on the prior day shift c_before
+-- and move units across the tier boundary (observed live: 2 real 2026-08-13 rows
+-- produced 215.0200 instead of 215.0000). Everything here is inside the
+-- rolled-back transaction, so this never touches real data.
+delete from verifications;
+
 -- A dedicated source-file row so this fixture is fully self-contained and
 -- never depends on pre-existing ingested_files data being present.
 insert into ingested_files (id, file_name, content_sha256, report_type, status)

@@ -232,6 +232,136 @@ export type Database = {
         }
         Relationships: []
       }
+      pricing_tier_audit: {
+        Row: {
+          changed_at: string
+          changed_by: string | null
+          id: number
+          summary: string
+          tier_set_id: string
+        }
+        Insert: {
+          changed_at?: string
+          changed_by?: string | null
+          id?: never
+          summary: string
+          tier_set_id: string
+        }
+        Update: {
+          changed_at?: string
+          changed_by?: string | null
+          id?: never
+          summary?: string
+          tier_set_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "pricing_tier_audit_tier_set_id_fkey"
+            columns: ["tier_set_id"]
+            isOneToOne: false
+            referencedRelation: "pricing_tier_sets"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "pricing_tier_audit_tier_set_id_fkey"
+            columns: ["tier_set_id"]
+            isOneToOne: false
+            referencedRelation: "v_revenue_by_tier"
+            referencedColumns: ["tier_set_id"]
+          },
+          {
+            foreignKeyName: "pricing_tier_audit_tier_set_id_fkey"
+            columns: ["tier_set_id"]
+            isOneToOne: false
+            referencedRelation: "v_revenue_tier_set_by_day"
+            referencedColumns: ["tier_set_id"]
+          },
+          {
+            foreignKeyName: "pricing_tier_audit_tier_set_id_fkey"
+            columns: ["tier_set_id"]
+            isOneToOne: false
+            referencedRelation: "v_revenue_window_counts"
+            referencedColumns: ["tier_set_id"]
+          },
+        ]
+      }
+      pricing_tier_sets: {
+        Row: {
+          created_at: string
+          created_by: string | null
+          effective_from: string
+          id: string
+          reset_window: string
+        }
+        Insert: {
+          created_at?: string
+          created_by?: string | null
+          effective_from: string
+          id?: string
+          reset_window: string
+        }
+        Update: {
+          created_at?: string
+          created_by?: string | null
+          effective_from?: string
+          id?: string
+          reset_window?: string
+        }
+        Relationships: []
+      }
+      pricing_tiers: {
+        Row: {
+          id: number
+          rate: number
+          tier_order: number
+          tier_set_id: string
+          upper_bound: number | null
+        }
+        Insert: {
+          id?: never
+          rate: number
+          tier_order: number
+          tier_set_id: string
+          upper_bound?: number | null
+        }
+        Update: {
+          id?: never
+          rate?: number
+          tier_order?: number
+          tier_set_id?: string
+          upper_bound?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "pricing_tiers_tier_set_id_fkey"
+            columns: ["tier_set_id"]
+            isOneToOne: false
+            referencedRelation: "pricing_tier_sets"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "pricing_tiers_tier_set_id_fkey"
+            columns: ["tier_set_id"]
+            isOneToOne: false
+            referencedRelation: "v_revenue_by_tier"
+            referencedColumns: ["tier_set_id"]
+          },
+          {
+            foreignKeyName: "pricing_tiers_tier_set_id_fkey"
+            columns: ["tier_set_id"]
+            isOneToOne: false
+            referencedRelation: "v_revenue_tier_set_by_day"
+            referencedColumns: ["tier_set_id"]
+          },
+          {
+            foreignKeyName: "pricing_tiers_tier_set_id_fkey"
+            columns: ["tier_set_id"]
+            isOneToOne: false
+            referencedRelation: "v_revenue_window_counts"
+            referencedColumns: ["tier_set_id"]
+          },
+        ]
+      }
       removed_cards: {
         Row: {
           external_card_reference: string
@@ -313,6 +443,77 @@ export type Database = {
       }
     }
     Views: {
+      v_revenue_by_tier: {
+        Row: {
+          day_utc: string | null
+          overlap_count: number | null
+          rate: number | null
+          tier_order: number | null
+          tier_revenue: number | null
+          tier_set_id: string | null
+        }
+        Relationships: []
+      }
+      v_revenue_daily: {
+        Row: {
+          day_utc: string | null
+          revenue: number | null
+        }
+        Relationships: []
+      }
+      v_revenue_daily_counts: {
+        Row: {
+          day_utc: string | null
+          verification_count: number | null
+        }
+        Relationships: []
+      }
+      v_revenue_tier_set_by_day: {
+        Row: {
+          day_utc: string | null
+          reset_window: string | null
+          tier_set_id: string | null
+          verification_count: number | null
+        }
+        Relationships: []
+      }
+      v_revenue_window_counts: {
+        Row: {
+          c_before: number | null
+          day_utc: string | null
+          reset_window: string | null
+          tier_set_id: string | null
+          verification_count: number | null
+          window_start: string | null
+        }
+        Relationships: []
+      }
+      v_sla_breaches: {
+        Row: {
+          created_at: string | null
+          duration_ms: number | null
+          external_card_reference: string | null
+        }
+        Insert: {
+          created_at?: string | null
+          duration_ms?: number | null
+          external_card_reference?: string | null
+        }
+        Update: {
+          created_at?: string | null
+          duration_ms?: number | null
+          external_card_reference?: string | null
+        }
+        Relationships: []
+      }
+      v_sla_daily: {
+        Row: {
+          avg_duration_ms: number | null
+          breach_count: number | null
+          day_utc: string | null
+        }
+        Relationships: []
+      }
       v_verifications_daily: {
         Row: {
           authenticated_count: number | null
