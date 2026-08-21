@@ -14,6 +14,176 @@ export type Database = {
   }
   public: {
     Tables: {
+      apigee_calls: {
+        Row: {
+          endpoint_category: string | null
+          event_time: string
+          external_card_reference: string | null
+          id: number
+          raw_event_time: string
+          raw_path_suffix: string
+          response_code: number
+          row_hash: string | null
+          source_file_id: string
+        }
+        Insert: {
+          endpoint_category?: string | null
+          event_time: string
+          external_card_reference?: string | null
+          id?: never
+          raw_event_time: string
+          raw_path_suffix: string
+          response_code: number
+          row_hash?: string | null
+          source_file_id: string
+        }
+        Update: {
+          endpoint_category?: string | null
+          event_time?: string
+          external_card_reference?: string | null
+          id?: never
+          raw_event_time?: string
+          raw_path_suffix?: string
+          response_code?: number
+          row_hash?: string | null
+          source_file_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "apigee_calls_source_file_id_fkey"
+            columns: ["source_file_id"]
+            isOneToOne: false
+            referencedRelation: "ingested_files"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      billing_transactions: {
+        Row: {
+          authorised: boolean
+          event_time: string
+          id: number
+          issuer_bank: string
+          processor: string
+          raw_transaction_date: string
+          raw_transaction_time: string
+          region: string
+          source_file_id: string
+          token_reference: string
+          transaction_id: string
+          verification_kind: string
+        }
+        Insert: {
+          authorised: boolean
+          event_time: string
+          id?: never
+          issuer_bank: string
+          processor: string
+          raw_transaction_date: string
+          raw_transaction_time: string
+          region: string
+          source_file_id: string
+          token_reference: string
+          transaction_id: string
+          verification_kind: string
+        }
+        Update: {
+          authorised?: boolean
+          event_time?: string
+          id?: never
+          issuer_bank?: string
+          processor?: string
+          raw_transaction_date?: string
+          raw_transaction_time?: string
+          region?: string
+          source_file_id?: string
+          token_reference?: string
+          transaction_id?: string
+          verification_kind?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "billing_transactions_source_file_id_fkey"
+            columns: ["source_file_id"]
+            isOneToOne: false
+            referencedRelation: "ingested_files"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      card_inventory: {
+        Row: {
+          created_at: string
+          external_card_reference: string
+          id: number
+          raw_created_at: string
+          report_date: string
+          source_file_id: string
+        }
+        Insert: {
+          created_at: string
+          external_card_reference: string
+          id?: never
+          raw_created_at: string
+          report_date: string
+          source_file_id: string
+        }
+        Update: {
+          created_at?: string
+          external_card_reference?: string
+          id?: never
+          raw_created_at?: string
+          report_date?: string
+          source_file_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "card_inventory_source_file_id_fkey"
+            columns: ["source_file_id"]
+            isOneToOne: false
+            referencedRelation: "ingested_files"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      dcvv_fetches: {
+        Row: {
+          duration_ms: number
+          external_reference: string
+          id: number
+          raw_timestamp: string
+          row_hash: string | null
+          source_file_id: string
+          timestamp: string
+        }
+        Insert: {
+          duration_ms: number
+          external_reference: string
+          id?: never
+          raw_timestamp: string
+          row_hash?: string | null
+          source_file_id: string
+          timestamp: string
+        }
+        Update: {
+          duration_ms?: number
+          external_reference?: string
+          id?: never
+          raw_timestamp?: string
+          row_hash?: string | null
+          source_file_id?: string
+          timestamp?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "dcvv_fetches_source_file_id_fkey"
+            columns: ["source_file_id"]
+            isOneToOne: false
+            referencedRelation: "ingested_files"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       ingested_files: {
         Row: {
           content_sha256: string
@@ -61,6 +231,41 @@ export type Database = {
           uploaded_by?: string | null
         }
         Relationships: []
+      }
+      removed_cards: {
+        Row: {
+          external_card_reference: string
+          id: number
+          raw_removed_at: string
+          removed_at: string
+          row_hash: string | null
+          source_file_id: string
+        }
+        Insert: {
+          external_card_reference: string
+          id?: never
+          raw_removed_at: string
+          removed_at: string
+          row_hash?: string | null
+          source_file_id: string
+        }
+        Update: {
+          external_card_reference?: string
+          id?: never
+          raw_removed_at?: string
+          removed_at?: string
+          row_hash?: string | null
+          source_file_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "removed_cards_source_file_id_fkey"
+            columns: ["source_file_id"]
+            isOneToOne: false
+            referencedRelation: "ingested_files"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       verifications: {
         Row: {
