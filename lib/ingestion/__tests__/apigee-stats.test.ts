@@ -270,9 +270,13 @@ describe("ingest (apigee-stats end-to-end)", () => {
     const { valid } = validateApigeeRows(rows);
     const { rows: normalised } = normaliseApigee(valid);
 
-    const firstInsert = await apigeeStatsHandler.upsert(deps, normalised);
-    const secondInsert = await apigeeStatsHandler.upsert(deps, normalised);
-    expect(firstInsert).toBe(46);
+    const normalisedRows = normalised as unknown as Record<string, unknown>[];
+    const firstInsert = await apigeeStatsHandler.upsert(deps, normalisedRows);
+    const secondInsert = await apigeeStatsHandler.upsert(deps, normalisedRows);
+    // Post-cutoff (DATA-06) row count, not the raw 46 — some real-sample rows
+    // predate the 13-Aug-2026 data window and are excluded (CR-02).
+    expect(firstInsert).toBe(normalised.length);
+    expect(firstInsert).toBeGreaterThan(0);
     expect(secondInsert).toBe(0);
   });
 });
