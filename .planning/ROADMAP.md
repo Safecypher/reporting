@@ -111,8 +111,8 @@ Plans:
 
 **Wave 2** *(blocked on 03-01)*
 
-- [ ] 03-02-PLAN.md — Pricing admin UI: Server Action (session-client, server re-validate, revalidate) + react-hook-form editor + audit log + sidebar nav (Revenue/SLA/Pricing)
-- [ ] 03-03-PLAN.md — Revenue computation views (marginal-bracket exact-NUMERIC SQL) + boundary hand-calc test ($215.00)
+- [x] 03-02-PLAN.md — Pricing admin UI: Server Action (session-client, server re-validate, revalidate) + react-hook-form editor + audit log + sidebar nav (Revenue/SLA/Pricing)
+- [x] 03-03-PLAN.md — Revenue computation views (marginal-bracket exact-NUMERIC SQL) + boundary hand-calc test ($215.00)
 
 **Wave 3** *(blocked on 03-03 + 03-04)*
 
@@ -153,5 +153,5 @@ Phases execute in numeric order: 1 → 2 → 3 → 4 (Phase 3 may run in paralle
 |-------|----------------|--------|-----------|
 | 1. End-to-End Spine | 7/7 | Complete   | 2026-08-20 |
 | 2. Complete the Six Sources | 7/7 | Complete    | 2026-08-21 |
-| 3. Revenue, SLA & Drill-down | 2/7 | In Progress|  |
+| 3. Revenue, SLA & Drill-down | 4/7 | In Progress|  |
 | 4. Reconciliation & Discrepancy Flagging | 0/TBD | Not started | - |
