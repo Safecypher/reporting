@@ -1,3 +1,5 @@
+"use client";
+
 import { createColumnHelper, type ColumnDef } from "@tanstack/react-table";
 
 import type { VerificationDrillRow } from "@/lib/dashboard/verification-drill";

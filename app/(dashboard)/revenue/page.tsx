@@ -1,10 +1,12 @@
 import { Suspense } from "react";
 import Link from "next/link";
 import type { Metadata } from "next";
-import { createColumnHelper, type ColumnDef } from "@tanstack/react-table";
 
-import { DrillSheet } from "@/components/dashboard/drill-sheet";
-import { verificationDrillColumns } from "@/components/dashboard/verification-drill-columns";
+import { VerificationDrillSheet } from "@/components/dashboard/verification-drill-sheet";
+import {
+  RevenueTierDrillSheet,
+  type RevenueTierDrillRow,
+} from "@/components/dashboard/revenue-tier-drill-sheet";
 import { RevenueViewControls } from "@/components/dashboard/revenue-view-controls";
 import type { RevenueTierRow } from "@/components/dashboard/revenue-tier-breakdown";
 import { Badge } from "@/components/ui/badge";
@@ -22,47 +24,6 @@ export const metadata: Metadata = {
 };
 
 const DATA_WINDOW_CAPTION = "Excludes data before 13 Aug 2026.";
-
-const currencyFormatter = new Intl.NumberFormat("en-US", {
-  style: "currency",
-  currency: "USD",
-});
-
-/** Row shape for the "revenue-tier" drill entity — per-day contribution to one tier. */
-interface RevenueTierDrillRow {
-  day_utc: string;
-  overlap_count: string;
-  rate: string;
-  tier_revenue: string;
-}
-
-const revenueTierColumnHelper = createColumnHelper<RevenueTierDrillRow>();
-
-// eslint-disable-next-line @typescript-eslint/no-explicit-any -- matches DrillSheet's ColumnDef<TRow, any> prop shape.
-const revenueTierDrillColumns: ColumnDef<RevenueTierDrillRow, any>[] = [
-  revenueTierColumnHelper.accessor("day_utc", {
-    header: "Day",
-    cell: (info) => info.getValue().slice(0, 10),
-  }),
-  revenueTierColumnHelper.accessor("overlap_count", {
-    header: "Verifications in tier",
-    cell: (info) => (
-      <span className="font-mono tabular-nums">{Number(info.getValue()).toLocaleString()}</span>
-    ),
-  }),
-  revenueTierColumnHelper.accessor("rate", {
-    header: "Rate",
-    cell: (info) => (
-      <span className="font-mono tabular-nums">{currencyFormatter.format(Number(info.getValue()))}</span>
-    ),
-  }),
-  revenueTierColumnHelper.accessor("tier_revenue", {
-    header: "Revenue",
-    cell: (info) => (
-      <span className="font-mono tabular-nums">{currencyFormatter.format(Number(info.getValue()))}</span>
-    ),
-  }),
-];
 
 type RevenueDailyViewRow = { day_utc: string | null; revenue: string | null };
 type RevenueTierViewRow = {
@@ -411,17 +372,15 @@ async function RevenueBody({ searchParams }: { searchParams: PageSearchParams })
         tierRows={tierRows}
         totalRevenue={totalRevenue}
       />
-      <DrillSheet
+      <VerificationDrillSheet
         filter={isVerificationDrill ? drillFilter : null}
         rows={verificationDrillResult.rows}
-        columns={verificationDrillColumns}
         title="Verifications — All"
         totalCount={verificationDrillResult.totalCount}
       />
-      <DrillSheet
+      <RevenueTierDrillSheet
         filter={isRevenueTierDrill ? drillFilter : null}
         rows={revenueTierDrillRows}
-        columns={revenueTierDrillColumns}
         title={`Revenue by tier — Tier ${(drillFilter?.tierOrder ?? 0) + 1}`}
       />
     </>

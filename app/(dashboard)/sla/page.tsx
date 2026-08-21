@@ -1,9 +1,11 @@
 import { Suspense } from "react";
 import Link from "next/link";
 import type { Metadata } from "next";
-import { createColumnHelper, type ColumnDef } from "@tanstack/react-table";
 
-import { DrillSheet } from "@/components/dashboard/drill-sheet";
+import {
+  SlaBreachDrillSheet,
+  type SlaBreachDrillRow,
+} from "@/components/dashboard/sla-breach-drill-sheet";
 import { SlaBreachTable, type SlaBreachRow } from "@/components/dashboard/sla-breach-table";
 import { SlaViewControls } from "@/components/dashboard/sla-view-controls";
 import { Badge } from "@/components/ui/badge";
@@ -31,39 +33,6 @@ type SlaBreachViewRow = {
 };
 
 type IngestedFileFreshness = { uploaded_at: string };
-
-/** Row shape for the "sla-breach" drill entity — mirrors SlaBreachRow. */
-interface SlaBreachDrillRow {
-  created_at: string;
-  external_card_reference: string;
-  duration_ms: number;
-}
-
-const slaBreachColumnHelper = createColumnHelper<SlaBreachDrillRow>();
-
-// eslint-disable-next-line @typescript-eslint/no-explicit-any -- matches DrillSheet's ColumnDef<TRow, any> prop shape.
-const slaBreachDrillColumns: ColumnDef<SlaBreachDrillRow, any>[] = [
-  slaBreachColumnHelper.accessor("created_at", {
-    header: "Time",
-    cell: (info) =>
-      new Date(info.getValue()).toLocaleString("en-GB", {
-        dateStyle: "medium",
-        timeStyle: "short",
-      }),
-  }),
-  slaBreachColumnHelper.accessor("external_card_reference", {
-    header: "Card reference",
-    cell: (info) => <span className="font-mono tabular-nums">{info.getValue()}</span>,
-  }),
-  slaBreachColumnHelper.accessor("duration_ms", {
-    header: "Duration (ms)",
-    cell: (info) => (
-      <span className="font-mono font-medium tabular-nums text-[var(--error)]">
-        {info.getValue().toLocaleString()}
-      </span>
-    ),
-  }),
-];
 
 function FreshnessBadge({ uploadedAt }: { uploadedAt: string | null }) {
   const label = uploadedAt
@@ -301,10 +270,9 @@ async function SlaBody({ searchParams }: { searchParams: PageSearchParams }) {
           )}
         </>
       )}
-      <DrillSheet
+      <SlaBreachDrillSheet
         filter={isSlaBreachDrill ? drillFilter : null}
         rows={drillRows}
-        columns={slaBreachDrillColumns}
         title={`Breaching verifications — ${drillFilter?.date ?? ""}`}
       />
     </>
