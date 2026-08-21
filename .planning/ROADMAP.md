@@ -102,7 +102,30 @@ Plans:
   3. The SLA view shows average verification response time against a 750ms reference line, with breaching records highlighted (verifications only).
   4. A user can drill down from any summary metric to the filtered list of contributing raw records.
 
-**Plans**: TBD
+**Plans**: 7 plans
+Plans:
+**Wave 1**
+
+- [ ] 03-01-PLAN.md — Pricing schema (tier sets/tiers/audit) + first authenticated-INSERT RLS + audit trigger + Zod contiguity contract
+- [ ] 03-04-PLAN.md — SLA slice: v_sla_daily/v_sla_breaches views + trend chart (750ms ReferenceLine) + drillable breach table + page
+
+**Wave 2** *(blocked on 03-01)*
+
+- [ ] 03-02-PLAN.md — Pricing admin UI: Server Action (session-client, server re-validate, revalidate) + react-hook-form editor + audit log + sidebar nav (Revenue/SLA/Pricing)
+- [ ] 03-03-PLAN.md — Revenue computation views (marginal-bracket exact-NUMERIC SQL) + boundary hand-calc test ($215.00)
+
+**Wave 3** *(blocked on 03-03 + 03-04)*
+
+- [ ] 03-05-PLAN.md — Revenue view page: Total revenue KPI (USD) + revenue chart + per-tier breakdown + reused controls (no-tiers = error)
+
+**Wave 4** *(blocked on 03-05 + 03-04)*
+
+- [ ] 03-06-PLAN.md — Generic URL-synced drill-down Sheet (whitelisted params) wired to revenue/SLA/verification metrics
+
+**Wave 5** *(blocked on all)*
+
+- [ ] 03-07-PLAN.md — [BLOCKING] schema push (0011-0013) + type regen + live boundary correctness test + phase verification
+
 **UI hint**: yes
 
 ### Phase 4: Reconciliation & Discrepancy Flagging
@@ -130,5 +153,5 @@ Phases execute in numeric order: 1 → 2 → 3 → 4 (Phase 3 may run in paralle
 |-------|----------------|--------|-----------|
 | 1. End-to-End Spine | 7/7 | Complete   | 2026-08-20 |
 | 2. Complete the Six Sources | 7/7 | Complete    | 2026-08-21 |
-| 3. Revenue, SLA & Drill-down | 0/TBD | Not started | - |
+| 3. Revenue, SLA & Drill-down | 0/7 | Planned | - |
 | 4. Reconciliation & Discrepancy Flagging | 0/TBD | Not started | - |
