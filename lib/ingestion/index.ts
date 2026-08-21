@@ -62,15 +62,19 @@ async function extractHeaderSignature(
     // error (the runtime value is a standard Node Buffer either way).
     await workbook.xlsx.load(Buffer.from(bytes) as unknown as Parameters<typeof workbook.xlsx.load>[0]);
     const sheetNames = workbook.worksheets.map((w) => w.name);
-    const firstSheet = workbook.worksheets[0];
-    const headerRow: string[] = [];
-    if (firstSheet) {
-      const row1 = firstSheet.getRow(1);
-      row1.eachCell({ includeEmpty: false }, (cell) => {
-        headerRow.push(String(cell.value ?? ""));
+    // CR-02: capture the row-1 header for EVERY sheet, keyed by sheet name, so
+    // a handler can match the header of the sheet it names regardless of tab
+    // order. Reading only worksheets[0] silently misclassified the whole
+    // apigee-stats source whenever "APIGEE Calls" was not the first tab.
+    const headerRowsBySheet: Record<string, string[]> = {};
+    for (const sheet of workbook.worksheets) {
+      const header: string[] = [];
+      sheet.getRow(1).eachCell({ includeEmpty: false }, (cell) => {
+        header.push(String(cell.value ?? ""));
       });
+      headerRowsBySheet[sheet.name] = header;
     }
-    return { kind: "xlsx", sheetNames, headerRow };
+    return { kind: "xlsx", sheetNames, headerRowsBySheet };
   }
 
   const text = new TextDecoder("utf-8").decode(bytes);

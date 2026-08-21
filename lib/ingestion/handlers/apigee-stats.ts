@@ -23,7 +23,13 @@ export const apigeeStatsHandler: ReportHandler = {
 
   classify(_fileName: string, sig: HeaderSignature): boolean {
     if (sig.kind !== "xlsx") return false;
-    return sig.sheetNames.includes(APIGEE_SHEET_NAME) && matchesHeader(sig.headerRow, APIGEE_HEADER);
+    // CR-02: read the header of the sheet WE name, not worksheets[0]. The
+    // Thesis workbook is multi-tab ("APIGEE Calls" + "Verify Outcome") with no
+    // guaranteed tab order — matching by index-0 header silently failed the
+    // whole source, contradicting the D-08/D-11 "match by name, never index"
+    // principle the parser already follows.
+    const header = sig.headerRowsBySheet[APIGEE_SHEET_NAME] ?? [];
+    return sig.sheetNames.includes(APIGEE_SHEET_NAME) && matchesHeader(header, APIGEE_HEADER);
   },
 
   async parse(bytes: Uint8Array): Promise<{ rawRows: Record<string, unknown>[] }> {

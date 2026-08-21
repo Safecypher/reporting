@@ -1,6 +1,7 @@
 import { describe, it, expect } from "vitest";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
+import ExcelJS from "exceljs";
 import { classify } from "../classify";
 import {
   parseApigeeStats,
@@ -37,12 +38,27 @@ describe("apigeeStatsHandler.classify (direct, via registry import)", () => {
     const goodSig = {
       kind: "xlsx" as const,
       sheetNames: ["APIGEE Calls", "Verify Outcome"],
-      headerRow: ["Time", "what_proxy_pathsuffix", "response_code"],
+      headerRowsBySheet: {
+        "APIGEE Calls": ["Time", "what_proxy_pathsuffix", "response_code"],
+        "Verify Outcome": ["Outcome", "Count"],
+      },
     };
     expect(apigeeStatsHandler.classify("upload.xlsx", goodSig)).toBe(true);
     expect(apigeeStatsHandler.classify("Copy of Safecypher Stats 1208 to 1308.xlsx", goodSig)).toBe(
       true
     );
+
+    // CR-02: "APIGEE Calls" is NOT the first tab and its header is only
+    // reachable via headerRowsBySheet — classification must still succeed.
+    const reorderedSig = {
+      kind: "xlsx" as const,
+      sheetNames: ["Verify Outcome", "APIGEE Calls"],
+      headerRowsBySheet: {
+        "Verify Outcome": ["Outcome", "Count"],
+        "APIGEE Calls": ["Time", "what_proxy_pathsuffix", "response_code"],
+      },
+    };
+    expect(apigeeStatsHandler.classify("upload.xlsx", reorderedSig)).toBe(true);
 
     const csvSig = { kind: "csv" as const, headerRow: ["Time", "what_proxy_pathsuffix", "response_code"] };
     expect(apigeeStatsHandler.classify("upload.csv", csvSig)).toBe(false);
@@ -50,7 +66,7 @@ describe("apigeeStatsHandler.classify (direct, via registry import)", () => {
     const wrongSheetSig = {
       kind: "xlsx" as const,
       sheetNames: ["Some Other Sheet"],
-      headerRow: ["Time", "what_proxy_pathsuffix", "response_code"],
+      headerRowsBySheet: { "Some Other Sheet": ["Time", "what_proxy_pathsuffix", "response_code"] },
     };
     expect(apigeeStatsHandler.classify("upload.xlsx", wrongSheetSig)).toBe(false);
   });
@@ -256,6 +272,38 @@ describe("ingest (apigee-stats end-to-end)", () => {
       deps
     );
     expect(result.reportType).toBe("apigee-stats");
+    expect(result.accepted + result.duplicates + result.rejected + result.excluded).toBe(46);
+    expect(deps.finalizedStatus()).toBe("done");
+  });
+
+  it("CR-02: classifies + ingests all 46 rows even when 'APIGEE Calls' is NOT the first worksheet", async () => {
+    // Build a multi-tab workbook mirroring the real Thesis file, but with
+    // "Verify Outcome" as the FIRST tab and "APIGEE Calls" second. Before the
+    // CR-02 fix the classifier read the header from worksheets[0] ("Verify
+    // Outcome"), matchesHeader failed, and the whole source classified to null.
+    const wb = new ExcelJS.Workbook();
+    const verifySheet = wb.addWorksheet("Verify Outcome");
+    verifySheet.addRow(["Outcome", "Count"]);
+    verifySheet.addRow(["success", 123]);
+
+    const apigeeSheet = wb.addWorksheet("APIGEE Calls");
+    apigeeSheet.addRow(["Time", "what_proxy_pathsuffix", "response_code"]);
+    const WINDOW_START_MS = Date.parse("2026-08-13T00:00:00Z");
+    for (let i = 0; i < 46; i++) {
+      // Distinct second-resolution timestamps so all 46 survive the whole-row
+      // hash dedup and land as `accepted`; all in-window (>= 2026-08-13).
+      apigeeSheet.addRow([new Date(WINDOW_START_MS + i * 1000), "/Verify", 200]);
+    }
+    const arrayBuffer = await wb.xlsx.writeBuffer();
+    const bytes = new Uint8Array(arrayBuffer as ArrayBuffer);
+
+    const deps = makeFakeDeps();
+    const result = await ingest(
+      { fileName: "Copy of Safecypher Stats reordered.xlsx", bytes, uploadedBy: "user-1" },
+      deps
+    );
+    expect(result.reportType).toBe("apigee-stats");
+    expect(result.accepted).toBe(46);
     expect(result.accepted + result.duplicates + result.rejected + result.excluded).toBe(46);
     expect(deps.finalizedStatus()).toBe("done");
   });

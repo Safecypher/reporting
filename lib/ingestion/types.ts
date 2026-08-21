@@ -19,11 +19,18 @@ export type ReportType =
 /**
  * The format-aware classification signature extracted by `extractHeaderSignature`
  * (lib/ingestion/index.ts) before `classify()` runs. XLSX classification (D-11)
- * must never rely on filename alone — sheet names + header row are required.
+ * must never rely on filename alone — sheet names + per-sheet header rows are
+ * required.
+ *
+ * CR-02: XLSX carries `headerRowsBySheet` (sheet name -> row-1 header cells)
+ * rather than a single first-worksheet `headerRow`. A handler reads the header
+ * for the sheet it names (e.g. "APIGEE Calls"), so classification never
+ * depends on worksheet ordering — the real Thesis workbook is multi-tab and
+ * "APIGEE Calls" is not guaranteed to be the first tab.
  */
 export type HeaderSignature =
   | { kind: "csv"; headerRow: string[] }
-  | { kind: "xlsx"; sheetNames: string[]; headerRow: string[] };
+  | { kind: "xlsx"; sheetNames: string[]; headerRowsBySheet: Record<string, string[]> };
 
 /**
  * Per-report-type registry entry (RESEARCH.md Pattern 1). `ingest()` dispatches
