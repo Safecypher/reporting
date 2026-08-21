@@ -2,8 +2,7 @@ import { Suspense } from "react";
 import Link from "next/link";
 import type { Metadata } from "next";
 
-import { DrillSheet } from "@/components/dashboard/drill-sheet";
-import { verificationDrillColumns } from "@/components/dashboard/verification-drill-columns";
+import { VerificationDrillSheet } from "@/components/dashboard/verification-drill-sheet";
 import { ViewControls } from "@/components/dashboard/view-controls";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -202,10 +201,9 @@ async function VerificationsBody({ searchParams }: { searchParams: PageSearchPar
     <>
       <PageHeader uploadedAt={uploadedAt} />
       {rows.length === 0 ? <EmptyState /> : <ViewControls dailyRows={rows} />}
-      <DrillSheet
+      <VerificationDrillSheet
         filter={isVerificationDrill ? drillFilter : null}
         rows={drillResult.rows}
-        columns={verificationDrillColumns}
         title={verificationDrillTitle(drillFilter?.authenticated)}
         totalCount={drillResult.totalCount}
       />
