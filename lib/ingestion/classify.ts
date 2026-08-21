@@ -9,9 +9,20 @@ const VERIFICATION_HEADER_SIGNATURE = [
   "Authenticated",
 ] as const;
 
-/** Strip a leading UTF-8 BOM character from a header cell (Pitfall 4). */
-function stripBom(value: string): string {
+/** Strip a leading UTF-8 BOM character from a header cell (Pitfall 4, D-12). */
+export function stripBom(value: string): string {
   return value.replace(/^﻿/, "");
+}
+
+/**
+ * BOM-strip the first cell of `headerRow`, then compare length + exact
+ * column order against `expected` (D-11). Shared by every CSV handler's
+ * `classify()` so the either-suffices filename-OR-header matching logic
+ * stays consistent across all six report types.
+ */
+export function matchesHeader(headerRow: string[], expected: readonly string[]): boolean {
+  const normalised = headerRow.map((h, i) => (i === 0 ? stripBom(h) : h));
+  return normalised.length === expected.length && expected.every((col, i) => normalised[i] === col);
 }
 
 /**
