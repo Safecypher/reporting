@@ -1,18 +1,24 @@
 import { Suspense } from "react";
 import Link from "next/link";
 import type { Metadata } from "next";
+import { createColumnHelper, type ColumnDef } from "@tanstack/react-table";
 
+import { DrillSheet } from "@/components/dashboard/drill-sheet";
 import { ViewControls } from "@/components/dashboard/view-controls";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { createClient } from "@/lib/supabase/server";
 import type { DailyRow } from "@/lib/dashboard/bucketing";
+import { parseDrillParams } from "@/lib/dashboard/drill-params";
 
 export const metadata: Metadata = {
   title: "Verifications — Safecypher Reporting",
 };
 
 const DATA_WINDOW_CAPTION = "Excludes data before 13 Aug 2026.";
+const DATA_WINDOW_START = "2026-08-13T00:00:00Z";
+/** PoC-scale cap on the drilled raw-row fetch — plenty for the current data volume. */
+const DRILL_ROW_LIMIT = 500;
 
 type DailyViewRow = {
   day_utc: string | null;
@@ -21,6 +27,48 @@ type DailyViewRow = {
 };
 
 type IngestedFileFreshness = { uploaded_at: string };
+
+/** Row shape for the "verification" drill entity — raw contributing rows. */
+interface VerificationDrillRow {
+  created_at: string;
+  external_card_reference: string;
+  duration_ms: number;
+  authenticated: boolean;
+}
+
+const verificationColumnHelper = createColumnHelper<VerificationDrillRow>();
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any -- matches DrillSheet's ColumnDef<TRow, any> prop shape.
+const verificationDrillColumns: ColumnDef<VerificationDrillRow, any>[] = [
+  verificationColumnHelper.accessor("created_at", {
+    header: "Time",
+    cell: (info) =>
+      new Date(info.getValue()).toLocaleString("en-GB", {
+        dateStyle: "medium",
+        timeStyle: "short",
+      }),
+  }),
+  verificationColumnHelper.accessor("external_card_reference", {
+    header: "Card reference",
+    cell: (info) => <span className="font-mono tabular-nums">{info.getValue()}</span>,
+  }),
+  verificationColumnHelper.accessor("duration_ms", {
+    header: "Duration (ms)",
+    cell: (info) => (
+      <span className="font-mono tabular-nums">{info.getValue().toLocaleString()}</span>
+    ),
+  }),
+  verificationColumnHelper.accessor("authenticated", {
+    header: "Authenticated",
+    cell: (info) => (info.getValue() ? "Yes" : "No"),
+  }),
+];
+
+function verificationDrillTitle(authenticated: boolean | undefined): string {
+  if (authenticated === true) return "Verifications — Authenticated";
+  if (authenticated === false) return "Verifications — Failed";
+  return "Verifications — All";
+}
 
 function FreshnessBadge({ uploadedAt }: { uploadedAt: string | null }) {
   const label = uploadedAt
@@ -125,17 +173,52 @@ function LoadingState() {
   );
 }
 
+type PageSearchParams = Promise<{ [key: string]: string | string[] | undefined }>;
+
+/**
+ * Server-fetches the raw rows contributing to the "verification" drill
+ * entity (DASH-03/D-11). Whitelisted, parameterised: only `.eq()`/`.gte()`
+ * builders are used, never raw string interpolation of `searchParams`
+ * (T-03-19). The session-scoped client keeps RLS in effect (T-03-20).
+ */
+async function fetchVerificationDrillRows(
+  supabase: Awaited<ReturnType<typeof createClient>>,
+  authenticated: boolean | undefined,
+): Promise<VerificationDrillRow[]> {
+  let query = supabase
+    .from("verifications")
+    .select("created_at, external_card_reference, duration_ms, authenticated")
+    .gte("created_at", DATA_WINDOW_START)
+    .order("created_at", { ascending: false })
+    .limit(DRILL_ROW_LIMIT);
+
+  if (authenticated !== undefined) {
+    query = query.eq("authenticated", authenticated);
+  }
+
+  const { data, error } = await query.returns<VerificationDrillRow[]>();
+  if (error) return [];
+  return data ?? [];
+}
+
 /**
  * Async Server Component reading `v_verifications_daily` (DASH-01) and the
  * "as of last import" freshness timestamp (DASH-04: max(uploaded_at) from
  * ingested_files where status='done') via the session-scoped server client
  * so RLS applies (T-06-01). Suspended by the page below to drive the
  * loading state; renders empty/populated/error itself.
+ *
+ * Also reads the Next 16 `searchParams` prop (a Promise — must be awaited)
+ * for the drill-down Sheet (DASH-03): `parseDrillParams` whitelists the
+ * entity/keys before any query is built.
  */
-async function VerificationsBody() {
+async function VerificationsBody({ searchParams }: { searchParams: PageSearchParams }) {
   const supabase = await createClient();
+  const params = await searchParams;
+  const drillFilter = parseDrillParams(params);
+  const isVerificationDrill = drillFilter?.drill === "verification";
 
-  const [dailyResult, freshnessResult] = await Promise.all([
+  const [dailyResult, freshnessResult, drillRows] = await Promise.all([
     supabase
       .from("v_verifications_daily")
       .select("day_utc, authenticated_count, failed_count")
@@ -149,6 +232,9 @@ async function VerificationsBody() {
       .limit(1)
       .returns<IngestedFileFreshness[]>()
       .maybeSingle(),
+    isVerificationDrill
+      ? fetchVerificationDrillRows(supabase, drillFilter.authenticated)
+      : Promise.resolve<VerificationDrillRow[]>([]),
   ]);
 
   // IN-03: surface a freshness-query failure as an error state rather than
@@ -177,15 +263,25 @@ async function VerificationsBody() {
     <>
       <PageHeader uploadedAt={uploadedAt} />
       {rows.length === 0 ? <EmptyState /> : <ViewControls dailyRows={rows} />}
+      <DrillSheet
+        filter={isVerificationDrill ? drillFilter : null}
+        rows={drillRows}
+        columns={verificationDrillColumns}
+        title={verificationDrillTitle(drillFilter?.authenticated)}
+      />
     </>
   );
 }
 
-export default function VerificationsPage() {
+export default function VerificationsPage({
+  searchParams,
+}: {
+  searchParams: PageSearchParams;
+}) {
   return (
     <div className="flex flex-1 flex-col gap-6 p-6">
       <Suspense fallback={<LoadingState />}>
-        <VerificationsBody />
+        <VerificationsBody searchParams={searchParams} />
       </Suspense>
     </div>
   );

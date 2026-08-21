@@ -10,6 +10,7 @@ import {
 } from "@tanstack/react-table";
 import { useState } from "react";
 
+import { useDrill } from "@/components/dashboard/drillable-metric";
 import {
   Table,
   TableBody,
@@ -59,13 +60,14 @@ interface SlaBreachTableProps {
 
 /**
  * TanStack Table v8 headless table for the individual breaching
- * verifications (D-08). Rows get a drillable click affordance in plan
- * 03-06 — this component leaves a clean per-row render seam for that.
+ * verifications (D-08). DASH-03/D-11: each row is drillable — clicking opens
+ * the Sheet listing every breach on that row's day (`?drill=sla-breach&date=...`).
  */
 export function SlaBreachTable({ rows }: SlaBreachTableProps) {
   const [sorting, setSorting] = useState<SortingState>([
     { id: "created_at", desc: true },
   ]);
+  const { openDrill } = useDrill();
 
   const table = useReactTable({
     data: rows,
@@ -97,7 +99,22 @@ export function SlaBreachTable({ rows }: SlaBreachTableProps) {
         </TableHeader>
         <TableBody>
           {table.getRowModel().rows.map((row) => (
-            <TableRow key={row.id}>
+            <TableRow
+              key={row.id}
+              tabIndex={0}
+              role="button"
+              aria-label={`Drill into breaches on ${row.original.created_at.slice(0, 10)}`}
+              className="cursor-pointer"
+              onClick={() =>
+                openDrill({ drill: "sla-breach", date: row.original.created_at.slice(0, 10) })
+              }
+              onKeyDown={(event) => {
+                if (event.key === "Enter" || event.key === " ") {
+                  event.preventDefault();
+                  openDrill({ drill: "sla-breach", date: row.original.created_at.slice(0, 10) });
+                }
+              }}
+            >
               {row.getVisibleCells().map((cell) => (
                 <TableCell key={cell.id}>
                   {flexRender(cell.column.columnDef.cell, cell.getContext())}

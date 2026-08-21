@@ -1,13 +1,16 @@
 import { Suspense } from "react";
 import Link from "next/link";
 import type { Metadata } from "next";
+import { createColumnHelper, type ColumnDef } from "@tanstack/react-table";
 
+import { DrillSheet } from "@/components/dashboard/drill-sheet";
 import { SlaBreachTable, type SlaBreachRow } from "@/components/dashboard/sla-breach-table";
 import { SlaViewControls } from "@/components/dashboard/sla-view-controls";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { createClient } from "@/lib/supabase/server";
 import type { SlaDailyRow } from "@/lib/dashboard/sla-bucketing";
+import { parseDrillParams } from "@/lib/dashboard/drill-params";
 
 export const metadata: Metadata = {
   title: "SLA — Safecypher Reporting",
@@ -28,6 +31,39 @@ type SlaBreachViewRow = {
 };
 
 type IngestedFileFreshness = { uploaded_at: string };
+
+/** Row shape for the "sla-breach" drill entity — mirrors SlaBreachRow. */
+interface SlaBreachDrillRow {
+  created_at: string;
+  external_card_reference: string;
+  duration_ms: number;
+}
+
+const slaBreachColumnHelper = createColumnHelper<SlaBreachDrillRow>();
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any -- matches DrillSheet's ColumnDef<TRow, any> prop shape.
+const slaBreachDrillColumns: ColumnDef<SlaBreachDrillRow, any>[] = [
+  slaBreachColumnHelper.accessor("created_at", {
+    header: "Time",
+    cell: (info) =>
+      new Date(info.getValue()).toLocaleString("en-GB", {
+        dateStyle: "medium",
+        timeStyle: "short",
+      }),
+  }),
+  slaBreachColumnHelper.accessor("external_card_reference", {
+    header: "Card reference",
+    cell: (info) => <span className="font-mono tabular-nums">{info.getValue()}</span>,
+  }),
+  slaBreachColumnHelper.accessor("duration_ms", {
+    header: "Duration (ms)",
+    cell: (info) => (
+      <span className="font-mono font-medium tabular-nums text-[var(--error)]">
+        {info.getValue().toLocaleString()}
+      </span>
+    ),
+  }),
+];
 
 function FreshnessBadge({ uploadedAt }: { uploadedAt: string | null }) {
   const label = uploadedAt
@@ -145,16 +181,57 @@ function NoBreachesGoodNews() {
   );
 }
 
+type PageSearchParams = Promise<{ [key: string]: string | string[] | undefined }>;
+
+/**
+ * Server-fetches the individual breaching rows for a specific day (DASH-03/
+ * D-11's "sla-breach" entity). Whitelisted + parameterised: the date is
+ * turned into a `.gte()`/`.lt()` UTC-day range, never string-interpolated
+ * into the query (T-03-19). `v_sla_breaches` is `security_invoker = on`, so
+ * the session-scoped client keeps RLS in effect (T-03-20).
+ */
+async function fetchSlaBreachDrillRows(
+  supabase: Awaited<ReturnType<typeof createClient>>,
+  date: string | undefined,
+): Promise<SlaBreachDrillRow[]> {
+  if (!date) return [];
+
+  const dayStart = `${date}T00:00:00Z`;
+  const dayEnd = new Date(new Date(dayStart).getTime() + 24 * 60 * 60 * 1000).toISOString();
+
+  const { data, error } = await supabase
+    .from("v_sla_breaches")
+    .select("created_at, external_card_reference, duration_ms")
+    .gte("created_at", dayStart)
+    .lt("created_at", dayEnd)
+    .order("created_at", { ascending: false })
+    .returns<SlaBreachViewRow[]>();
+
+  if (error) return [];
+
+  return (data ?? []).filter(
+    (row): row is SlaBreachDrillRow =>
+      row.created_at !== null && row.external_card_reference !== null,
+  );
+}
+
 /**
  * Async Server Component reading `v_sla_daily` + `v_sla_breaches` (SLA-01)
  * and the "as of last import" freshness timestamp via the session-scoped
  * server client so RLS applies. Suspended by the page below to drive the
  * loading state; renders empty/populated/error itself.
+ *
+ * Also reads the Next 16 `searchParams` prop (a Promise — must be awaited)
+ * for the drill-down Sheet (DASH-03): `parseDrillParams` whitelists the
+ * entity/keys before any query is built.
  */
-async function SlaBody() {
+async function SlaBody({ searchParams }: { searchParams: PageSearchParams }) {
   const supabase = await createClient();
+  const params = await searchParams;
+  const drillFilter = parseDrillParams(params);
+  const isSlaBreachDrill = drillFilter?.drill === "sla-breach";
 
-  const [dailyResult, breachResult, freshnessResult] = await Promise.all([
+  const [dailyResult, breachResult, freshnessResult, drillRows] = await Promise.all([
     supabase
       .from("v_sla_daily")
       .select("day_utc, avg_duration_ms, breach_count")
@@ -173,6 +250,9 @@ async function SlaBody() {
       .limit(1)
       .returns<IngestedFileFreshness[]>()
       .maybeSingle(),
+    isSlaBreachDrill
+      ? fetchSlaBreachDrillRows(supabase, drillFilter.date)
+      : Promise.resolve<SlaBreachDrillRow[]>([]),
   ]);
 
   // Query error renders ErrorState, never a silent zero (4-state contract).
@@ -221,15 +301,21 @@ async function SlaBody() {
           )}
         </>
       )}
+      <DrillSheet
+        filter={isSlaBreachDrill ? drillFilter : null}
+        rows={drillRows}
+        columns={slaBreachDrillColumns}
+        title={`Breaching verifications — ${drillFilter?.date ?? ""}`}
+      />
     </>
   );
 }
 
-export default function SlaPage() {
+export default function SlaPage({ searchParams }: { searchParams: PageSearchParams }) {
   return (
     <div className="flex flex-1 flex-col gap-6 p-6">
       <Suspense fallback={<LoadingState />}>
-        <SlaBody />
+        <SlaBody searchParams={searchParams} />
       </Suspense>
     </div>
   );

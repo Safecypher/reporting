@@ -1,19 +1,101 @@
 import { Suspense } from "react";
 import Link from "next/link";
 import type { Metadata } from "next";
+import { createColumnHelper, type ColumnDef } from "@tanstack/react-table";
 
+import { DrillSheet } from "@/components/dashboard/drill-sheet";
 import { RevenueViewControls } from "@/components/dashboard/revenue-view-controls";
 import type { RevenueTierRow } from "@/components/dashboard/revenue-tier-breakdown";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { createClient } from "@/lib/supabase/server";
 import type { RevenueDailyRow } from "@/lib/dashboard/revenue-bucketing";
+import { parseDrillParams } from "@/lib/dashboard/drill-params";
 
 export const metadata: Metadata = {
   title: "Revenue — Safecypher Reporting",
 };
 
 const DATA_WINDOW_CAPTION = "Excludes data before 13 Aug 2026.";
+const DATA_WINDOW_START = "2026-08-13T00:00:00Z";
+const DRILL_ROW_LIMIT = 500;
+
+const currencyFormatter = new Intl.NumberFormat("en-US", {
+  style: "currency",
+  currency: "USD",
+});
+
+/** Row shape for the "verification" drill entity (Total revenue KPI — D-02: all verifications, never filtered by authenticated). */
+interface VerificationDrillRow {
+  created_at: string;
+  external_card_reference: string;
+  duration_ms: number;
+  authenticated: boolean;
+}
+
+const verificationColumnHelper = createColumnHelper<VerificationDrillRow>();
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any -- matches DrillSheet's ColumnDef<TRow, any> prop shape.
+const verificationDrillColumns: ColumnDef<VerificationDrillRow, any>[] = [
+  verificationColumnHelper.accessor("created_at", {
+    header: "Time",
+    cell: (info) =>
+      new Date(info.getValue()).toLocaleString("en-GB", {
+        dateStyle: "medium",
+        timeStyle: "short",
+      }),
+  }),
+  verificationColumnHelper.accessor("external_card_reference", {
+    header: "Card reference",
+    cell: (info) => <span className="font-mono tabular-nums">{info.getValue()}</span>,
+  }),
+  verificationColumnHelper.accessor("duration_ms", {
+    header: "Duration (ms)",
+    cell: (info) => (
+      <span className="font-mono tabular-nums">{info.getValue().toLocaleString()}</span>
+    ),
+  }),
+  verificationColumnHelper.accessor("authenticated", {
+    header: "Authenticated",
+    cell: (info) => (info.getValue() ? "Yes" : "No"),
+  }),
+];
+
+/** Row shape for the "revenue-tier" drill entity — per-day contribution to one tier. */
+interface RevenueTierDrillRow {
+  day_utc: string;
+  overlap_count: string;
+  rate: string;
+  tier_revenue: string;
+}
+
+const revenueTierColumnHelper = createColumnHelper<RevenueTierDrillRow>();
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any -- matches DrillSheet's ColumnDef<TRow, any> prop shape.
+const revenueTierDrillColumns: ColumnDef<RevenueTierDrillRow, any>[] = [
+  revenueTierColumnHelper.accessor("day_utc", {
+    header: "Day",
+    cell: (info) => info.getValue().slice(0, 10),
+  }),
+  revenueTierColumnHelper.accessor("overlap_count", {
+    header: "Verifications in tier",
+    cell: (info) => (
+      <span className="font-mono tabular-nums">{Number(info.getValue()).toLocaleString()}</span>
+    ),
+  }),
+  revenueTierColumnHelper.accessor("rate", {
+    header: "Rate",
+    cell: (info) => (
+      <span className="font-mono tabular-nums">{currencyFormatter.format(Number(info.getValue()))}</span>
+    ),
+  }),
+  revenueTierColumnHelper.accessor("tier_revenue", {
+    header: "Revenue",
+    cell: (info) => (
+      <span className="font-mono tabular-nums">{currencyFormatter.format(Number(info.getValue()))}</span>
+    ),
+  }),
+];
 
 type RevenueDailyViewRow = { day_utc: string | null; revenue: string | null };
 type RevenueTierViewRow = {
@@ -133,6 +215,54 @@ function LoadingState() {
   );
 }
 
+type PageSearchParams = Promise<{ [key: string]: string | string[] | undefined }>;
+
+/**
+ * Server-fetches raw verification rows for the "verification" drill entity
+ * on the Revenue page (Total revenue KPI — D-02: revenue counts ALL
+ * verifications, so this fetch never filters by `authenticated`).
+ * Whitelisted/parameterised (T-03-19); session-scoped client for RLS
+ * (T-03-20).
+ */
+async function fetchVerificationDrillRows(
+  supabase: Awaited<ReturnType<typeof createClient>>,
+): Promise<VerificationDrillRow[]> {
+  const { data, error } = await supabase
+    .from("verifications")
+    .select("created_at, external_card_reference, duration_ms, authenticated")
+    .gte("created_at", DATA_WINDOW_START)
+    .order("created_at", { ascending: false })
+    .limit(DRILL_ROW_LIMIT)
+    .returns<VerificationDrillRow[]>();
+
+  if (error) return [];
+  return data ?? [];
+}
+
+/**
+ * Server-fetches the per-day contribution rows for one tier (the
+ * "revenue-tier" drill entity, D-07/D-11). `tierOrder` is validated as a
+ * whitelisted integer by `parseDrillParams` before it ever reaches this
+ * `.eq()` call (T-03-19).
+ */
+async function fetchRevenueTierDrillRows(
+  supabase: Awaited<ReturnType<typeof createClient>>,
+  tierOrder: number | undefined,
+): Promise<RevenueTierDrillRow[]> {
+  if (tierOrder === undefined) return [];
+
+  const { data, error } = await supabase
+    .from("v_revenue_by_tier")
+    .select("day_utc, overlap_count, rate, tier_revenue")
+    .eq("tier_order", tierOrder)
+    .gt("overlap_count", 0)
+    .order("day_utc", { ascending: false })
+    .returns<RevenueTierDrillRow[]>();
+
+  if (error) return [];
+  return data ?? [];
+}
+
 /**
  * Async Server Component reading `v_revenue_daily` / `v_revenue_by_tier`
  * (REV-01) plus the grand total for the "Total revenue" KPI (summed in
@@ -141,9 +271,17 @@ function LoadingState() {
  * session-scoped server client so RLS applies. Also checks
  * `pricing_tier_sets` so a missing pricing configuration renders
  * ErrorState, never a silent $0 (T-03-17).
+ *
+ * Also reads the Next 16 `searchParams` prop (a Promise — must be awaited)
+ * for the drill-down Sheet (DASH-03): `parseDrillParams` whitelists the
+ * entity/keys before any query is built.
  */
-async function RevenueBody() {
+async function RevenueBody({ searchParams }: { searchParams: PageSearchParams }) {
   const supabase = await createClient();
+  const params = await searchParams;
+  const drillFilter = parseDrillParams(params);
+  const isVerificationDrill = drillFilter?.drill === "verification";
+  const isRevenueTierDrill = drillFilter?.drill === "revenue-tier";
 
   const [
     dailyResult,
@@ -152,6 +290,8 @@ async function RevenueBody() {
     verificationCountsResult,
     pricingTierSetsResult,
     freshnessResult,
+    verificationDrillRows,
+    revenueTierDrillRows,
   ] = await Promise.all([
     supabase
       .from("v_revenue_daily")
@@ -187,6 +327,12 @@ async function RevenueBody() {
       .limit(1)
       .returns<IngestedFileFreshness[]>()
       .maybeSingle(),
+    isVerificationDrill
+      ? fetchVerificationDrillRows(supabase)
+      : Promise.resolve<VerificationDrillRow[]>([]),
+    isRevenueTierDrill
+      ? fetchRevenueTierDrillRows(supabase, drillFilter.tierOrder)
+      : Promise.resolve<RevenueTierDrillRow[]>([]),
   ]);
 
   if (
@@ -269,15 +415,27 @@ async function RevenueBody() {
         tierRows={tierRows}
         totalRevenue={totalRevenue}
       />
+      <DrillSheet
+        filter={isVerificationDrill ? drillFilter : null}
+        rows={verificationDrillRows}
+        columns={verificationDrillColumns}
+        title="Verifications — All"
+      />
+      <DrillSheet
+        filter={isRevenueTierDrill ? drillFilter : null}
+        rows={revenueTierDrillRows}
+        columns={revenueTierDrillColumns}
+        title={`Revenue by tier — Tier ${(drillFilter?.tierOrder ?? 0) + 1}`}
+      />
     </>
   );
 }
 
-export default function RevenuePage() {
+export default function RevenuePage({ searchParams }: { searchParams: PageSearchParams }) {
   return (
     <div className="flex flex-1 flex-col gap-6 p-6">
       <Suspense fallback={<LoadingState />}>
-        <RevenueBody />
+        <RevenueBody searchParams={searchParams} />
       </Suspense>
     </div>
   );

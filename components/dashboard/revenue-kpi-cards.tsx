@@ -1,3 +1,4 @@
+import { DrillableMetric } from "@/components/dashboard/drillable-metric";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 
 const currencyFormatter = new Intl.NumberFormat("en-US", {
@@ -25,6 +26,10 @@ interface RevenueKpiCardsProps {
  * but formatted as currency instead of a plain count (03-UI-SPEC.md
  * Typography: money and counts share the same `.metric` shape, only the
  * formatter differs).
+ *
+ * DASH-03/D-11: drillable to the "verification" entity — revenue is
+ * computed from ALL verification counts (D-02, no authenticated filter),
+ * so drilling the total revenue KPI shows every contributing verification.
  */
 export function RevenueKpiCards({ total }: RevenueKpiCardsProps) {
   return (
@@ -36,9 +41,11 @@ export function RevenueKpiCards({ total }: RevenueKpiCardsProps) {
           </CardTitle>
         </CardHeader>
         <CardContent>
-          <span className="inline-block border-b-2 border-[var(--cypher-blue)] pb-1 text-[48px] leading-none font-bold tabular-nums text-[var(--cypher-blue)]">
-            {formatCurrency(total)}
-          </span>
+          <DrillableMetric filter={{ drill: "verification" }} aria-label="Drill into total revenue">
+            <span className="inline-block border-b-2 border-[var(--cypher-blue)] pb-1 text-[48px] leading-none font-bold tabular-nums text-[var(--cypher-blue)]">
+              {formatCurrency(total)}
+            </span>
+          </DrillableMetric>
         </CardContent>
       </Card>
     </div>
