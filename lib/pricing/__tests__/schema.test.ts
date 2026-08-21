@@ -65,6 +65,21 @@ describe("pricingTierSetSchema", () => {
     }
   });
 
+  it("rejects a closed (non-open-ended) top tier", () => {
+    const boundedTop = {
+      ...validTierSet,
+      tiers: [{ upperBound: 100000, rate: 0.08 }],
+    };
+    const result = pricingTierSetSchema.safeParse(boundedTop);
+    expect(result.success).toBe(false);
+    if (!result.success) {
+      const messages = result.error.issues.map((i) => i.message);
+      expect(messages).toContain(
+        "The last tier must be open-ended (no upper bound) so every verification is priced.",
+      );
+    }
+  });
+
   it("rejects a negative rate", () => {
     const negativeRate = {
       ...validTierSet,

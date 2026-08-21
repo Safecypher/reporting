@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useFieldArray, useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { toast } from "sonner";
@@ -53,6 +53,24 @@ export function PricingTierForm() {
     control: form.control,
     name: "tiers",
   });
+
+  // CR-01: the UI must not allow submitting a bounded top tier — the last
+  // tier's upperBound is always forced to null (open-ended), regardless of
+  // add/remove/reorder, so the Zod "last tier must be open-ended" rule can
+  // never actually be triggered by a normal user interaction; it only
+  // remains as defense-in-depth for a direct/malformed submission.
+  const lastIndex = fields.length - 1;
+  useEffect(() => {
+    if (lastIndex >= 0) {
+      form.setValue(`tiers.${lastIndex}.upperBound`, null, {
+        shouldValidate: false,
+        shouldDirty: false,
+      });
+    }
+    // Only re-run when the set of tiers (and therefore which index is last)
+    // changes — not on every keystroke of an unrelated field.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [fields.length]);
 
   const tiersFieldError = form.formState.errors.tiers;
   const tiersError =
@@ -158,10 +176,19 @@ export function PricingTierForm() {
                     id={`tiers.${index}.upperBound`}
                     type="number"
                     placeholder={isLast ? "Open-ended" : undefined}
-                    className={cn("font-mono tabular-nums")}
+                    disabled={isLast}
+                    aria-disabled={isLast}
+                    // CR-01: the last tier's upper bound is always null
+                    // (open-ended) — disabled here so the UI cannot submit a
+                    // bounded top tier; value is force-set via the useEffect
+                    // above whenever the tier set changes.
+                    className={cn(
+                      "font-mono tabular-nums",
+                      isLast && "cursor-not-allowed opacity-60",
+                    )}
                     {...form.register(`tiers.${index}.upperBound`, {
                       setValueAs: (value) =>
-                        value === "" || value === null ? null : Number(value),
+                        isLast || value === "" || value === null ? null : Number(value),
                     })}
                   />
                 </div>

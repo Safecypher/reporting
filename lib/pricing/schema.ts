@@ -45,6 +45,20 @@ export const pricingTierSetSchema = z
         return;
       }
 
+      // CR-01: the LAST tier MUST be open-ended (upperBound === null) so
+      // every verification volume above the highest configured bracket is
+      // still priced. A fully-bounded tier set silently drops all revenue
+      // above the top tier (v_revenue_by_tier's inner join against
+      // pricing_tiers has no row to match that volume).
+      if (isLastTier && tier.upperBound !== null) {
+        ctx.addIssue({
+          code: "custom",
+          message:
+            "The last tier must be open-ended (no upper bound) so every verification is priced.",
+          path: ["tiers", index, "upperBound"],
+        });
+      }
+
       // All non-null upper bounds must be strictly increasing in array
       // order -- this single check catches BOTH overlap (a bound <= the
       // previous bound) and, when combined across the whole array, a gap
