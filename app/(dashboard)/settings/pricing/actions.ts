@@ -5,6 +5,31 @@ import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { pricingTierSetSchema } from "@/lib/pricing/schema";
 
+const GENERIC_ERROR =
+  "Could not save pricing tiers — please check the values and try again.";
+
+/**
+ * Maps a raw Postgres/PostgREST error message to safe, user-facing copy
+ * (WR-01: raw constraint/schema names must never reach the form UI). The
+ * detailed message is always logged server-side first.
+ */
+function friendlyErrorMessage(rawMessage: string): string {
+  if (rawMessage.includes("pricing_tier_sets_effective_from_key")) {
+    return "A pricing tier set already exists for this date.";
+  }
+  if (rawMessage.includes("must be strictly after the latest existing effective_from")) {
+    return "The effective date must be after the most recent pricing tier set's date — past revenue is never rewritten.";
+  }
+  if (
+    rawMessage.includes("open-ended") ||
+    rawMessage.includes("contiguous tier_order") ||
+    rawMessage.includes("ascending upper_bound")
+  ) {
+    return "Tiers must be contiguous and in ascending order, ending with a single open-ended tier — check the thresholds and try again.";
+  }
+  return GENERIC_ERROR;
+}
+
 /**
  * savePricingTierSet — the pricing admin's only write path (ADMIN-01, REV-02).
  *
@@ -20,6 +45,12 @@ import { pricingTierSetSchema } from "@/lib/pricing/schema";
  *   silently break attribution.
  * - Returns a plain result object (not NextResponse) — this is a Server
  *   Action invoked directly by the form's `handleSubmit`, not an HTTP route.
+ *
+ * CR-04: the tier-set row and its tier rows are written by a single
+ * `save_pricing_tier_set` RPC (see supabase/migrations/0015_pricing_tier_integrity.sql)
+ * so the two inserts are transactional — a failure partway through can never
+ * leave an orphaned, audit-logged tier set with zero tiers. CR-05: the RPC
+ * also rejects a backdated `effective_from` at the DB level.
  */
 export async function savePricingTierSet(
   input: unknown
@@ -38,37 +69,29 @@ export async function savePricingTierSet(
     return { error: "Unauthorized" };
   }
 
-  const { data: tierSet, error: tierSetError } = await supabase
-    .from("pricing_tier_sets")
-    .insert({
-      effective_from: parsed.data.effectiveFrom,
-      reset_window: parsed.data.resetWindow,
-    })
-    .select()
-    .single();
+  const { error } = await supabase.rpc("save_pricing_tier_set", {
+    p_effective_from: parsed.data.effectiveFrom,
+    p_reset_window: parsed.data.resetWindow,
+    p_tiers: parsed.data.tiers.map((tier, index) => ({
+      tierOrder: index,
+      upperBound: tier.upperBound,
+      rate: tier.rate,
+    })),
+  });
 
-  if (tierSetError) {
-    return { error: tierSetError.message };
-  }
-
-  const tierRows = parsed.data.tiers.map((tier, index) => ({
-    tier_set_id: tierSet.id,
-    tier_order: index,
-    upper_bound: tier.upperBound,
-    rate: tier.rate,
-  }));
-
-  const { error: tiersError } = await supabase
-    .from("pricing_tiers")
-    .insert(tierRows);
-
-  if (tiersError) {
-    return { error: tiersError.message };
+  if (error) {
+    // WR-01: log the raw, detailed error server-side only; the client only
+    // ever sees the mapped, friendly message.
+    console.error("savePricingTierSet: save_pricing_tier_set RPC failed", error);
+    return { error: friendlyErrorMessage(error.message) };
   }
 
   // REV-02: same-roundtrip revalidation, no re-ingestion required — Revenue
-  // re-reads the effective-dated tier set on next render.
+  // re-reads the effective-dated tier set on next render. WR-02: also
+  // revalidate the settings page itself so the new audit-log entry (D-06)
+  // appears without a manual reload.
   revalidatePath("/revenue");
+  revalidatePath("/settings/pricing");
 
   return { success: true };
 }
