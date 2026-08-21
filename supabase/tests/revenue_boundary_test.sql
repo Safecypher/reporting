@@ -33,6 +33,17 @@ begin;
 -- resolution can't accidentally pick up production data during a live run.
 delete from pricing_tier_sets;
 
+-- A dedicated source-file row so this fixture is fully self-contained and
+-- never depends on pre-existing ingested_files data being present.
+insert into ingested_files (id, file_name, content_sha256, report_type, status)
+values (
+  '22222222-2222-2222-2222-222222222222'::uuid,
+  'revenue_boundary_test_fixture.csv',
+  'revenue-boundary-test-fixture-sha256',
+  'daily-ver-report',
+  'done'
+);
+
 -- One tier set: effective 2026-08-13, monthly reset window, two tiers
 -- straddling the 500,000 boundary.
 insert into pricing_tier_sets (id, effective_from, reset_window)
@@ -56,10 +67,9 @@ select
   1,
   100,
   true,
-  (select id from ingested_files limit 1),
+  '22222222-2222-2222-2222-222222222222'::uuid,
   '2026-08-13T00:00:00Z'
-from generate_series(1, 499000) as n
-where exists (select 1 from ingested_files limit 1);
+from generate_series(1, 499000) as n;
 
 -- Test day (2026-08-14): 2,500 more verifications -> cumulative count
 -- crosses 499,000 -> 501,500 within the same monthly window.
@@ -73,10 +83,9 @@ select
   1,
   100,
   true,
-  (select id from ingested_files limit 1),
+  '22222222-2222-2222-2222-222222222222'::uuid,
   '2026-08-14T00:00:00Z'
-from generate_series(1, 2500) as n
-where exists (select 1 from ingested_files limit 1);
+from generate_series(1, 2500) as n;
 
 -- Assert the grand daily total for the test day equals 215.0000 exactly.
 do $$
