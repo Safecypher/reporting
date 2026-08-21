@@ -1,15 +1,16 @@
 import { matchesHeader } from "../classify";
-import type { HeaderSignature, ReportHandler } from "../types";
+import { normaliseCardInventory } from "../normalise-card-inventory";
+import { parseCardInventory, validateCardInventoryRows } from "../parsers/card-inventory";
+import type { HeaderSignature, IngestDeps, ReportHandler } from "../types";
 
 /** D-11 header signature — real sample columns, in order, once any BOM is stripped. */
 const CARD_INVENTORY_HEADER = ["ExternalCardReference", "CreatedAt"] as const;
 
 /**
- * Stub handler — real classification is fully wired (D-11) so card-inventory
- * files are correctly routed in Wave 1, but `parse` throws until the Wave 2
- * card-inventory slice overwrites this module. The CR-01 defensive try/catch
- * in `ingest()` turns this throw into a clean `status: 'failed'` rejection,
- * never a crash.
+ * Card-inventory daily-snapshot handler (Wave 2, Plan 02-04). `report_date`
+ * — the snapshot day — is derived from the FILENAME by `parseCardInventory`
+ * (D-02), never from `CreatedAt` (per-card enrolment time). Dedup is on
+ * `(report_date, external_card_reference)` via the generic `upsertRows`.
  */
 export const cardInventoryHandler: ReportHandler = {
   reportType: "card-inventory",
@@ -20,19 +21,26 @@ export const cardInventoryHandler: ReportHandler = {
     return filenameMatches || headerMatches;
   },
 
-  async parse(): Promise<{ rawRows: Record<string, unknown>[] }> {
-    throw new Error("card-inventory parser not implemented yet");
+  async parse(bytes: Uint8Array, fileName: string): Promise<{ rawRows: Record<string, unknown>[] }> {
+    return { rawRows: parseCardInventory(bytes, fileName).rows as unknown as Record<string, unknown>[] };
   },
 
-  validate() {
-    return { valid: [], rejected: [] };
+  validate(rawRows: Record<string, unknown>[]) {
+    return validateCardInventoryRows(rawRows as unknown as Record<string, string>[]);
   },
 
-  normalise() {
-    return { rows: [], excludedPreWindow: 0 };
+  normalise(valid: unknown[]) {
+    const result = normaliseCardInventory(valid as Parameters<typeof normaliseCardInventory>[0]);
+    return {
+      rows: result.rows as unknown as Record<string, unknown>[],
+      excludedPreWindow: result.excludedPreWindow,
+    };
   },
 
-  async upsert() {
-    return 0;
+  async upsert(deps: IngestDeps, rows: Record<string, unknown>[]) {
+    return deps.upsertRows("card_inventory", rows, {
+      onConflict: "report_date,external_card_reference",
+      ignoreDuplicates: true,
+    });
   },
 };
