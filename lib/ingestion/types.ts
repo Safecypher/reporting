@@ -7,8 +7,38 @@
  * adapter parses, validates, or writes to the database itself.
  */
 
-/** The only report type wired up in Phase 1. Phase 2 adds the other five. */
-export type ReportType = "verification";
+/** All six report types. Phase 1 wired up "verification" only; Phase 2 adds the other five. */
+export type ReportType =
+  | "verification"
+  | "billing"
+  | "dcvv"
+  | "card-inventory"
+  | "removed-cards"
+  | "apigee-stats";
+
+/**
+ * The format-aware classification signature extracted by `extractHeaderSignature`
+ * (lib/ingestion/index.ts) before `classify()` runs. XLSX classification (D-11)
+ * must never rely on filename alone — sheet names + header row are required.
+ */
+export type HeaderSignature =
+  | { kind: "csv"; headerRow: string[] }
+  | { kind: "xlsx"; sheetNames: string[]; headerRow: string[] };
+
+/**
+ * Per-report-type registry entry (RESEARCH.md Pattern 1). `ingest()` dispatches
+ * through `REPORT_HANDLERS` instead of hardcoding a single report type's parse/
+ * validate/normalise/upsert calls — this is what lets each of the five new report
+ * slices be a pure, self-contained addition with no shared-file edits.
+ */
+export interface ReportHandler {
+  reportType: ReportType;
+  classify(fileName: string, signature: HeaderSignature): boolean;
+  parse(bytes: Uint8Array, fileName: string): Promise<{ rawRows: Record<string, unknown>[] }>;
+  validate(rawRows: Record<string, unknown>[]): { valid: unknown[]; rejected: RejectedRow[] };
+  normalise(valid: unknown[]): { rows: Record<string, unknown>[]; excludedPreWindow: number };
+  upsert(deps: IngestDeps, rows: Record<string, unknown>[]): Promise<number>;
+}
 
 export interface IngestionInput {
   fileName: string;
@@ -86,6 +116,18 @@ export interface IngestDeps {
   }): Promise<string>;
   /** INSERT ... ON CONFLICT (row_hash) DO NOTHING RETURNING id; returns inserted count. */
   upsertVerifications(rows: NormalisedVerificationRow[]): Promise<number>;
+  /**
+   * Generic upsert used by every Phase 2 report handler (verification keeps
+   * using `upsertVerifications` above, untouched, so its behaviour/tests are
+   * unaffected). `onConflict` may be a single column (e.g. `row_hash`,
+   * `transaction_id`) or a comma-separated composite key (e.g.
+   * `report_date,external_card_reference`).
+   */
+  upsertRows(
+    table: string,
+    rows: Record<string, unknown>[],
+    opts: { onConflict: string; ignoreDuplicates: boolean }
+  ): Promise<number>;
   finalizeFile(
     id: string,
     counts: {

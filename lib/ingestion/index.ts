@@ -1,8 +1,82 @@
-import { classify } from "./classify";
+import Papa from "papaparse";
+import { apigeeStatsHandler } from "./handlers/apigee-stats";
+import { billingHandler } from "./handlers/billing";
+import { cardInventoryHandler } from "./handlers/card-inventory";
+import { dcvvHandler } from "./handlers/dcvv";
+import { removedCardsHandler } from "./handlers/removed-cards";
+import { verificationHandler } from "./handlers/verification";
 import { sha256 } from "./hash";
-import { normaliseVerification } from "./normalise";
-import { parseVerification, validateVerificationRows } from "./parsers/verification";
-import type { IngestDeps, IngestionInput, IngestionResult, RejectedRow } from "./types";
+import type {
+  HeaderSignature,
+  IngestDeps,
+  IngestionInput,
+  IngestionResult,
+  ReportHandler,
+  RejectedRow,
+} from "./types";
+
+/**
+ * The registry every report type plugs into (RESEARCH.md Pattern 1).
+ * Verification is one handler among six — its behaviour and DB-write path
+ * are unchanged from Phase 1. The five new handlers are stubs (real
+ * classification, `parse()` throws "not implemented yet") ready for their
+ * Wave 2 slices to overwrite; no shared file needs editing to add a report
+ * type once its handler module exists.
+ */
+export const REPORT_HANDLERS: ReportHandler[] = [
+  verificationHandler,
+  billingHandler,
+  dcvvHandler,
+  cardInventoryHandler,
+  removedCardsHandler,
+  apigeeStatsHandler,
+];
+
+/** ZIP magic number — XLSX is a ZIP container; CSV/text never starts with this (T-02-01). */
+function isXlsx(bytes: Uint8Array): boolean {
+  return bytes.length >= 4 && bytes[0] === 0x50 && bytes[1] === 0x4b;
+}
+
+/**
+ * Format-aware classification signature extraction (RESEARCH.md Pattern 2).
+ * Detects XLSX by the ZIP magic bytes on the buffer itself — NEVER by the
+ * client-supplied `contentType` (T-02-01, Pitfall 3) — and returns either a
+ * CSV header row or an XLSX sheet-name list + header row. Wrapped by the
+ * caller in the same defensive try/catch pattern as the rest of `ingest()`
+ * (T-02-02): a crafted/corrupt file must classify to `null`, never throw
+ * unguarded.
+ */
+async function extractHeaderSignature(
+  bytes: Uint8Array,
+  _fileName: string
+): Promise<HeaderSignature> {
+  if (isXlsx(bytes)) {
+    // Lazily imported so CSV-only code paths never pull in ExcelJS.
+    const ExcelJS = (await import("exceljs")).default;
+    const workbook = new ExcelJS.Workbook();
+    // Cast through `unknown`: exceljs's transitive dep `fast-csv` ships its
+    // own nested `@types/node@14` whose `Buffer` type lacks fields added in
+    // later Node type defs (`maxByteLength` etc.), so the ambient `Buffer`
+    // TS resolves at this call site can mismatch the one `Buffer.from`
+    // produces here — a duplicate-@types/node artifact, not a real type
+    // error (the runtime value is a standard Node Buffer either way).
+    await workbook.xlsx.load(Buffer.from(bytes) as unknown as Parameters<typeof workbook.xlsx.load>[0]);
+    const sheetNames = workbook.worksheets.map((w) => w.name);
+    const firstSheet = workbook.worksheets[0];
+    const headerRow: string[] = [];
+    if (firstSheet) {
+      const row1 = firstSheet.getRow(1);
+      row1.eachCell({ includeEmpty: false }, (cell) => {
+        headerRow.push(String(cell.value ?? ""));
+      });
+    }
+    return { kind: "xlsx", sheetNames, headerRow };
+  }
+
+  const text = new TextDecoder("utf-8").decode(bytes);
+  const parsed = Papa.parse<Record<string, string>>(text, { header: true });
+  return { kind: "csv", headerRow: parsed.meta.fields ?? [] };
+}
 
 /**
  * The single shared ingestion entry point (INGEST-03). Every source
@@ -35,17 +109,25 @@ export async function ingest(input: IngestionInput, deps: IngestDeps): Promise<I
     };
   }
 
-  // Classification needs a header row; parse defensively — a completely
-  // unparsable/empty file still classifies to null rather than throwing.
-  let headerRow: string[] = [];
+  // Classification needs a header/sheet signature; extract defensively — a
+  // completely unparsable/empty/corrupt file still classifies to null
+  // rather than throwing (T-02-02).
+  let signature: HeaderSignature = { kind: "csv", headerRow: [] };
   try {
-    headerRow = parseVerification(input.bytes).headerRow;
+    signature = await extractHeaderSignature(input.bytes, input.fileName);
   } catch {
-    headerRow = [];
+    signature = { kind: "csv", headerRow: [] };
   }
-  const reportType = classify(input.fileName, headerRow);
 
-  if (reportType === null) {
+  const handler = REPORT_HANDLERS.find((h) => {
+    try {
+      return h.classify(input.fileName, signature);
+    } catch {
+      return false;
+    }
+  });
+
+  if (!handler) {
     const ingestedFileId = await deps.recordFile({
       fileName: input.fileName,
       contentSha256,
@@ -73,6 +155,8 @@ export async function ingest(input: IngestionInput, deps: IngestDeps): Promise<I
     };
   }
 
+  const reportType = handler.reportType;
+
   const ingestedFileId = await deps.recordFile({
     fileName: input.fileName,
     contentSha256,
@@ -82,12 +166,13 @@ export async function ingest(input: IngestionInput, deps: IngestDeps): Promise<I
   });
 
   // CR-01: classify() can match on filename alone, so the file may still be
-  // unparsable here (missing columns, corrupt). Guard this second parse — an
-  // unguarded throw would leave the audit row stuck at 'pending' forever AND
-  // make every future re-upload falsely short-circuit as "already uploaded".
-  let rawRows: Record<string, string>[];
+  // unparsable here (missing columns, corrupt, not-yet-implemented parser).
+  // Guard this parse — an unguarded throw would leave the audit row stuck at
+  // 'pending' forever AND make every future re-upload falsely short-circuit
+  // as "already uploaded".
+  let rawRows: Record<string, unknown>[];
   try {
-    rawRows = parseVerification(input.bytes).rows;
+    rawRows = (await handler.parse(input.bytes, input.fileName)).rawRows;
   } catch (err) {
     const reason = err instanceof Error ? err.message : "unparsable file";
     const rejectReasons: RejectedRow[] = [{ row: 0, reasons: [reason] }];
@@ -110,10 +195,10 @@ export async function ingest(input: IngestionInput, deps: IngestDeps): Promise<I
     };
   }
 
-  const { valid, rejected } = validateVerificationRows(rawRows);
-  const { rows: normalised, excludedPreWindow } = normaliseVerification(valid);
+  const { valid, rejected } = handler.validate(rawRows);
+  const { rows: normalised, excludedPreWindow } = handler.normalise(valid);
 
-  const inserted = await deps.upsertVerifications(normalised);
+  const inserted = await handler.upsert(deps, normalised);
   const duplicates = normalised.length - inserted;
 
   const counts = {
