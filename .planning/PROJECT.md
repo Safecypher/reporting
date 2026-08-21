@@ -15,6 +15,9 @@ It is used by a small internal Safecypher team (e.g. Mark W, Richard, Andy) and 
 ### Validated
 
 - [x] Parse, normalise, and de-duplicate records from all six report types into a Supabase (Postgres) schema — *Validated in Phase 2: Complete the Six Sources (billing, verification, dCVV, card-inventory, removed-cards, APIGEE XLSX all live with dedup constraints + RLS)*
+- [x] Revenue view computed from verifications × configurable tiered pricing (admin settings) — *Validated in Phase 3: Revenue, SLA & Drill-down (exact-NUMERIC marginal-bracket revenue views; live boundary hand-calc = $215.00 to the cent)*
+- [x] SLA / response-time view: average verification duration vs 750ms SLA, breaches highlighted — *Validated in Phase 3 (v_sla_daily + 750ms ReferenceLine + drillable breach table)*
+- [x] Admin settings to configure pricing tiers (first 500k at rate X, next 250k at rate Y, …) — *Validated in Phase 3 (date-effective tier sets, transactional save RPC, DB integrity trigger, append-only audit trail)*
 
 ### Active
 
@@ -22,12 +25,12 @@ It is used by a small internal Safecypher team (e.g. Mark W, Richard, Andy) and 
 
 - [ ] Manual drag-and-drop upload of the six daily reports (CSV/XLSX), designed so an automated file-drop/webhook source can be added later without rework
 - [ ] Verifications-over-time view (daily / weekly / monthly counts, authenticated vs failed)
-- [ ] Revenue view computed from verifications × configurable tiered pricing (admin settings)
-- [ ] SLA / response-time view: average verification duration vs 750ms SLA, breaches highlighted
 - [ ] Card-inventory reconciliation view: live cards, daily enrolled/unenrolled, inventory-vs-removed tally, and Thesis (APIGEE) cross-check
 - [ ] Automated discrepancy flagging: billing vs verification, and card inventory diff vs removed-cards
-- [ ] Admin settings to configure pricing tiers (first 500k at rate X, next 250k at rate Y, …)
 - [ ] Small internal-team login (Supabase Auth, email/password)
+
+<!-- Also delivered in Phase 3: drill-down from any summary metric to contributing raw records (DASH-03) — URL-synced slide-over Sheet, reused across Verifications/Revenue/SLA and available for Phase 4 reconciliation flags. -->
+
 
 ### Out of Scope
 
@@ -106,4 +109,4 @@ This document evolves at phase transitions and milestone boundaries.
 4. Update Context with current state
 
 ---
-*Last updated: 2026-08-21 after Phase 2 completion (six-source ingestion)*
+*Last updated: 2026-08-21 after Phase 3 completion (revenue, SLA & drill-down)*

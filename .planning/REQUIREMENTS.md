@@ -25,7 +25,7 @@ Requirements for the initial release (the PoC dashboard shown to Mark). Each map
 
 - [x] **DATA-01**: System parses and normalises all six report schemas (card-inventory, removed-cards, verification, dCVV, billing, APIGEE) into a common Postgres model
 - [ ] **DATA-02**: Timestamps are normalised to UTC (handling both Z-suffixed and naive values) and stored as `timestamptz`
-- [ ] **DATA-03**: Monetary/rate values use exact numeric representation (NUMERIC / integer minor units), never floats
+- [x] **DATA-03**: Monetary/rate values use exact numeric representation (NUMERIC / integer minor units), never floats
 - [x] **DATA-04**: Ingestion strips UTF-8 BOM and correctly decodes XLSX date serials (e.g. 46247.x → 2026-08-13)
 - [x] **DATA-05**: Re-ingestion is idempotent — billing rows de-duplicate on `transactionId`; verification/dCVV rows de-duplicate on a deterministic composite key; daily snapshots de-duplicate on (report_date, card reference); re-uploading a file never double-counts
 - [ ] **DATA-06**: Records before 13 Aug 2026 are excluded; the Thesis `Verify Outcome` tab is not ingested (only `APIGEE Calls`)
@@ -35,17 +35,17 @@ Requirements for the initial release (the PoC dashboard shown to Mark). Each map
 
 - [ ] **DASH-01**: User can view verification volume over time with a daily / weekly / monthly toggle, split by authenticated vs failed
 - [ ] **DASH-02**: User can view card-inventory reconciliation — live card count, daily enrolled/unenrolled, inventory day-over-day diff vs removed-cards tally, and APIGEE endpoint cross-check
-- [ ] **DASH-03**: User can drill down from any summary metric or discrepancy flag to the filtered list of contributing raw records
+- [x] **DASH-03**: User can drill down from any summary metric or discrepancy flag to the filtered list of contributing raw records
 - [ ] **DASH-04**: Dashboard shows an "as of last import" timestamp so users know how current the data is
 
 ### Revenue
 
-- [ ] **REV-01**: User can view revenue computed from verification counts × configured tiered pricing over the billing period
-- [ ] **REV-02**: Revenue recomputes when pricing tiers change, with no re-ingestion required
+- [x] **REV-01**: User can view revenue computed from verification counts × configured tiered pricing over the billing period
+- [x] **REV-02**: Revenue recomputes when pricing tiers change, with no re-ingestion required
 
 ### SLA
 
-- [ ] **SLA-01**: User can view verification response-time (average duration) trend against the 750ms SLA, with breaching records highlighted (verifications only)
+- [x] **SLA-01**: User can view verification response-time (average duration) trend against the 750ms SLA, with breaching records highlighted (verifications only)
 
 ### Reconciliation
 
@@ -55,7 +55,7 @@ Requirements for the initial release (the PoC dashboard shown to Mark). Each map
 
 ### Admin
 
-- [ ] **ADMIN-01**: User can configure pricing tiers (thresholds + rates) in an admin settings area, stored in the database, without a redeploy
+- [x] **ADMIN-01**: User can configure pricing tiers (thresholds + rates) in an admin settings area, stored in the database, without a redeploy
 
 ## v2 Requirements
 
@@ -118,12 +118,12 @@ Which phases cover which requirements. Updated during roadmap creation.
 | DATA-01 | Phase 2 | Complete |
 | DATA-04 | Phase 2 | Complete |
 | DATA-05 | Phase 2 | Complete |
-| DATA-03 | Phase 3 | Pending |
-| REV-01 | Phase 3 | Pending |
-| REV-02 | Phase 3 | Pending |
-| SLA-01 | Phase 3 | Pending |
-| ADMIN-01 | Phase 3 | Pending |
-| DASH-03 | Phase 3 | Pending |
+| DATA-03 | Phase 3 | Complete |
+| REV-01 | Phase 3 | Complete |
+| REV-02 | Phase 3 | Complete |
+| SLA-01 | Phase 3 | Complete |
+| ADMIN-01 | Phase 3 | Complete |
+| DASH-03 | Phase 3 | Complete |
 | RECON-01 | Phase 4 | Pending |
 | RECON-02 | Phase 4 | Pending |
 | RECON-03 | Phase 4 | Pending |
