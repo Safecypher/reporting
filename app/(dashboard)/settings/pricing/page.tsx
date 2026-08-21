@@ -5,6 +5,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { createClient } from "@/lib/supabase/server";
 import { PricingTierForm } from "@/components/pricing/pricing-tier-form";
 import { AuditLog, type AuditLogEntry } from "@/components/pricing/audit-log";
+import { DeleteLatestTierSet } from "@/components/pricing/delete-latest-tier-set";
 
 export const metadata: Metadata = {
   title: "Pricing tiers — Safecypher Reporting",
@@ -15,6 +16,11 @@ type PricingTierAuditRow = {
   changed_by: string | null;
   changed_at: string;
   summary: string;
+};
+
+type LatestPricingTierSetRow = {
+  id: string;
+  effective_from: string;
 };
 
 function PageHeader() {
@@ -75,13 +81,22 @@ function LoadingState() {
 async function PricingBody() {
   const supabase = await createClient();
 
-  const { data, error } = await supabase
-    .from("pricing_tier_audit")
-    .select("id, changed_by, changed_at, summary")
-    .order("changed_at", { ascending: false })
-    .returns<PricingTierAuditRow[]>();
+  const [auditResult, latestSetResult] = await Promise.all([
+    supabase
+      .from("pricing_tier_audit")
+      .select("id, changed_by, changed_at, summary")
+      .order("changed_at", { ascending: false })
+      .returns<PricingTierAuditRow[]>(),
+    supabase
+      .from("pricing_tier_sets")
+      .select("id, effective_from")
+      .order("effective_from", { ascending: false })
+      .limit(1)
+      .returns<LatestPricingTierSetRow[]>()
+      .maybeSingle(),
+  ]);
 
-  if (error) {
+  if (auditResult.error || latestSetResult.error) {
     return (
       <>
         <PageHeader />
@@ -90,17 +105,34 @@ async function PricingBody() {
     );
   }
 
-  const entries: AuditLogEntry[] = (data ?? []).map((row) => ({
+  const entries: AuditLogEntry[] = (auditResult.data ?? []).map((row) => ({
     id: row.id,
     actor: row.changed_by ?? "Unknown user",
     summary: row.summary,
     changedAt: row.changed_at,
   }));
 
+  const latestSet = latestSetResult.data;
+
   return (
     <>
       <PageHeader />
       <PricingTierForm />
+      {latestSet && (
+        <div className="flex flex-col gap-2 rounded-lg border border-border p-6">
+          <p className="text-sm font-medium text-foreground">
+            Correct a mistake
+          </p>
+          <p className="max-w-2xl text-sm font-light text-muted-foreground">
+            Accidentally saved the wrong tiers? You can remove only the most
+            recent pricing tier set (effective {latestSet.effective_from}).
+          </p>
+          <DeleteLatestTierSet
+            tierSetId={latestSet.id}
+            effectiveFrom={latestSet.effective_from}
+          />
+        </div>
+      )}
       <AuditLog entries={entries} />
     </>
   );

@@ -95,3 +95,62 @@ export async function savePricingTierSet(
 
   return { success: true };
 }
+
+/**
+ * Maps a raw Postgres error from delete_latest_pricing_tier_set (migration
+ * 0016) to safe, user-facing copy (WR-01) — mirrors friendlyErrorMessage
+ * above.
+ */
+function friendlyDeleteErrorMessage(rawMessage: string): string {
+  if (rawMessage.includes("only the most recent pricing tier set can be deleted")) {
+    return "Only the most recent pricing tier set can be deleted.";
+  }
+  return "Could not delete the pricing tier set — please try again.";
+}
+
+/**
+ * deleteLatestPricingTierSet — the UAT correction path (UAT-DELETE-01):
+ * deletes ONLY the most recent pricing tier set via the guarded
+ * delete_latest_pricing_tier_set RPC (supabase/migrations/0016).
+ *
+ * Uses the SESSION-SCOPED `lib/supabase/server.ts` client, same as
+ * savePricingTierSet, so `auth.uid()` is present on the session and reaches
+ * the RPC's audit insert — the RPC is SECURITY DEFINER, but auth.uid()
+ * still resolves to the real acting user inside a definer function running
+ * within this session (see 0016's header comment).
+ */
+export async function deleteLatestPricingTierSet(
+  tierSetId: string
+): Promise<{ success: true } | { error: string }> {
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  if (!user) {
+    return { error: "Unauthorized" };
+  }
+
+  // types/db.ts lacks this RPC until orchestrator regenerates after 0016 — narrow cast only.
+  const { error } = await (
+    supabase.rpc as unknown as (
+      fn: string,
+      args: { p_tier_set_id: string }
+    ) => Promise<{ error: { message: string } | null }>
+  )("delete_latest_pricing_tier_set", { p_tier_set_id: tierSetId });
+
+  if (error) {
+    // WR-01: log the raw, detailed error server-side only; the client only
+    // ever sees the mapped, friendly message.
+    console.error(
+      "deleteLatestPricingTierSet: delete_latest_pricing_tier_set RPC failed",
+      error
+    );
+    return { error: friendlyDeleteErrorMessage(error.message) };
+  }
+
+  revalidatePath("/settings/pricing");
+  revalidatePath("/revenue");
+
+  return { success: true };
+}
