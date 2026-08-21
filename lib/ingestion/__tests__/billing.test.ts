@@ -121,7 +121,11 @@ describe("normaliseBilling", () => {
   it("stores authorised=False rows (D-05 — no row filtering by authorised)", () => {
     const { rows } = parseBilling(fixtureBytes);
     const { valid } = validateBillingRows(rows);
-    const declined = valid.find((r) => r.authorised === "False");
+    // Must be a post-cutoff (>= 2026-08-13) declined row, otherwise the
+    // DATA-06 window exclusion (tested separately above) masks this assertion.
+    const declined = valid.find(
+      (r) => r.authorised === "False" && Date.parse(r.timestamp) >= Date.parse("2026-08-13T00:00:00Z")
+    );
     expect(declined).toBeDefined();
     const { rows: normalisedRows } = normaliseBilling([declined!]);
     expect(normalisedRows.length).toBe(1);
@@ -233,11 +237,12 @@ describe("ingest (billing end-to-end)", () => {
     const { valid } = validateBillingRows(rows);
     const { rows: normalised } = normaliseBilling(valid);
     const deps = makeFakeDeps();
-    const firstInsert = await deps.upsertRows("billing_transactions", normalised, {
+    const normalisedRows = normalised as unknown as Record<string, unknown>[];
+    const firstInsert = await deps.upsertRows("billing_transactions", normalisedRows, {
       onConflict: "transaction_id",
       ignoreDuplicates: true,
     });
-    const secondInsert = await deps.upsertRows("billing_transactions", normalised, {
+    const secondInsert = await deps.upsertRows("billing_transactions", normalisedRows, {
       onConflict: "transaction_id",
       ignoreDuplicates: true,
     });
