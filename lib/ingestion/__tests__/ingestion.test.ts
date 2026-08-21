@@ -7,7 +7,7 @@ import { sha256 } from "../hash";
 import { parseVerification, validateVerificationRows } from "../parsers/verification";
 import { normaliseVerification } from "../normalise";
 import { ingest } from "../index";
-import type { IngestDeps, NormalisedVerificationRow } from "../types";
+import type { IngestDeps, NormalisedVerificationRow, ReportType } from "../types";
 
 const FIXTURE_PATH = join(__dirname, "verification.fixture.csv");
 const fixtureBytes = new Uint8Array(readFileSync(FIXTURE_PATH));
@@ -122,17 +122,20 @@ describe("normaliseVerification", () => {
 });
 
 function makeFakeDeps(): IngestDeps & {
-  filesByHash: Map<string, { id: string; uploaded_at: string; report_type: "verification" | null }>;
+  filesByHash: Map<string, { id: string; uploaded_at: string; report_type: ReportType | null }>;
   storedRows: NormalisedVerificationRow[];
   finalizedStatus: () => "done" | "failed" | null;
   finalizedCounts: () => { accepted: number; duplicates: number; rejected: number; excluded: number } | null;
 } {
   const filesByHash = new Map<
     string,
-    { id: string; uploaded_at: string; report_type: "verification" | null }
+    { id: string; uploaded_at: string; report_type: ReportType | null }
   >();
   const storedRowKeys = new Set<string>();
   const storedRows: NormalisedVerificationRow[] = [];
+  // Generic upsertRows fake state: one dedup-key Set per table name, mirroring
+  // the real writer's per-table UNIQUE constraint (Task 3 behaviour spec).
+  const upsertedKeysByTable = new Map<string, Set<string>>();
   let lastStatus: "done" | "failed" | null = null;
   let lastCounts: { accepted: number; duplicates: number; rejected: number; excluded: number } | null = null;
   let nextId = 1;
@@ -165,6 +168,9 @@ function makeFakeDeps(): IngestDeps & {
         }
       }
       return inserted;
+    },
+    async upsertRows(_table: string, _rows: Record<string, unknown>[], _opts: { onConflict: string }) {
+      throw new Error("RED probe: upsertRows not implemented yet");
     },
     async finalizeFile(_id, counts) {
       // fake — records what the production writer would persist
@@ -245,5 +251,44 @@ describe("ingest", () => {
     expect(result.rejectReasons[0].reasons).toContain("unrecognised report type");
     // Audit integrity: an unrecognised file must never be marked a successful import.
     expect(deps.finalizedStatus()).toBe("failed");
+  });
+});
+
+describe("makeFakeDeps().upsertRows (generic dep used by all five Wave 2 handlers)", () => {
+  it("dedups idempotently on row_hash: re-inserting identical rows returns 0 the second time", async () => {
+    const deps = makeFakeDeps();
+    const rows = [{ a: "x", b: 1 }, { a: "y", b: 2 }];
+    const firstInsert = await deps.upsertRows("dcvv_fetches", rows, {
+      onConflict: "row_hash",
+      ignoreDuplicates: true,
+    });
+    const secondInsert = await deps.upsertRows("dcvv_fetches", rows, {
+      onConflict: "row_hash",
+      ignoreDuplicates: true,
+    });
+    expect(firstInsert).toBe(2);
+    expect(secondInsert).toBe(0);
+  });
+
+  it("dedups idempotently on a composite/natural key: re-inserting the same key returns 0 the second time", async () => {
+    const deps = makeFakeDeps();
+    const rows = [{ report_date: "2026-08-13", external_card_reference: "ABC", extra: 1 }];
+    const firstInsert = await deps.upsertRows("card_inventory", rows, {
+      onConflict: "report_date,external_card_reference",
+      ignoreDuplicates: true,
+    });
+    // Same key, different non-key column — still a duplicate on the key.
+    const secondInsert = await deps.upsertRows(
+      "card_inventory",
+      [{ report_date: "2026-08-13", external_card_reference: "ABC", extra: 999 }],
+      { onConflict: "report_date,external_card_reference", ignoreDuplicates: true }
+    );
+    expect(firstInsert).toBe(1);
+    expect(secondInsert).toBe(0);
+  });
+
+  it("returns 0 for an empty row set without mutating any dedup state", async () => {
+    const deps = makeFakeDeps();
+    expect(await deps.upsertRows("billing_transactions", [], { onConflict: "transaction_id", ignoreDuplicates: true })).toBe(0);
   });
 });
