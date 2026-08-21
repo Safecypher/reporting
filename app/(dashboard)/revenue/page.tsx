@@ -195,6 +195,38 @@ function ErrorState() {
   );
 }
 
+/**
+ * WR-03: v_revenue_tier_set_by_day's inner `cross join lateral` silently
+ * drops any day with verification activity but no `pricing_tier_sets` row
+ * whose `effective_from <= day` — a PARTIAL gap (as opposed to "zero tier
+ * sets at all", already caught by ErrorState above). Rendered ADDITIONALLY
+ * to, never instead of, the populated view — the days that ARE priced still
+ * show their real numbers.
+ */
+function PartialCoverageBanner({ missingDayCount }: { missingDayCount: number }) {
+  return (
+    <div
+      role="alert"
+      className="flex items-start gap-3 rounded-lg border border-[var(--warning-border)] bg-[var(--warning-bg)] p-4"
+    >
+      <svg aria-hidden="true" className="mt-0.5 size-5 shrink-0 text-[var(--warning)]">
+        <use href="/icons.svg#alert" />
+      </svg>
+      <div className="flex flex-col gap-1">
+        <p className="text-sm font-medium text-foreground">
+          Revenue is understated — pricing coverage gap
+        </p>
+        <p className="text-sm font-light text-muted-foreground">
+          {missingDayCount === 1
+            ? "1 day has verification activity but no pricing tier configured for it, so it is excluded from the totals below."
+            : `${missingDayCount} days have verification activity but no pricing tier configured for them, so they are excluded from the totals below.`}{" "}
+          Add an earlier-effective pricing tier set to cover the gap.
+        </p>
+      </div>
+    </div>
+  );
+}
+
 function LoadingState() {
   return (
     <div className="flex flex-col gap-6">
@@ -407,9 +439,24 @@ async function RevenueBody({ searchParams }: { searchParams: PageSearchParams })
   const totalRevenue = Number(totalResult.data?.sum ?? "0");
   const uploadedAt = freshnessResult.data?.uploaded_at ?? null;
 
+  // WR-03: compare days WITH verification activity against days that were
+  // actually priced — a difference means a partial pricing-tier coverage
+  // gap that the earlier hasPricingTierSet/dailyResult.length checks (which
+  // only catch a TOTAL gap) don't detect.
+  const activityDayUtcs = new Set(
+    (verificationCountsResult.data ?? [])
+      .map((row) => row.day_utc)
+      .filter((day): day is string => day !== null),
+  );
+  const pricedDayUtcs = new Set(dailyRows.map((row) => row.day_utc));
+  const missingDayCount = [...activityDayUtcs].filter(
+    (day) => !pricedDayUtcs.has(day),
+  ).length;
+
   return (
     <>
       <PageHeader uploadedAt={uploadedAt} />
+      {missingDayCount > 0 && <PartialCoverageBanner missingDayCount={missingDayCount} />}
       <RevenueViewControls
         dailyRows={dailyRows}
         tierRows={tierRows}
