@@ -558,19 +558,19 @@ export async function savePricingTierSet(formData: unknown) {
 | A3 | `pricing_tier_sets`/`pricing_tiers` should allow authenticated-role INSERT via RLS (not secret-key-only writes like `verifications`/`ingested_files`) | Pattern 4 / Architectural Responsibility Map | Medium — if this is wrong and the team wants secret-key-only writes for consistency with the ingestion write path, the audit trigger's `auth.uid()` attribution breaks (the secret-key client has no session user) and would need `created_by` passed explicitly by the Server Action instead of derived by a trigger — a schema-level decision that should be locked before migration `0011` is written |
 | A4 | `pricing_tier_sets` versions the `reset_window` alongside the tiers as a single atomic unit, rather than `reset_window` being a separate always-current global setting | §Tiered Revenue SQL Pattern schema | Medium — CONTEXT.md's D-01 is genuinely ambiguous on this point ("configurable alongside the tiers" could mean "stored in the same table" or "a separate setting edited on the same screen"); this research picks the versioned-together interpretation because it's more consistent with D-04's audit/history philosophy, but the planner should confirm this reading before locking the migration schema |
 
-## Open Questions
+## Open Questions (RESOLVED)
 
-1. **Where does the reset-window boundary calculation for 'quarterly' live, precisely?**
+1. **Where does the reset-window boundary calculation for 'quarterly' live, precisely?** — *Resolved: calendar-quarter reset (`date_trunc('quarter', day)`) as the default (03-03).*
    - What we know: 'monthly' is a trivial `date_trunc('month', day)`; 'none' means the whole data window is one cumulative bucket from 2026-08-13 onward.
    - What's unclear: 'quarterly' needs a decision on calendar quarters (Jan–Mar, Apr–Jun, ...) vs. a rolling 3-month window from some anchor date — CONTEXT.md doesn't specify, and the real MSA terms (pending from Richard) may dictate this once received.
    - Recommendation: implement calendar-quarter (`date_trunc('quarter', day)`) as the default per D-01's placeholder-values framing; this is trivially swappable later since it's an admin setting, not a schema shape.
 
-2. **Does the pricing admin route live at `/settings/pricing`, `/admin/pricing`, or `/pricing`?**
+2. **Does the pricing admin route live at `/settings/pricing`, `/admin/pricing`, or `/pricing`?** — *Resolved: route `/settings/pricing` (03-02).*
    - What we know: CONTEXT.md explicitly defers this to planner discretion; 03-UI-SPEC.md's nav copy just says "Pricing" as the nav label.
    - What's unclear: exact URL segment naming convention for a future `/settings` area if Phase 4 or later phases add more admin surfaces.
    - Recommendation: `/settings/pricing` — leaves room for a `/settings` index page later without a rename, and reads clearly in the URL-synced drill-down contract's own query params (which use `?drill=...` regardless of the host page's path, so this choice doesn't interact with D-10).
 
-3. **Should the audit log (D-06) show a full before/after diff per field, or the current schema's flat `summary text` snapshot?**
+3. **Should the audit log (D-06) show a full before/after diff per field, or the current schema's flat `summary text` snapshot?** — *Resolved: tier-set-granular flat `summary` written at commit time (03-01/03-02); per-field diff deferred.*
    - What we know: 03-UI-SPEC.md's copy example is a rendered sentence ("mark.wright@safecypher.com changed Tier 2 rate from $0.0800 to $0.0900 on ...").
    - What's unclear: whether that sentence should be computed at write-time (stored as `summary`) or derived at read-time by diffing the current tier set against the immediately-previous one (no `summary` column, more flexible but more query complexity).
    - Recommendation: store a rendered `summary` at write-time (simpler, matches the schema above) since D-04 already makes every past tier set immutable — diffing consecutive immutable rows is always possible later if the flat-summary approach proves too rigid, but starting with derived-diff query complexity for a PoC is over-engineering.
