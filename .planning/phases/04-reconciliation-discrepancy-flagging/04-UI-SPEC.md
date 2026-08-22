@@ -68,7 +68,7 @@ Unchanged from 01-UI-SPEC.md/03-UI-SPEC.md: `--radius-pill` for buttons and stat
 
 ## Typography
 
-Unchanged base scale from 01-UI-SPEC.md. Phase-specific applications:
+Unchanged base scale from 01-UI-SPEC.md. Phase-specific applications use **exactly two Poppins weights** — 500 (headings/labels) and 700 (numeric emphasis) — matching the Phase 1/3 two-weight-per-page ceiling. De-emphasis for secondary copy (delta phrases, gap banners) is achieved via **size and color** (`--fg-2`/`--fg-3`), never a third or fourth weight. Brand mono (`--font-mono`) is a separate type family used strictly for numeric columns and does not count against the Poppins weight ceiling.
 
 | Role | Family / Weight | Size | Line height | Usage |
 |------|-----------------|------|-------------|-------|
@@ -76,8 +76,8 @@ Unchanged base scale from 01-UI-SPEC.md. Phase-specific applications:
 | Secondary numeric (live count, enrolled, unenrolled) | Poppins 700, tabular-nums | 20px | 1.25 | Card-Inventory summary strip — deliberately smaller than the 48px `.metric` used for Revenue/SLA headline KPIs (this page has no single hero number) |
 | Table counts/deltas | Brand mono (`--font-mono`), tabular-nums | 14px | 1.5 | Billing count, verification count, delta magnitude — all money/count figures stay mono per the 03-UI-SPEC.md rule ("all money and duration figures are tabular/mono, never proportional Poppins") extended here to reconciliation counts |
 | Status badge label | Poppins 500 | 12px (`--fs-micro`) | 1.25 | "OK" / "Mismatch" / "Needs review" — uppercase-tracking per brand `.eyebrow`-adjacent micro-label convention, but NOT full `.eyebrow` treatment (badges are not section labels) |
-| Delta direction phrase | Poppins 300 | 14px (`--fs-small`) | 1.5 | "3 missing on billing" — plain body-adjacent weight, not bolded, so the badge (not the sentence) carries the primary visual weight |
-| Gap/missing-day banner text | Poppins 400 | 14px | 1.5 | "No inventory snapshot for 18 Aug 2026" |
+| Delta direction phrase | Poppins 500, color `--fg-2` | 14px (`--fs-small`) | 1.5 | "3 missing on billing" — de-emphasised via the muted `--fg-2` ink and smaller size, not a lighter weight, so the badge (not the sentence) still carries the primary visual weight |
+| Gap/missing-day banner text | Poppins 500, color `--fg-3` | 14px | 1.5 | "No inventory snapshot for 18 Aug 2026" — de-emphasised via the quieter `--fg-3` ink (one step muter than the delta phrase's `--fg-2`), not a lighter weight |
 
 ---
 
