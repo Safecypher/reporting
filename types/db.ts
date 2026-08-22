@@ -488,6 +488,12 @@ export type Database = {
         }
         Relationships: []
       }
+      v_revenue_total: {
+        Row: {
+          total_revenue: number | null
+        }
+        Relationships: []
+      }
       v_sla_breaches: {
         Row: {
           created_at: string | null

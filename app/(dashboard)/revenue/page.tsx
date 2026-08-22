@@ -37,7 +37,7 @@ type RevenueTierViewRow = {
  * pricing tier covers them" (ErrorState, never a silent $0). */
 type RevenueDailyCountsRow = { day_utc: string | null };
 type PricingTierSetRow = { id: string };
-type RevenueTotalRow = { sum: string | null };
+type RevenueTotalRow = { total_revenue: string | null };
 type IngestedFileFreshness = { uploaded_at: string };
 
 function FreshnessBadge({ uploadedAt }: { uploadedAt: string | null }) {
@@ -240,12 +240,14 @@ async function RevenueBody({ searchParams }: { searchParams: PageSearchParams })
       .from("v_revenue_by_tier")
       .select("day_utc, tier_order, tier_revenue, tier_set_id")
       .returns<RevenueTierViewRow[]>(),
-    // Grand total summed in Postgres (PostgREST aggregate function) — the
+    // Grand total summed in Postgres via the v_revenue_total view (0017) — the
     // number reaching JS is already the final NUMERIC total, never summed
-    // client-side from the per-day/per-tier rows above.
+    // client-side from the per-day/per-tier rows above. A view is used instead
+    // of a PostgREST `sum()` aggregate because Supabase blocks aggregate
+    // functions by default (PGRST123).
     supabase
-      .from("v_revenue_daily")
-      .select("sum:revenue.sum()")
+      .from("v_revenue_total")
+      .select("total_revenue")
       .returns<RevenueTotalRow[]>()
       .maybeSingle(),
     supabase
@@ -346,7 +348,7 @@ async function RevenueBody({ searchParams }: { searchParams: PageSearchParams })
       tier_set_id: row.tier_set_id,
     }));
 
-  const totalRevenue = Number(totalResult.data?.sum ?? "0");
+  const totalRevenue = Number(totalResult.data?.total_revenue ?? "0");
   const uploadedAt = freshnessResult.data?.uploaded_at ?? null;
 
   // WR-03: compare days WITH verification activity against days that were
