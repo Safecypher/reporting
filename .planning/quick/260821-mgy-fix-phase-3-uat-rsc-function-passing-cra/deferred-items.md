@@ -39,3 +39,8 @@ function returning `sum(revenue)`), consistent with how `save_pricing_tier_set`
 follow-up quick task or phase-4 plan item — this masks the "Total revenue"
 KPI on every render, which is a real defect against the app's core value
 (trustworthy revenue reconciliation), so it should not sit forgotten.
+
+---
+
+**RESOLVED 2026-08-22** (user-authorized follow-on fix, "Add a v_revenue_total SQL view" option).
+Migration `0017_v_revenue_total.sql` adds a one-row `v_revenue_total` view (`coalesce(sum(revenue),0)::numeric`, `security_invoker=on`) — money math stays in SQL, no PostgREST aggregate needed, no API-wide setting change. `revenue/page.tsx` now selects `total_revenue` from that view. Applied to the live DB via Supabase MCP; view verified returning a row; types regenerated; tsc + 143 tests + `next build` all green. Committed alongside the quick task.
