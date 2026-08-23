@@ -20,7 +20,11 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import type { ReconciliationStatus } from "@/lib/dashboard/reconciliation-status";
+import { cn } from "@/lib/utils";
+import {
+  reconciliationStatusToRowClassName,
+  type ReconciliationStatus,
+} from "@/lib/dashboard/reconciliation-status";
 
 /** Row shape from `v_reconciliation_billing_daily` (RECON-01/RECON-03). */
 export interface ReconciliationBillingDailyRow {
@@ -131,7 +135,7 @@ export function ReconciliationBillingTable({ rows }: ReconciliationBillingTableP
               tabIndex={0}
               role="button"
               aria-label={`Drill into billing vs verifications on ${row.original.day_utc.slice(0, 10)}`}
-              className="cursor-pointer"
+              className={cn("cursor-pointer", reconciliationStatusToRowClassName(row.original.status))}
               onClick={() =>
                 openDrill({ drill: "recon-billing", date: row.original.day_utc.slice(0, 10) })
               }
