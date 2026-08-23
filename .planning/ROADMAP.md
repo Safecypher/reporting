@@ -16,7 +16,7 @@ Decimal phases appear between their surrounding integers in numeric order.
 - [x] **Phase 1: End-to-End Spine** - Login, upload, one report fully normalised/de-duplicated, and one view — proving the whole correctness-first pipeline end to end (completed 2026-08-20)
 - [x] **Phase 2: Complete the Six Sources** - Parallel fan-out of the five remaining parsers so all six report types ingest, normalise, and de-duplicate (incl. cumulative billing + Thesis XLSX) (completed 2026-08-21)
 - [x] **Phase 3: Revenue, SLA & Drill-down** - Exact tiered revenue, configurable pricing admin, SLA-vs-750ms trend, and drill-from-metric-to-source (completed 2026-08-21)
-- [ ] **Phase 4: Reconciliation & Discrepancy Flagging** - The core-value centrepiece: timing-aware billing-vs-verification and inventory reconciliation with explained, traceable discrepancy flags
+- [x] **Phase 4: Reconciliation & Discrepancy Flagging** - The core-value centrepiece: timing-aware billing-vs-verification and inventory reconciliation with explained, traceable discrepancy flags (completed 2026-08-23)
 
 ## Phase Details
 
@@ -157,7 +157,7 @@ Plans:
 
 **Wave 4** *(blocked on all)*
 
-- [ ] 04-04-PLAN.md — [BLOCKING] schema push (0018-0020) + type regen + live settling/APIGEE/gap verification + UAT
+- [x] 04-04-PLAN.md — [BLOCKING] schema push (0018-0020) + type regen + live settling/APIGEE/gap verification + UAT
 
 **UI hint**: yes
 
@@ -171,4 +171,4 @@ Phases execute in numeric order: 1 → 2 → 3 → 4 (Phase 3 may run in paralle
 | 1. End-to-End Spine | 7/7 | Complete   | 2026-08-20 |
 | 2. Complete the Six Sources | 7/7 | Complete    | 2026-08-21 |
 | 3. Revenue, SLA & Drill-down | 7/7 | Complete   | 2026-08-21 |
-| 4. Reconciliation & Discrepancy Flagging | 3/4 | In Progress|  |
+| 4. Reconciliation & Discrepancy Flagging | 4/4 | Complete   | 2026-08-23 |
