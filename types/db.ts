@@ -443,6 +443,69 @@ export type Database = {
       }
     }
     Views: {
+      v_apigee_cross_check: {
+        Row: {
+          apigee_count: number | null
+          day_utc: string | null
+          endpoint_category: string | null
+          error_500_count: number | null
+          mapped_count: number | null
+          mapped_metric: string | null
+          status: string | null
+        }
+        Relationships: []
+      }
+      v_billing_daily_counts: {
+        Row: {
+          billing_count: number | null
+          day_utc: string | null
+        }
+        Relationships: []
+      }
+      v_inventory_daily_diff: {
+        Row: {
+          day: string | null
+          enrolled_count: number | null
+          unenrolled_count: number | null
+        }
+        Relationships: []
+      }
+      v_inventory_gap_days: {
+        Row: {
+          missing_day: string | null
+        }
+        Relationships: []
+      }
+      v_inventory_live_count: {
+        Row: {
+          live_count: number | null
+        }
+        Relationships: []
+      }
+      v_reconciliation_billing_daily: {
+        Row: {
+          billing_count: number | null
+          day_utc: string | null
+          delta: number | null
+          settled: boolean | null
+          short_side: string | null
+          status: string | null
+          verification_count: number | null
+        }
+        Relationships: []
+      }
+      v_reconciliation_inventory_daily: {
+        Row: {
+          day: string | null
+          delta: number | null
+          enrolled_count: number | null
+          removed_count: number | null
+          short_side: string | null
+          status: string | null
+          unenrolled_count: number | null
+        }
+        Relationships: []
+      }
       v_revenue_by_tier: {
         Row: {
           day_utc: string | null
@@ -477,6 +540,12 @@ export type Database = {
         }
         Relationships: []
       }
+      v_revenue_total: {
+        Row: {
+          total_revenue: number | null
+        }
+        Relationships: []
+      }
       v_revenue_window_counts: {
         Row: {
           c_before: number | null
@@ -485,12 +554,6 @@ export type Database = {
           tier_set_id: string | null
           verification_count: number | null
           window_start: string | null
-        }
-        Relationships: []
-      }
-      v_revenue_total: {
-        Row: {
-          total_revenue: number | null
         }
         Relationships: []
       }
