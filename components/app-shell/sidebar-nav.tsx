@@ -15,6 +15,7 @@ const NAV_ITEMS = [
   { href: "/revenue", label: "Revenue", icon: "bank" },
   { href: "/sla", label: "SLA", icon: "signal" },
   { href: "/settings/pricing", label: "Pricing", icon: "cog" },
+  { href: "/reconciliation", label: "Reconciliation", icon: "rotate" },
 ] as const;
 
 /**
