@@ -145,7 +145,7 @@ Plans:
 Plans:
 **Wave 1**
 
-- [ ] 04-01-PLAN.md — Foundation: tested settling-status helper (TDD) + shared 3-state StatusBadge + drill whitelist extension
+- [x] 04-01-PLAN.md — Foundation: tested settling-status helper (TDD) + shared 3-state StatusBadge + drill whitelist extension
 
 **Wave 2** *(blocked on 04-01)*
 
@@ -171,4 +171,4 @@ Phases execute in numeric order: 1 → 2 → 3 → 4 (Phase 3 may run in paralle
 | 1. End-to-End Spine | 7/7 | Complete   | 2026-08-20 |
 | 2. Complete the Six Sources | 7/7 | Complete    | 2026-08-21 |
 | 3. Revenue, SLA & Drill-down | 7/7 | Complete   | 2026-08-21 |
-| 4. Reconciliation & Discrepancy Flagging | 0/4 | Not started | - |
+| 4. Reconciliation & Discrepancy Flagging | 1/4 | In Progress|  |
