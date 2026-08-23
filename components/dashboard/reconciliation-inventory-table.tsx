@@ -21,7 +21,11 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import type { ReconciliationStatus } from "@/lib/dashboard/reconciliation-status";
+import { cn } from "@/lib/utils";
+import {
+  reconciliationStatusToRowClassName,
+  type ReconciliationStatus,
+} from "@/lib/dashboard/reconciliation-status";
 
 /** Row shape from `v_reconciliation_inventory_daily` (RECON-02/RECON-03). */
 export interface ReconciliationInventoryDailyRow {
@@ -193,7 +197,7 @@ export function ReconciliationInventoryTable({
               tabIndex={0}
               role="button"
               aria-label={`Drill into card inventory on ${row.original.day.slice(0, 10)}`}
-              className="cursor-pointer"
+              className={cn("cursor-pointer", reconciliationStatusToRowClassName(row.original.status))}
               onClick={() =>
                 openDrill({ drill: "recon-inventory", date: row.original.day.slice(0, 10) })
               }
