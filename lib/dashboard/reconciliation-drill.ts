@@ -111,3 +111,87 @@ export async function fetchReconciliationBillingDrillRows(
     failedCount: verificationRows.filter((row) => !row.authenticated).length,
   };
 }
+
+/**
+ * Card-inventory drill fetcher (RECON-02/RECON-03, "recon-inventory"
+ * entity). Mirrors fetchReconciliationBillingDrillRows's shape, but against
+ * TWO source tables (card_inventory + removed_cards) for a single flagged
+ * UTC day, returned EXPLICITLY SEPARATED (Pitfall 5) -- never merged into
+ * one flat list.
+ *
+ * card_inventory is scoped by report_date (a plain `date` column, `.eq()`,
+ * not a day-range) -- one row per card per snapshot day. removed_cards is
+ * scoped by removed_at (`.gte()`/`.lt()` day-range) since it is an event
+ * log, not a snapshot.
+ */
+
+export interface ReconciliationInventoryCardRow {
+  report_date: string;
+  external_card_reference: string;
+  created_at: string;
+  source_file_id: string;
+}
+
+export interface ReconciliationRemovedCardRow {
+  removed_at: string;
+  external_card_reference: string;
+  source_file_id: string;
+}
+
+export interface ReconciliationInventoryDrillFetchResult {
+  cardInventoryRows: ReconciliationInventoryCardRow[];
+  cardInventoryTotalCount: number | null;
+  removedCardRows: ReconciliationRemovedCardRow[];
+  removedCardTotalCount: number | null;
+}
+
+const EMPTY_INVENTORY_RESULT: ReconciliationInventoryDrillFetchResult = {
+  cardInventoryRows: [],
+  cardInventoryTotalCount: null,
+  removedCardRows: [],
+  removedCardTotalCount: null,
+};
+
+/**
+ * Server-fetches the card_inventory and removed_cards rows contributing to
+ * a single flagged UTC day's card-inventory reconciliation row. `date` must
+ * already be a validated `YYYY-MM-DD` string (from `parseDrillParams`) --
+ * this function only ever builds `.eq()`/`.gte()`/`.lt()` filters from it,
+ * never a string-interpolated query fragment.
+ */
+export async function fetchReconciliationInventoryDrillRows(
+  supabase: Awaited<ReturnType<typeof createClient>>,
+  date: string | undefined,
+): Promise<ReconciliationInventoryDrillFetchResult> {
+  if (!date) return EMPTY_INVENTORY_RESULT;
+
+  const dayStart = `${date}T00:00:00Z`;
+  const dayEnd = new Date(new Date(dayStart).getTime() + 24 * 60 * 60 * 1000).toISOString();
+
+  const [cardInventoryResult, removedCardResult] = await Promise.all([
+    supabase
+      .from("card_inventory")
+      .select("report_date, external_card_reference, created_at, source_file_id", {
+        count: "exact",
+      })
+      .eq("report_date", date)
+      .order("external_card_reference", { ascending: true })
+      .limit(DRILL_ROW_LIMIT)
+      .returns<ReconciliationInventoryCardRow[]>(),
+    supabase
+      .from("removed_cards")
+      .select("removed_at, external_card_reference, source_file_id", { count: "exact" })
+      .gte("removed_at", dayStart)
+      .lt("removed_at", dayEnd)
+      .order("removed_at", { ascending: false })
+      .limit(DRILL_ROW_LIMIT)
+      .returns<ReconciliationRemovedCardRow[]>(),
+  ]);
+
+  return {
+    cardInventoryRows: cardInventoryResult.error ? [] : cardInventoryResult.data ?? [],
+    cardInventoryTotalCount: cardInventoryResult.error ? null : cardInventoryResult.count ?? null,
+    removedCardRows: removedCardResult.error ? [] : removedCardResult.data ?? [],
+    removedCardTotalCount: removedCardResult.error ? null : removedCardResult.count ?? null,
+  };
+}

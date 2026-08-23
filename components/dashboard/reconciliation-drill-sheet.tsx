@@ -23,6 +23,8 @@ import type { DrillFilter } from "@/lib/dashboard/drill-params";
 import type {
   ReconciliationBillingDrillRow,
   ReconciliationVerificationDrillRow,
+  ReconciliationInventoryCardRow,
+  ReconciliationRemovedCardRow,
 } from "@/lib/dashboard/reconciliation-drill";
 
 const billingColumnHelper = createColumnHelper<ReconciliationBillingDrillRow>();
@@ -75,6 +77,45 @@ const verificationDrillColumns = [
   }),
 ];
 
+const cardInventoryColumnHelper = createColumnHelper<ReconciliationInventoryCardRow>();
+
+const cardInventoryDrillColumns = [
+  cardInventoryColumnHelper.accessor("external_card_reference", {
+    header: "Card reference",
+    cell: (info) => <span className="font-mono tabular-nums">{info.getValue()}</span>,
+  }),
+  cardInventoryColumnHelper.accessor("created_at", {
+    header: "Enrolled at",
+    cell: (info) =>
+      new Date(info.getValue()).toLocaleString("en-GB", {
+        dateStyle: "medium",
+        timeStyle: "short",
+      }),
+  }),
+  cardInventoryColumnHelper.accessor("report_date", {
+    header: "Snapshot day",
+    cell: (info) =>
+      new Date(info.getValue()).toLocaleDateString("en-GB", { dateStyle: "medium" }),
+  }),
+];
+
+const removedCardColumnHelper = createColumnHelper<ReconciliationRemovedCardRow>();
+
+const removedCardDrillColumns = [
+  removedCardColumnHelper.accessor("external_card_reference", {
+    header: "Card reference",
+    cell: (info) => <span className="font-mono tabular-nums">{info.getValue()}</span>,
+  }),
+  removedCardColumnHelper.accessor("removed_at", {
+    header: "Removed at",
+    cell: (info) =>
+      new Date(info.getValue()).toLocaleString("en-GB", {
+        dateStyle: "medium",
+        timeStyle: "short",
+      }),
+  }),
+];
+
 interface ReconciliationBillingSheetResult {
   billingRows: ReconciliationBillingDrillRow[];
   billingTotalCount: number | null;
@@ -86,18 +127,27 @@ interface ReconciliationBillingSheetResult {
   failedCount: number;
 }
 
+interface ReconciliationInventorySheetResult {
+  cardInventoryRows: ReconciliationInventoryCardRow[];
+  cardInventoryTotalCount: number | null;
+  removedCardRows: ReconciliationRemovedCardRow[];
+  removedCardTotalCount: number | null;
+}
+
 interface ReconciliationDrillSheetProps {
   filter: DrillFilter | null;
   billingResult: ReconciliationBillingSheetResult;
+  inventoryResult: ReconciliationInventorySheetResult;
   title: string;
 }
 
 /**
- * Purpose-built drill Sheet for the "recon-billing" entity (RECON-01/
- * DASH-03). Unlike the single-source `DrillSheet` (Phase 3), this entity
- * combines TWO source tables (billing_transactions + verifications) that
- * must stay EXPLICITLY SEPARATED (Pitfall 5) -- two labelled `<Table>`
- * blocks inside one Sheet body, never a single merged list. Built as its
+ * Purpose-built drill Sheet for both the "recon-billing" and
+ * "recon-inventory" entities (RECON-01/RECON-02/DASH-03). Unlike the
+ * single-source `DrillSheet` (Phase 3), both entities combine TWO source
+ * tables that must stay EXPLICITLY SEPARATED (Pitfall 5) -- two labelled
+ * `<Table>` blocks inside one Sheet body, never a single merged list.
+ * Which pair of tables renders is chosen by `filter.drill`. Built as its
  * own composition here (bypassing the generic `DrillSheet`) rather than
  * modifying `drill-sheet.tsx`, which other single-source entities
  * (verification/revenue-tier/sla-breach) still rely on unchanged.
@@ -109,9 +159,11 @@ interface ReconciliationDrillSheetProps {
 export function ReconciliationDrillSheet({
   filter,
   billingResult,
+  inventoryResult,
   title,
 }: ReconciliationDrillSheetProps) {
   const { closeDrill } = useDrill();
+  const isInventoryDrill = filter?.drill === "recon-inventory";
 
   const billingTable = useReactTable({
     data: billingResult.billingRows,
@@ -122,6 +174,18 @@ export function ReconciliationDrillSheet({
   const verificationTable = useReactTable({
     data: billingResult.verificationRows,
     columns: verificationDrillColumns,
+    getCoreRowModel: getCoreRowModel(),
+  });
+
+  const cardInventoryTable = useReactTable({
+    data: inventoryResult.cardInventoryRows,
+    columns: cardInventoryDrillColumns,
+    getCoreRowModel: getCoreRowModel(),
+  });
+
+  const removedCardTable = useReactTable({
+    data: inventoryResult.removedCardRows,
+    columns: removedCardDrillColumns,
     getCoreRowModel: getCoreRowModel(),
   });
 
@@ -151,86 +215,181 @@ export function ReconciliationDrillSheet({
           </Button>
         </SheetHeader>
 
-        <p className="px-4 text-xs font-light text-muted-foreground">
-          Includes {billingResult.authorisedCount} authorised / {billingResult.declinedCount}{" "}
-          declined billing rows and {billingResult.authenticatedCount} authenticated /{" "}
-          {billingResult.failedCount} failed verifications for this day.
-        </p>
+        {isInventoryDrill ? (
+          <p className="px-4 text-xs font-light text-muted-foreground">
+            {inventoryResult.cardInventoryRows.length} card-inventory rows and{" "}
+            {inventoryResult.removedCardRows.length} removed-cards rows for this day.
+          </p>
+        ) : (
+          <p className="px-4 text-xs font-light text-muted-foreground">
+            Includes {billingResult.authorisedCount} authorised / {billingResult.declinedCount}{" "}
+            declined billing rows and {billingResult.authenticatedCount} authenticated /{" "}
+            {billingResult.failedCount} failed verifications for this day.
+          </p>
+        )}
 
         <div className="flex-1 overflow-y-auto px-4 pb-4">
-          <div className="flex flex-col gap-6">
-            <div className="flex flex-col gap-2">
-              <h3 className="text-sm font-medium text-foreground">Billing rows</h3>
-              {billingResult.billingRows.length === 0 ? (
-                <p className="py-4 text-center text-sm font-light text-muted-foreground">
-                  No billing rows for this day.
-                </p>
-              ) : (
-                <Table>
-                  <TableHeader>
-                    {billingTable.getHeaderGroups().map((headerGroup) => (
-                      <TableRow key={headerGroup.id}>
-                        {headerGroup.headers.map((header) => (
-                          <TableHead key={header.id}>
-                            {header.isPlaceholder
-                              ? null
-                              : flexRender(header.column.columnDef.header, header.getContext())}
-                          </TableHead>
-                        ))}
-                      </TableRow>
-                    ))}
-                  </TableHeader>
-                  <TableBody>
-                    {billingTable.getRowModel().rows.map((row) => (
-                      <TableRow key={row.id}>
-                        {row.getVisibleCells().map((cell) => (
-                          <TableCell key={cell.id}>
-                            {flexRender(cell.column.columnDef.cell, cell.getContext())}
-                          </TableCell>
-                        ))}
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
-              )}
-            </div>
+          {isInventoryDrill ? (
+            <div className="flex flex-col gap-6">
+              <div className="flex flex-col gap-2">
+                <h3 className="text-sm font-medium text-foreground">Card inventory rows</h3>
+                {inventoryResult.cardInventoryRows.length === 0 ? (
+                  <p className="py-4 text-center text-sm font-light text-muted-foreground">
+                    No card-inventory rows for this day.
+                  </p>
+                ) : (
+                  <Table>
+                    <TableHeader>
+                      {cardInventoryTable.getHeaderGroups().map((headerGroup) => (
+                        <TableRow key={headerGroup.id}>
+                          {headerGroup.headers.map((header) => (
+                            <TableHead key={header.id}>
+                              {header.isPlaceholder
+                                ? null
+                                : flexRender(
+                                    header.column.columnDef.header,
+                                    header.getContext(),
+                                  )}
+                            </TableHead>
+                          ))}
+                        </TableRow>
+                      ))}
+                    </TableHeader>
+                    <TableBody>
+                      {cardInventoryTable.getRowModel().rows.map((row) => (
+                        <TableRow key={row.id}>
+                          {row.getVisibleCells().map((cell) => (
+                            <TableCell key={cell.id}>
+                              {flexRender(cell.column.columnDef.cell, cell.getContext())}
+                            </TableCell>
+                          ))}
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                )}
+              </div>
 
-            <div className="flex flex-col gap-2">
-              <h3 className="text-sm font-medium text-foreground">Verification rows</h3>
-              {billingResult.verificationRows.length === 0 ? (
-                <p className="py-4 text-center text-sm font-light text-muted-foreground">
-                  No verification rows for this day.
-                </p>
-              ) : (
-                <Table>
-                  <TableHeader>
-                    {verificationTable.getHeaderGroups().map((headerGroup) => (
-                      <TableRow key={headerGroup.id}>
-                        {headerGroup.headers.map((header) => (
-                          <TableHead key={header.id}>
-                            {header.isPlaceholder
-                              ? null
-                              : flexRender(header.column.columnDef.header, header.getContext())}
-                          </TableHead>
-                        ))}
-                      </TableRow>
-                    ))}
-                  </TableHeader>
-                  <TableBody>
-                    {verificationTable.getRowModel().rows.map((row) => (
-                      <TableRow key={row.id}>
-                        {row.getVisibleCells().map((cell) => (
-                          <TableCell key={cell.id}>
-                            {flexRender(cell.column.columnDef.cell, cell.getContext())}
-                          </TableCell>
-                        ))}
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
-              )}
+              <div className="flex flex-col gap-2">
+                <h3 className="text-sm font-medium text-foreground">Removed-cards rows</h3>
+                {inventoryResult.removedCardRows.length === 0 ? (
+                  <p className="py-4 text-center text-sm font-light text-muted-foreground">
+                    No removed-cards rows for this day.
+                  </p>
+                ) : (
+                  <Table>
+                    <TableHeader>
+                      {removedCardTable.getHeaderGroups().map((headerGroup) => (
+                        <TableRow key={headerGroup.id}>
+                          {headerGroup.headers.map((header) => (
+                            <TableHead key={header.id}>
+                              {header.isPlaceholder
+                                ? null
+                                : flexRender(
+                                    header.column.columnDef.header,
+                                    header.getContext(),
+                                  )}
+                            </TableHead>
+                          ))}
+                        </TableRow>
+                      ))}
+                    </TableHeader>
+                    <TableBody>
+                      {removedCardTable.getRowModel().rows.map((row) => (
+                        <TableRow key={row.id}>
+                          {row.getVisibleCells().map((cell) => (
+                            <TableCell key={cell.id}>
+                              {flexRender(cell.column.columnDef.cell, cell.getContext())}
+                            </TableCell>
+                          ))}
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                )}
+              </div>
             </div>
-          </div>
+          ) : (
+            <div className="flex flex-col gap-6">
+              <div className="flex flex-col gap-2">
+                <h3 className="text-sm font-medium text-foreground">Billing rows</h3>
+                {billingResult.billingRows.length === 0 ? (
+                  <p className="py-4 text-center text-sm font-light text-muted-foreground">
+                    No billing rows for this day.
+                  </p>
+                ) : (
+                  <Table>
+                    <TableHeader>
+                      {billingTable.getHeaderGroups().map((headerGroup) => (
+                        <TableRow key={headerGroup.id}>
+                          {headerGroup.headers.map((header) => (
+                            <TableHead key={header.id}>
+                              {header.isPlaceholder
+                                ? null
+                                : flexRender(
+                                    header.column.columnDef.header,
+                                    header.getContext(),
+                                  )}
+                            </TableHead>
+                          ))}
+                        </TableRow>
+                      ))}
+                    </TableHeader>
+                    <TableBody>
+                      {billingTable.getRowModel().rows.map((row) => (
+                        <TableRow key={row.id}>
+                          {row.getVisibleCells().map((cell) => (
+                            <TableCell key={cell.id}>
+                              {flexRender(cell.column.columnDef.cell, cell.getContext())}
+                            </TableCell>
+                          ))}
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                )}
+              </div>
+
+              <div className="flex flex-col gap-2">
+                <h3 className="text-sm font-medium text-foreground">Verification rows</h3>
+                {billingResult.verificationRows.length === 0 ? (
+                  <p className="py-4 text-center text-sm font-light text-muted-foreground">
+                    No verification rows for this day.
+                  </p>
+                ) : (
+                  <Table>
+                    <TableHeader>
+                      {verificationTable.getHeaderGroups().map((headerGroup) => (
+                        <TableRow key={headerGroup.id}>
+                          {headerGroup.headers.map((header) => (
+                            <TableHead key={header.id}>
+                              {header.isPlaceholder
+                                ? null
+                                : flexRender(
+                                    header.column.columnDef.header,
+                                    header.getContext(),
+                                  )}
+                            </TableHead>
+                          ))}
+                        </TableRow>
+                      ))}
+                    </TableHeader>
+                    <TableBody>
+                      {verificationTable.getRowModel().rows.map((row) => (
+                        <TableRow key={row.id}>
+                          {row.getVisibleCells().map((cell) => (
+                            <TableCell key={cell.id}>
+                              {flexRender(cell.column.columnDef.cell, cell.getContext())}
+                            </TableCell>
+                          ))}
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                )}
+              </div>
+            </div>
+          )}
         </div>
       </SheetContent>
     </Sheet>
