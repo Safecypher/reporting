@@ -58,3 +58,19 @@ export function reconciliationStatusToBadge(
       return { label: "Mismatch", variant: "mismatch" };
   }
 }
+
+/**
+ * Maps a status enum to Tailwind row-styling classes (left accent border +
+ * subtle background tint) consumed by the reconciliation table rows; mirrors
+ * the StatusBadge variant->token mapping so the two signals stay consistent.
+ */
+export function reconciliationStatusToRowClassName(status: ReconciliationStatus): string {
+  switch (status) {
+    case "ok":
+      return "border-l-4 border-l-[color:var(--success)] bg-[color:var(--success)]/5";
+    case "needs_review":
+      return "border-l-4 border-l-[color:var(--warning)] bg-[color:var(--warning)]/5";
+    case "mismatch":
+      return "border-l-4 border-l-destructive bg-destructive/5";
+  }
+}
