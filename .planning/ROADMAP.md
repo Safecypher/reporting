@@ -153,7 +153,7 @@ Plans:
 
 **Wave 3** *(blocked on 04-02; shares page.tsx/drill files)*
 
-- [ ] 04-03-PLAN.md — Card-inventory slice: 0019 self-join diff + gap detection + 0020 amber-only APIGEE cross-check + inventory section + drill
+- [x] 04-03-PLAN.md — Card-inventory slice: 0019 self-join diff + gap detection + 0020 amber-only APIGEE cross-check + inventory section + drill
 
 **Wave 4** *(blocked on all)*
 
@@ -171,4 +171,4 @@ Phases execute in numeric order: 1 → 2 → 3 → 4 (Phase 3 may run in paralle
 | 1. End-to-End Spine | 7/7 | Complete   | 2026-08-20 |
 | 2. Complete the Six Sources | 7/7 | Complete    | 2026-08-21 |
 | 3. Revenue, SLA & Drill-down | 7/7 | Complete   | 2026-08-21 |
-| 4. Reconciliation & Discrepancy Flagging | 2/4 | In Progress|  |
+| 4. Reconciliation & Discrepancy Flagging | 3/4 | In Progress|  |
