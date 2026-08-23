@@ -141,7 +141,24 @@ Plans:
   3. Each flag shows a clear status (OK / mismatch / needs-review) plus the delta — expected vs actual, magnitude, and which side is off — not just a red dot.
   4. A user can drill from any discrepancy flag to the contributing billing / verification / inventory rows and their originating source file.
 
-**Plans**: TBD
+**Plans**: 4 plans
+Plans:
+**Wave 1**
+
+- [ ] 04-01-PLAN.md — Foundation: tested settling-status helper (TDD) + shared 3-state StatusBadge + drill whitelist extension
+
+**Wave 2** *(blocked on 04-01)*
+
+- [ ] 04-02-PLAN.md — Billing-vs-verification slice: 0018 FULL OUTER JOIN settling view + /reconciliation page (billing section) + two-source drill + nav
+
+**Wave 3** *(blocked on 04-02; shares page.tsx/drill files)*
+
+- [ ] 04-03-PLAN.md — Card-inventory slice: 0019 self-join diff + gap detection + 0020 amber-only APIGEE cross-check + inventory section + drill
+
+**Wave 4** *(blocked on all)*
+
+- [ ] 04-04-PLAN.md — [BLOCKING] schema push (0018-0020) + type regen + live settling/APIGEE/gap verification + UAT
+
 **UI hint**: yes
 
 ## Progress
@@ -154,4 +171,4 @@ Phases execute in numeric order: 1 → 2 → 3 → 4 (Phase 3 may run in paralle
 | 1. End-to-End Spine | 7/7 | Complete   | 2026-08-20 |
 | 2. Complete the Six Sources | 7/7 | Complete    | 2026-08-21 |
 | 3. Revenue, SLA & Drill-down | 7/7 | Complete   | 2026-08-21 |
-| 4. Reconciliation & Discrepancy Flagging | 0/TBD | Not started | - |
+| 4. Reconciliation & Discrepancy Flagging | 0/4 | Not started | - |
