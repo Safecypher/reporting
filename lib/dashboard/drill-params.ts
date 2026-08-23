@@ -1,7 +1,8 @@
 /**
  * Pure parse/serialize of the `?drill=...&date=...&...` URL contract (D-10).
- * No network/DOM access — safe to unit test. Shared by Phase 4, which adds a
- * "discrepancy" entity without touching this whitelist's shape.
+ * No network/DOM access — safe to unit test. Extended by Phase 4, which adds
+ * the "recon-billing" and "recon-inventory" entities without touching this
+ * whitelist's shape.
  *
  * Security note (T-03-19): `drill` and every filter key are validated against
  * an explicit whitelist here. Never pass raw `searchParams` through to a
@@ -9,7 +10,12 @@
  * only read the typed fields off the returned `DrillFilter`.
  */
 
-export type DrillEntity = "verification" | "revenue-tier" | "sla-breach";
+export type DrillEntity =
+  | "verification"
+  | "revenue-tier"
+  | "sla-breach"
+  | "recon-billing"
+  | "recon-inventory";
 
 export interface DrillFilter {
   drill: DrillEntity;
@@ -22,6 +28,8 @@ const DRILL_ENTITIES: readonly DrillEntity[] = [
   "verification",
   "revenue-tier",
   "sla-breach",
+  "recon-billing",
+  "recon-inventory",
 ];
 
 type RawSearchParams = Record<string, string | string[] | undefined>;
