@@ -149,7 +149,7 @@ Plans:
 
 **Wave 2** *(blocked on 04-01)*
 
-- [ ] 04-02-PLAN.md — Billing-vs-verification slice: 0018 FULL OUTER JOIN settling view + /reconciliation page (billing section) + two-source drill + nav
+- [x] 04-02-PLAN.md — Billing-vs-verification slice: 0018 FULL OUTER JOIN settling view + /reconciliation page (billing section) + two-source drill + nav
 
 **Wave 3** *(blocked on 04-02; shares page.tsx/drill files)*
 
@@ -171,4 +171,4 @@ Phases execute in numeric order: 1 → 2 → 3 → 4 (Phase 3 may run in paralle
 | 1. End-to-End Spine | 7/7 | Complete   | 2026-08-20 |
 | 2. Complete the Six Sources | 7/7 | Complete    | 2026-08-21 |
 | 3. Revenue, SLA & Drill-down | 7/7 | Complete   | 2026-08-21 |
-| 4. Reconciliation & Discrepancy Flagging | 1/4 | In Progress|  |
+| 4. Reconciliation & Discrepancy Flagging | 2/4 | In Progress|  |
