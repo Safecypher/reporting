@@ -28,7 +28,7 @@ See: .planning/PROJECT.md (updated 2026-08-18)
 Phase: 04
 Plan: Not started
 Status: Milestone complete
-Last activity: 2026-08-23
+Last activity: 2026-08-23 - Completed quick task 260823-l9c: reconciliation status row styling
 
 Progress: [░░░░░░░░░░] 0%
 
@@ -85,6 +85,7 @@ Carried from research (resolve during phase planning):
 | # | Description | Date | Commit | Directory |
 |---|-------------|------|--------|-----------|
 | 260821-mgy | Fix Phase 3 UAT: RSC function-passing crash on /verifications, /sla, /revenue (drill column defs moved into client wrappers) + delete-latest-pricing-tier-set action (migration 0016, guarded RPC, dialog UI) | 2026-08-21 | (see git log) | [260821-mgy-fix-phase-3-uat-rsc-function-passing-cra](./quick/260821-mgy-fix-phase-3-uat-rsc-function-passing-cra/) |
+| 260823-l9c | Add status-based row styling to reconciliation tables (OK/Needs review/Mismatch rows get a status-colored left border + subtle tint via a shared `reconciliationStatusToRowClassName` helper; accessible, badge text retained) | 2026-08-23 | b46f4da | [260823-l9c-add-status-based-row-styling-to-reconcil](./quick/260823-l9c-add-status-based-row-styling-to-reconcil/) |
 
 ## Deferred Items
 
