@@ -27,7 +27,13 @@ export async function proxy(request: NextRequest) {
 }
 
 export const config = {
-  // IN-01: anchor `login` to a full segment boundary so a future route like
-  // `/login-help` isn't accidentally excluded from the auth gate by prefix match.
-  matcher: ["/((?!_next/static|_next/image|favicon.ico|login(?:/|$)).*)"],
+  // IN-01: anchor `login` and `auth/confirm` to full segment boundaries so a
+  // future route like `/login-help` or `/auth/confirm-x` isn't accidentally
+  // excluded from the auth gate by prefix match. `/auth/confirm` must stay
+  // unauthenticated (it's the route that establishes the session via
+  // verifyOtp) — `/set-password` is deliberately NOT excluded here, since it
+  // relies on the session verifyOtp just created and must stay gated.
+  matcher: [
+    "/((?!_next/static|_next/image|favicon.ico|login(?:/|$)|auth/confirm(?:/|$)).*)",
+  ],
 };
