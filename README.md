@@ -96,6 +96,35 @@ npm run dev        # http://localhost:3000 (redirects to /login until authentica
 
 Create a user in Supabase Auth (email/password) to sign in.
 
+## Inviting team members
+
+Internal team accounts are provisioned via Supabase Auth invites, not self-signup (no signup
+UI exists, D-01). The Supabase Dashboard's default invite email template links to
+`{{ .ConfirmationURL }}`, which points at Supabase's own hosted confirmation page — the app
+has no route that consumes that implicit-flow shape, so out of the box a clicked invite link
+lands the invitee back on `/login` with no way to set a password. `/auth/confirm` implements
+the server-side `token_hash` flow instead, so the email templates must be changed to point at
+it:
+
+1. **Invite the user** — Supabase Dashboard -> Authentication -> Users -> Invite user.
+2. **Auth -> Email Templates -> Invite user** — change the confirmation link from
+   `{{ .ConfirmationURL }}` to:
+   ```
+   {{ .SiteURL }}/auth/confirm?token_hash={{ .TokenHash }}&type=invite
+   ```
+3. **Auth -> Email Templates -> Reset password** — same change, using `type=recovery`
+   instead of `type=invite`:
+   ```
+   {{ .SiteURL }}/auth/confirm?token_hash={{ .TokenHash }}&type=recovery
+   ```
+4. **Auth -> URL Configuration** — set **Site URL** to the deployed Netlify URL (not
+   `localhost`), and add `/auth/confirm` (or the full
+   `https://<netlify-url>/auth/confirm`, per whatever format the Redirect URLs allow-list
+   expects) to **Redirect URLs**.
+
+Both templates redirect through `/auth/confirm`, which verifies the token, establishes a
+session, and sends the user to `/set-password` to finish activating their account.
+
 ## Scripts
 
 | Command | Purpose |
