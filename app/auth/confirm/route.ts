@@ -2,10 +2,16 @@ import { NextResponse } from "next/server";
 import type { EmailOtpType } from "@supabase/supabase-js";
 
 import { createClient } from "@/lib/supabase/server";
+import { getSiteOrigin } from "@/lib/site-url";
 
 // verifyOtp/cookies work fine on Edge, but we stay consistent with the rest
 // of the auth surface (lib/supabase/server.ts) which has no Node-only deps
 // here — no `export const runtime` override needed.
+
+// All outgoing redirects resolve their origin via lib/site-url.ts's
+// getSiteOrigin rather than request.url, because Netlify's Next.js runtime
+// reports a deploy-unique host on request.url that does not match the
+// session cookie's host, breaking the auth handoff.
 
 /**
  * The 5 EmailOtpType values this app's Supabase project actually sends
@@ -29,7 +35,7 @@ const SUPPORTED_TYPES = new Set<string>([
 type SafeErrorCode = "missing_params" | "invalid_or_expired";
 
 function loginRedirect(request: Request, error: SafeErrorCode) {
-  const url = new URL("/login", request.url);
+  const url = new URL("/login", getSiteOrigin(request));
   url.searchParams.set("error", error);
   return NextResponse.redirect(url);
 }
@@ -87,5 +93,5 @@ export async function GET(request: Request) {
   const destination =
     type === "invite" || type === "recovery" ? "/set-password" : (next ?? "/");
 
-  return NextResponse.redirect(new URL(destination, request.url));
+  return NextResponse.redirect(new URL(destination, getSiteOrigin(request)));
 }
