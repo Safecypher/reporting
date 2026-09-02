@@ -73,6 +73,12 @@ NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY=
 
 # Server-only. Never expose to the browser or any 'use client' boundary.
 SUPABASE_SECRET_KEY=
+
+# Canonical public origin for auth-email redirects (no trailing slash), e.g.
+# https://screporting.netlify.app. Must equal the Site URL configured in
+# Supabase Auth -> URL Configuration. Required on Netlify — request.url
+# reports Netlify's deploy-unique host, not the public one.
+NEXT_PUBLIC_SITE_URL=
 ```
 
 > `SUPABASE_SECRET_KEY` bypasses RLS and is used only in server-side ingestion. It must never
@@ -121,6 +127,15 @@ it:
    `localhost`), and add `/auth/confirm` (or the full
    `https://<netlify-url>/auth/confirm`, per whatever format the Redirect URLs allow-list
    expects) to **Redirect URLs**.
+5. **Netlify -> Site configuration -> Environment variables** — set `NEXT_PUBLIC_SITE_URL`
+   to the app's canonical public origin (e.g. `https://screporting.netlify.app`), with no
+   trailing slash. This must be the **same value** as the Supabase **Site URL** set in step 4
+   above — the two must match. Without it, `/auth/confirm`'s redirects resolve against
+   `request.url`, which on Netlify reports the deploy-unique preview host (e.g.
+   `6a982b014529bd0008a6b191--screporting.netlify.app`) rather than the public one; the
+   session cookie set during `verifyOtp` is scoped to the public host, so the redirect lands
+   on a different origin, the cookie isn't sent, and the invitee is bounced back to `/login`
+   — with the single-use invite token already consumed, requiring a fresh invite to recover.
 
 Both templates redirect through `/auth/confirm`, which verifies the token, establishes a
 session, and sends the user to `/set-password` to finish activating their account.
