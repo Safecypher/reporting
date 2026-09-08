@@ -23,4 +23,12 @@ describe("reconciliationStatusToRowClassName", () => {
     expect(className).toContain("border-l-destructive");
     expect(className).toContain("bg-destructive/5");
   });
+
+  it("maps 'no_source_data' to a neutral, non-alarm class -- never destructive or warning", () => {
+    const className = reconciliationStatusToRowClassName("no_source_data");
+    expect(className).toContain("bg-muted/30");
+    expect(className).toContain("border-dashed");
+    expect(className).not.toContain("destructive");
+    expect(className).not.toContain("--warning");
+  });
 });
