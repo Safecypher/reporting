@@ -1,371 +1,283 @@
 -- reconciliation_no_source_data_test.sql
 -- Executable acceptance oracle for 0022_reconciliation_no_source_data.sql.
 --
--- HARD DIFFERENCE from revenue_boundary_test.sql: this file contains no
--- DELETE, UPDATE or TRUNCATE statement anywhere. revenue_boundary_test.sql
--- clears pricing_tier_sets/verifications inside its rolled-back transaction
--- to isolate cumulative math; this test is run against the LIVE production
--- project (Section B is a read-only oracle over real data), and a harness
--- that splits this script into separately-committed statements (rather than
--- sending the whole begin/rollback block as one unit) would otherwise
--- destroy production data. Isolation here is achieved by DATE instead: the
--- synthetic fixture in Section A uses 2027-01 dates that are disjoint from
--- every real production day and outside every production source file's
--- observed span, so per-day counts and coverage spans cannot collide or leak
--- either direction.
+-- STRICTLY READ-ONLY. This file contains no INSERT, UPDATE, DELETE, TRUNCATE
+-- or DDL statement, and no transaction wrapper. It is therefore safe to run
+-- anywhere -- psql, the Supabase SQL editor, or an MCP execute_sql call that
+-- commits each statement separately. Contrast revenue_boundary_test.sql,
+-- which clears tables inside a begin/rollback and destroys production data if
+-- the harness splits it into separately-committed statements.
 --
--- Structure mirrors revenue_boundary_test.sql: one begin;...rollback;
--- wrapper, DO blocks that raise exception on a wrong value and raise notice
--- on success.
-
-begin;
-
--- ===========================================================================
--- Section A -- synthetic fixture (inserts only, rolled back at the end)
--- ===========================================================================
+-- An earlier revision of this file seeded synthetic 2027-01 fixtures and
+-- relied on a begin/rollback to discard them. That reintroduced the same
+-- class of hazard in the opposite direction: the reconciliation views apply a
+-- 2026-08-13 floor with NO upper bound, so leaked fixture rows would surface
+-- as phantom days in the very table this migration exists to make
+-- trustworthy. Fixtures are gone.
 --
--- Verification files:
---   V1 -- rows on 2027-01-01, 2027-01-02                 (span 01-01..01-02)
---   V2 -- rows on 2027-01-04, 2027-01-05, 2027-01-06      (span 01-04..01-06)
---   => 2027-01-03 has NO verification coverage (the gap between the two
---      files' spans) -- this is the day the whole feature exists to catch.
--- Billing file:
---   B1 -- rows on all of 2027-01-01..01-06                (span covers everything)
+-- It also asserted specific production days (2026-09-03 = no_source_data).
+-- Those assertions were guaranteed to start failing the moment Thesis
+-- delivered the missing file -- a passing test breaking on GOOD news is the
+-- worst kind of false alarm. This file asserts INVARIANTS of the view logic
+-- instead: properties that must hold for whatever data happens to be present,
+-- today or after any future upload.
 --
--- | day        | billing | verifications | expected status | expected delta |
--- |------------|---------|---------------|------------------|----------------|
--- | 2027-01-01 |      10 |            10 | ok               | 0              |
--- | 2027-01-02 |      10 |             4 | mismatch         | 6              |
--- | 2027-01-03 |      12 |             0 | no_source_data   | NULL           |
--- | 2027-01-04 |    1400 |            25 | mismatch         | 1375           |
--- | 2027-01-05 |       9 |            10 | mismatch         | -1             |
--- | 2027-01-06 |       3 |             3 | ok               | 0              |
---
--- Inserting 2027-01 rows on both sides advances each side's own max(day)
--- past every fixture day, which is what makes the earlier fixture days
--- settled (CR-01/0021) rather than stuck in needs_review.
-
-insert into ingested_files (id, file_name, content_sha256, report_type, status)
-values
-  ('f1000000-0000-0000-0000-00000000000a'::uuid, 'fixture_daily-ver-report_v1.csv', 'fixture-sha256-nsd-v1', 'daily-ver-report', 'done'),
-  ('f1000000-0000-0000-0000-00000000000b'::uuid, 'fixture_daily-ver-report_v2.csv', 'fixture-sha256-nsd-v2', 'daily-ver-report', 'done'),
-  ('f1000000-0000-0000-0000-00000000000c'::uuid, 'fixture_billing-report_b1.csv',  'fixture-sha256-nsd-b1', 'billing-report',   'done'),
-  ('f1000000-0000-0000-0000-00000000000d'::uuid, 'fixture_card-inventory_ci1.csv', 'fixture-sha256-nsd-ci1','card-inventory-report', 'done'),
-  ('f1000000-0000-0000-0000-00000000000e'::uuid, 'fixture_removed-cards_rc1.csv',  'fixture-sha256-nsd-rc1','removed-cards-report', 'done');
-
--- Verification rows -- file V1: 10 on 01-01, 4 on 01-02.
-insert into verifications (created_at, external_card_reference, cvi2_value, duration_ms, authenticated, source_file_id, raw_created_at)
-select
-  '2027-01-01T00:00:00Z'::timestamptz + (n || ' seconds')::interval,
-  'nsd-fixture-v1-0101-' || n,
-  1, 100, true,
-  'f1000000-0000-0000-0000-00000000000a'::uuid,
-  '2027-01-01T00:00:00Z'
-from generate_series(1, 10) as n;
-
-insert into verifications (created_at, external_card_reference, cvi2_value, duration_ms, authenticated, source_file_id, raw_created_at)
-select
-  '2027-01-02T00:00:00Z'::timestamptz + (n || ' seconds')::interval,
-  'nsd-fixture-v1-0102-' || n,
-  1, 100, true,
-  'f1000000-0000-0000-0000-00000000000a'::uuid,
-  '2027-01-02T00:00:00Z'
-from generate_series(1, 4) as n;
-
--- Verification rows -- file V2: 25 on 01-04, 10 on 01-05, 3 on 01-06.
-insert into verifications (created_at, external_card_reference, cvi2_value, duration_ms, authenticated, source_file_id, raw_created_at)
-select
-  '2027-01-04T00:00:00Z'::timestamptz + (n || ' seconds')::interval,
-  'nsd-fixture-v2-0104-' || n,
-  1, 100, true,
-  'f1000000-0000-0000-0000-00000000000b'::uuid,
-  '2027-01-04T00:00:00Z'
-from generate_series(1, 25) as n;
-
-insert into verifications (created_at, external_card_reference, cvi2_value, duration_ms, authenticated, source_file_id, raw_created_at)
-select
-  '2027-01-05T00:00:00Z'::timestamptz + (n || ' seconds')::interval,
-  'nsd-fixture-v2-0105-' || n,
-  1, 100, true,
-  'f1000000-0000-0000-0000-00000000000b'::uuid,
-  '2027-01-05T00:00:00Z'
-from generate_series(1, 10) as n;
-
-insert into verifications (created_at, external_card_reference, cvi2_value, duration_ms, authenticated, source_file_id, raw_created_at)
-select
-  '2027-01-06T00:00:00Z'::timestamptz + (n || ' seconds')::interval,
-  'nsd-fixture-v2-0106-' || n,
-  1, 100, true,
-  'f1000000-0000-0000-0000-00000000000b'::uuid,
-  '2027-01-06T00:00:00Z'
-from generate_series(1, 3) as n;
-
--- Billing rows -- file B1: covers every fixture day, 01-01..01-06.
-insert into billing_transactions (event_time, raw_transaction_date, raw_transaction_time, processor, issuer_bank, transaction_id, token_reference, authorised, verification_kind, region, source_file_id)
-select
-  '2027-01-01T00:00:00Z'::timestamptz + (n || ' seconds')::interval,
-  '2027-01-01', '00:00:00', 'fixture-processor', 'fixture-bank',
-  'nsd-fixture-b1-0101-' || n, 'nsd-fixture-token-0101-' || n,
-  true, 'fixture-kind', 'fixture-region',
-  'f1000000-0000-0000-0000-00000000000c'::uuid
-from generate_series(1, 10) as n;
-
-insert into billing_transactions (event_time, raw_transaction_date, raw_transaction_time, processor, issuer_bank, transaction_id, token_reference, authorised, verification_kind, region, source_file_id)
-select
-  '2027-01-02T00:00:00Z'::timestamptz + (n || ' seconds')::interval,
-  '2027-01-02', '00:00:00', 'fixture-processor', 'fixture-bank',
-  'nsd-fixture-b1-0102-' || n, 'nsd-fixture-token-0102-' || n,
-  true, 'fixture-kind', 'fixture-region',
-  'f1000000-0000-0000-0000-00000000000c'::uuid
-from generate_series(1, 10) as n;
-
-insert into billing_transactions (event_time, raw_transaction_date, raw_transaction_time, processor, issuer_bank, transaction_id, token_reference, authorised, verification_kind, region, source_file_id)
-select
-  '2027-01-03T00:00:00Z'::timestamptz + (n || ' seconds')::interval,
-  '2027-01-03', '00:00:00', 'fixture-processor', 'fixture-bank',
-  'nsd-fixture-b1-0103-' || n, 'nsd-fixture-token-0103-' || n,
-  true, 'fixture-kind', 'fixture-region',
-  'f1000000-0000-0000-0000-00000000000c'::uuid
-from generate_series(1, 12) as n;
-
-insert into billing_transactions (event_time, raw_transaction_date, raw_transaction_time, processor, issuer_bank, transaction_id, token_reference, authorised, verification_kind, region, source_file_id)
-select
-  '2027-01-04T00:00:00Z'::timestamptz + (n || ' seconds')::interval,
-  '2027-01-04', '00:00:00', 'fixture-processor', 'fixture-bank',
-  'nsd-fixture-b1-0104-' || n, 'nsd-fixture-token-0104-' || n,
-  true, 'fixture-kind', 'fixture-region',
-  'f1000000-0000-0000-0000-00000000000c'::uuid
-from generate_series(1, 1400) as n;
-
-insert into billing_transactions (event_time, raw_transaction_date, raw_transaction_time, processor, issuer_bank, transaction_id, token_reference, authorised, verification_kind, region, source_file_id)
-select
-  '2027-01-05T00:00:00Z'::timestamptz + (n || ' seconds')::interval,
-  '2027-01-05', '00:00:00', 'fixture-processor', 'fixture-bank',
-  'nsd-fixture-b1-0105-' || n, 'nsd-fixture-token-0105-' || n,
-  true, 'fixture-kind', 'fixture-region',
-  'f1000000-0000-0000-0000-00000000000c'::uuid
-from generate_series(1, 9) as n;
-
-insert into billing_transactions (event_time, raw_transaction_date, raw_transaction_time, processor, issuer_bank, transaction_id, token_reference, authorised, verification_kind, region, source_file_id)
-select
-  '2027-01-06T00:00:00Z'::timestamptz + (n || ' seconds')::interval,
-  '2027-01-06', '00:00:00', 'fixture-processor', 'fixture-bank',
-  'nsd-fixture-b1-0106-' || n, 'nsd-fixture-token-0106-' || n,
-  true, 'fixture-kind', 'fixture-region',
-  'f1000000-0000-0000-0000-00000000000c'::uuid
-from generate_series(1, 3) as n;
-
--- Inventory fixture: 5-card snapshots on 01-01, 01-02, 01-04, 01-05 (no
--- 01-03 snapshot at all). Card "nsd-card-5" is present on 01-01 but absent
--- on 01-02, so unenrolled_count for 01-02 (diffed against 01-01) is 1.
-insert into card_inventory (report_date, external_card_reference, created_at, raw_created_at, source_file_id)
-select
-  '2027-01-01'::date,
-  'nsd-card-' || n,
-  '2027-01-01T00:00:00Z'::timestamptz,
-  '2027-01-01T00:00:00Z',
-  'f1000000-0000-0000-0000-00000000000d'::uuid
-from generate_series(1, 5) as n;
-
-insert into card_inventory (report_date, external_card_reference, created_at, raw_created_at, source_file_id)
-select
-  '2027-01-02'::date,
-  'nsd-card-' || n,
-  '2027-01-02T00:00:00Z'::timestamptz,
-  '2027-01-02T00:00:00Z',
-  'f1000000-0000-0000-0000-00000000000d'::uuid
-from generate_series(1, 4) as n; -- card 5 dropped -> unenrolled_count(01-02) = 1
-
--- No 2027-01-03 snapshot at all -- this is what makes 01-04 unbracketed.
-
-insert into card_inventory (report_date, external_card_reference, created_at, raw_created_at, source_file_id)
-select
-  '2027-01-04'::date,
-  'nsd-card-' || n,
-  '2027-01-04T00:00:00Z'::timestamptz,
-  '2027-01-04T00:00:00Z',
-  'f1000000-0000-0000-0000-00000000000d'::uuid
-from generate_series(1, 5) as n;
-
-insert into card_inventory (report_date, external_card_reference, created_at, raw_created_at, source_file_id)
-select
-  '2027-01-05'::date,
-  'nsd-card-' || n,
-  '2027-01-05T00:00:00Z'::timestamptz,
-  '2027-01-05T00:00:00Z',
-  'f1000000-0000-0000-0000-00000000000d'::uuid
-from generate_series(1, 5) as n;
-
--- removed_cards fixture: 3 events on 01-02, 2 events on 01-04, all from one
--- source file whose observed span is therefore 01-02..01-04 -- 01-03 is
--- "covered" by the span even though no literal removed_cards row lands on
--- it (the rolling-window behaviour this feature is built to model).
-insert into removed_cards (removed_at, external_card_reference, source_file_id, raw_removed_at)
-select
-  '2027-01-02T00:00:00Z'::timestamptz + (n || ' seconds')::interval,
-  'nsd-removed-0102-' || n,
-  'f1000000-0000-0000-0000-00000000000e'::uuid,
-  '2027-01-02T00:00:00Z'
-from generate_series(1, 3) as n;
-
-insert into removed_cards (removed_at, external_card_reference, source_file_id, raw_removed_at)
-select
-  '2027-01-04T00:00:00Z'::timestamptz + (n || ' seconds')::interval,
-  'nsd-removed-0104-' || n,
-  'f1000000-0000-0000-0000-00000000000e'::uuid,
-  '2027-01-04T00:00:00Z'
-from generate_series(1, 2) as n;
+-- Structure: DO blocks that `raise exception` on violation, then a read-only
+-- reporting section that only ever raises NOTICE.
 
 -- ---------------------------------------------------------------------------
--- Assertions -- billing/verification reconciliation
+-- INVARIANT 1 (the important one): the inverse defect.
+--
+-- A genuine mismatch downgraded to no_source_data would be worse than the bug
+-- 0022 fixed -- it would hide a real billing discrepancy. Its mirror image is
+-- equally bad: an uncovered day must never be presented as a hard mismatch,
+-- because that is what sends someone to Thesis to dispute transactions that
+-- were never in question. Neither may ever happen.
 -- ---------------------------------------------------------------------------
 do $$
 declare
-  v_status text;
-  v_delta  bigint;
+  v_bad text;
 begin
-  -- 2027-01-01: ok, delta 0
-  select status, delta into v_status, v_delta
-    from v_reconciliation_billing_daily where day_utc = '2027-01-01T00:00:00'::timestamp;
-  if v_status is distinct from 'ok' or v_delta is distinct from 0 then
-    raise exception 'NSD TEST FAILED: 2027-01-01 billing status/delta = %/%, expected ok/0', v_status, v_delta;
+  select string_agg(day_utc::date::text, ', ' order by day_utc)
+    into v_bad
+    from v_reconciliation_billing_daily
+   where status = 'mismatch'
+     and not (verification_covered and billing_covered);
+
+  if v_bad is not null then
+    raise exception
+      'NSD INVARIANT 1 FAILED: billing day(s) [%] report mismatch while a side is uncovered -- a false discrepancy that invites a bogus dispute with Thesis',
+      v_bad;
   end if;
 
-  -- 2027-01-02: mismatch, delta 6
-  select status, delta into v_status, v_delta
-    from v_reconciliation_billing_daily where day_utc = '2027-01-02T00:00:00'::timestamp;
-  if v_status is distinct from 'mismatch' or v_delta is distinct from 6 then
-    raise exception 'NSD TEST FAILED: 2027-01-02 billing status/delta = %/%, expected mismatch/6', v_status, v_delta;
-  end if;
-
-  -- 2027-01-03: no_source_data, delta NULL (the day with no verification coverage)
-  select status, delta into v_status, v_delta
-    from v_reconciliation_billing_daily where day_utc = '2027-01-03T00:00:00'::timestamp;
-  if v_status is distinct from 'no_source_data' or v_delta is not null then
-    raise exception 'NSD TEST FAILED: 2027-01-03 billing status/delta = %/%, expected no_source_data/NULL', v_status, v_delta;
-  end if;
-
-  -- 2027-01-04: mismatch, delta 1375
-  select status, delta into v_status, v_delta
-    from v_reconciliation_billing_daily where day_utc = '2027-01-04T00:00:00'::timestamp;
-  if v_status is distinct from 'mismatch' or v_delta is distinct from 1375 then
-    raise exception 'NSD TEST FAILED: 2027-01-04 billing status/delta = %/%, expected mismatch/1375', v_status, v_delta;
-  end if;
-
-  -- 2027-01-05: mismatch, delta -1
-  select status, delta into v_status, v_delta
-    from v_reconciliation_billing_daily where day_utc = '2027-01-05T00:00:00'::timestamp;
-  if v_status is distinct from 'mismatch' or v_delta is distinct from -1 then
-    raise exception 'NSD TEST FAILED: 2027-01-05 billing status/delta = %/%, expected mismatch/-1', v_status, v_delta;
-  end if;
-
-  -- 2027-01-06: ok, delta 0
-  select status, delta into v_status, v_delta
-    from v_reconciliation_billing_daily where day_utc = '2027-01-06T00:00:00'::timestamp;
-  if v_status is distinct from 'ok' or v_delta is distinct from 0 then
-    raise exception 'NSD TEST FAILED: 2027-01-06 billing status/delta = %/%, expected ok/0', v_status, v_delta;
-  end if;
-
-  raise notice 'NSD TEST: synthetic billing/verification assertions passed (6 days)';
+  raise notice 'NSD INVARIANT 1 passed: no uncovered billing day is reported as mismatch';
 end;
 $$;
 
 -- ---------------------------------------------------------------------------
--- Assertions -- card-inventory reconciliation
+-- INVARIANT 2: disagreement + missing coverage => no_source_data.
 -- ---------------------------------------------------------------------------
 do $$
 declare
-  v_status          text;
-  v_delta            bigint;
-  v_unenrolled_count bigint;
+  v_bad text;
 begin
-  -- 2027-01-02: bracketed by 01-01+01-02 snapshots, removed-cards covered,
-  -- settled by the 01-05 diff day -- a genuine disagreement.
-  select status, delta into v_status, v_delta
-    from v_reconciliation_inventory_daily where day = '2027-01-02'::date;
-  if v_status is distinct from 'mismatch' or v_delta is distinct from -2 then
-    raise exception 'NSD TEST FAILED: 2027-01-02 inventory status/delta = %/%, expected mismatch/-2', v_status, v_delta;
+  select string_agg(format('%s(%s)', day_utc::date::text, status), ', ' order by day_utc)
+    into v_bad
+    from v_reconciliation_billing_daily
+   where billing_count <> verification_count
+     and not (verification_covered and billing_covered)
+     and status is distinct from 'no_source_data';
+
+  if v_bad is not null then
+    raise exception
+      'NSD INVARIANT 2 FAILED: billing day(s) [%] disagree with a side uncovered but are not labelled no_source_data',
+      v_bad;
   end if;
 
-  -- 2027-01-04: no 01-03 snapshot, so no bracketing pair -- no_source_data,
-  -- unenrolled_count must also be NULL, not 0.
-  select status, delta, unenrolled_count into v_status, v_delta, v_unenrolled_count
-    from v_reconciliation_inventory_daily where day = '2027-01-04'::date;
-  if v_status is distinct from 'no_source_data' or v_delta is not null or v_unenrolled_count is not null then
-    raise exception 'NSD TEST FAILED: 2027-01-04 inventory status/delta/unenrolled = %/%/%, expected no_source_data/NULL/NULL', v_status, v_delta, v_unenrolled_count;
-  end if;
-
-  raise notice 'NSD TEST: synthetic inventory assertions passed (2 days)';
+  raise notice 'NSD INVARIANT 2 passed: every uncovered disagreement is labelled no_source_data';
 end;
 $$;
 
--- ===========================================================================
--- Section B -- production oracle (read-only, zero inserts)
--- ===========================================================================
--- If the view is empty (fresh database, no production data yet) this section
--- is skipped entirely so the file still runs cleanly on a fresh database.
+-- ---------------------------------------------------------------------------
+-- INVARIANT 3: equal counts always win.
+--
+-- This is what stops a quiet but genuinely-zero day (a real delivery
+-- reporting no activity) from flooding the table with false "No report
+-- received" rows. Equality is decided BEFORE coverage is consulted.
+-- ---------------------------------------------------------------------------
 do $$
 declare
-  v_status text;
-  v_delta  bigint;
-  v_has_rows boolean;
+  v_bad text;
 begin
-  select exists (select 1 from v_reconciliation_billing_daily) into v_has_rows;
+  select string_agg(format('%s(%s)', day_utc::date::text, status), ', ' order by day_utc)
+    into v_bad
+    from v_reconciliation_billing_daily
+   where billing_count = verification_count
+     and status is distinct from 'ok';
 
-  if not v_has_rows then
-    raise notice 'NSD TEST: SKIPPED production-oracle section (v_reconciliation_billing_daily has no rows -- fresh database)';
-  else
-    -- 2026-08-20: no verification report ever delivered -> no_source_data
-    select status into v_status
-      from v_reconciliation_billing_daily where day_utc::date = '2026-08-20'::date;
-    if v_status is distinct from 'no_source_data' then
-      raise exception 'NSD TEST FAILED: production 2026-08-20 billing status = %, expected no_source_data', v_status;
-    end if;
+  if v_bad is not null then
+    raise exception
+      'NSD INVARIANT 3 FAILED: billing day(s) [%] have equal counts but are not ok',
+      v_bad;
+  end if;
 
-    -- 2026-09-02: genuine mismatch (delta 6) -- must NOT be downgraded
-    select status into v_status
-      from v_reconciliation_billing_daily where day_utc::date = '2026-09-02'::date;
-    if v_status is distinct from 'mismatch' then
-      raise exception 'NSD TEST FAILED: production 2026-09-02 billing status = %, expected mismatch', v_status;
-    end if;
+  raise notice 'NSD INVARIANT 3 passed: equal counts always yield ok';
+end;
+$$;
 
-    -- 2026-09-03: no verification report ever delivered -> no_source_data
-    select status into v_status
-      from v_reconciliation_billing_daily where day_utc::date = '2026-09-03'::date;
-    if v_status is distinct from 'no_source_data' then
-      raise exception 'NSD TEST FAILED: production 2026-09-03 billing status = %, expected no_source_data', v_status;
-    end if;
+-- ---------------------------------------------------------------------------
+-- INVARIANT 4: delta/short_side are NULL exactly when status is
+-- no_source_data.
+--
+-- An undefined comparison must never render as a signed figure that a
+-- downstream sum could silently absorb; equally, a real discrepancy must
+-- never lose its delta.
+-- ---------------------------------------------------------------------------
+do $$
+declare
+  v_bad text;
+begin
+  select string_agg(format('%s(status=%s,delta=%s)', day_utc::date::text, status, coalesce(delta::text, 'NULL')), ', ' order by day_utc)
+    into v_bad
+    from v_reconciliation_billing_daily
+   where (status = 'no_source_data' and delta is not null)
+      or (status <> 'no_source_data' and delta is null);
 
-    -- 2026-09-04: genuine mismatch (delta 1375) -- must NOT be downgraded
-    select status into v_status
-      from v_reconciliation_billing_daily where day_utc::date = '2026-09-04'::date;
-    if v_status is distinct from 'mismatch' then
-      raise exception 'NSD TEST FAILED: production 2026-09-04 billing status = %, expected mismatch', v_status;
-    end if;
+  if v_bad is not null then
+    raise exception
+      'NSD INVARIANT 4 FAILED: billing day(s) [%] break the delta-NULL-iff-no_source_data rule',
+      v_bad;
+  end if;
 
-    -- 2026-09-07: genuine mismatch (delta -1) -- must NOT be downgraded
-    select status into v_status
-      from v_reconciliation_billing_daily where day_utc::date = '2026-09-07'::date;
-    if v_status is distinct from 'mismatch' then
-      raise exception 'NSD TEST FAILED: production 2026-09-07 billing status = %, expected mismatch', v_status;
-    end if;
+  -- short_side is NULL for both ok (nothing is short) and no_source_data
+  -- (the comparison is undefined); it must be populated for every real
+  -- disagreement.
+  select string_agg(day_utc::date::text, ', ' order by day_utc)
+    into v_bad
+    from v_reconciliation_billing_daily
+   where status in ('mismatch', 'needs_review')
+     and short_side is null;
 
-    -- 2026-09-04 inventory: missing snapshot bracket -> no_source_data, NULL delta
-    select status, delta into v_status, v_delta
-      from v_reconciliation_inventory_daily where day = '2026-09-04'::date;
-    if v_status is distinct from 'no_source_data' or v_delta is not null then
-      raise exception 'NSD TEST FAILED: production 2026-09-04 inventory status/delta = %/%, expected no_source_data/NULL', v_status, v_delta;
-    end if;
+  if v_bad is not null then
+    raise exception
+      'NSD INVARIANT 4 FAILED: billing day(s) [%] report a real disagreement with no short_side',
+      v_bad;
+  end if;
 
-    raise notice 'NSD TEST: production-oracle assertions passed (5 billing days + 1 inventory day)';
+  raise notice 'NSD INVARIANT 4 passed: delta/short_side nullability is consistent with status';
+end;
+$$;
+
+-- ---------------------------------------------------------------------------
+-- INVARIANT 5: the same guards for the inventory view.
+--
+-- Inventory differs deliberately: an unbracketed day has an UNKNOWN
+-- unenrolled_count rather than a known-zero one, so it is no_source_data
+-- outright rather than only when the counts disagree.
+-- ---------------------------------------------------------------------------
+do $$
+declare
+  v_bad text;
+begin
+  select string_agg(day::text, ', ' order by day)
+    into v_bad
+    from v_reconciliation_inventory_daily
+   where status = 'mismatch'
+     and unenrolled_count is null;
+
+  if v_bad is not null then
+    raise exception
+      'NSD INVARIANT 5 FAILED: inventory day(s) [%] report mismatch with an unknown unenrolled_count',
+      v_bad;
+  end if;
+
+  select string_agg(format('%s(status=%s,delta=%s)', day::text, status, coalesce(delta::text, 'NULL')), ', ' order by day)
+    into v_bad
+    from v_reconciliation_inventory_daily
+   where (status = 'no_source_data' and delta is not null)
+      or (status <> 'no_source_data' and delta is null);
+
+  if v_bad is not null then
+    raise exception
+      'NSD INVARIANT 5 FAILED: inventory day(s) [%] break the delta-NULL-iff-no_source_data rule',
+      v_bad;
+  end if;
+
+  raise notice 'NSD INVARIANT 5 passed: inventory guards hold';
+end;
+$$;
+
+-- ---------------------------------------------------------------------------
+-- INVARIANT 6: coverage views never claim a day they have no evidence for.
+--
+-- Every day reported as covered must have at least one contributing source
+-- file. A zero- or negative-count coverage row would mean the span expansion
+-- has gone wrong.
+-- ---------------------------------------------------------------------------
+do $$
+declare
+  v_bad bigint;
+begin
+  select count(*) into v_bad
+    from (
+      select source_file_count as n from v_verification_coverage_daily
+      union all select source_file_count from v_billing_coverage_daily
+      union all select source_file_count from v_removed_cards_coverage_daily
+      union all select snapshot_row_count from v_inventory_coverage_daily
+    ) all_coverage
+   where n is null or n < 1;
+
+  if v_bad > 0 then
+    raise exception
+      'NSD INVARIANT 6 FAILED: % coverage row(s) claim a day with no contributing source file', v_bad;
+  end if;
+
+  raise notice 'NSD INVARIANT 6 passed: every covered day has at least one source file';
+end;
+$$;
+
+-- ---------------------------------------------------------------------------
+-- OPERATOR REPORT (read-only, NOTICE only -- never fails).
+--
+-- Running this file also gives a live picture of which reports are missing,
+-- so it doubles as a "what should we chase Thesis for?" query.
+-- ---------------------------------------------------------------------------
+do $$
+declare
+  r record;
+  v_any boolean := false;
+begin
+  raise notice '--- days with no verification coverage (chase these reports) ---';
+  for r in
+    select day_utc::date as day, billing_count, verification_count, status
+      from v_reconciliation_billing_daily
+     where not verification_covered
+     order by day_utc
+  loop
+    v_any := true;
+    raise notice '  % : % billed, % verified -> %', r.day, r.billing_count, r.verification_count, r.status;
+  end loop;
+
+  if not v_any then
+    raise notice '  (none -- every day in the window has verification coverage)';
+  end if;
+
+  v_any := false;
+  raise notice '--- inventory days with no bracketing snapshot ---';
+  for r in
+    select day, removed_count, status
+      from v_reconciliation_inventory_daily
+     where unenrolled_count is null
+     order by day
+  loop
+    v_any := true;
+    raise notice '  % : % removals, no snapshot bracket -> %', r.day, r.removed_count, r.status;
+  end loop;
+
+  if not v_any then
+    raise notice '  (none -- every inventory day is bracketed by snapshots)';
+  end if;
+
+  raise notice '--- genuine, fully-covered discrepancies (these are real) ---';
+  v_any := false;
+  for r in
+    select day_utc::date as day, billing_count, verification_count, delta
+      from v_reconciliation_billing_daily
+     where status = 'mismatch'
+     order by day_utc
+  loop
+    v_any := true;
+    raise notice '  % : % billed vs % verified, delta %', r.day, r.billing_count, r.verification_count, r.delta;
+  end loop;
+
+  if not v_any then
+    raise notice '  (none -- billing and verifications agree on every covered day)';
   end if;
 end;
 $$;
 
 do $$
 begin
-  raise notice 'NO SOURCE DATA TEST PASSED';
+  raise notice 'NO SOURCE DATA TEST PASSED (read-only, 6 invariants)';
 end;
 $$;
-
-rollback;
