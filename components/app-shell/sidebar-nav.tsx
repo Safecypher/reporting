@@ -12,6 +12,7 @@ import {
 const NAV_ITEMS = [
   { href: "/uploads", label: "Uploads", icon: "database" },
   { href: "/verifications", label: "Verifications", icon: "chart" },
+  { href: "/cards", label: "Cards", icon: "card" },
   { href: "/revenue", label: "Revenue", icon: "bank" },
   { href: "/sla", label: "SLA", icon: "signal" },
   { href: "/settings/pricing", label: "Pricing", icon: "cog" },
