@@ -31,7 +31,8 @@ export interface ReconciliationBillingDailyRow {
   day_utc: string;
   billing_count: number;
   verification_count: number;
-  delta: number;
+  /** NULL for a no_source_data day (0022) -- an absent comparison is never rendered as a signed figure. */
+  delta: number | null;
   status: ReconciliationStatus;
 }
 
@@ -61,8 +62,18 @@ const columns = [
     header: "Delta",
     // Delta ink is always neutral (--fg-1) -- colour lives in StatusBadge
     // only, never inferred from the sign/magnitude here (UI-SPEC binding rule).
+    // NULL (no_source_data, 0022) renders an em dash -- an absent comparison
+    // must never be rendered as a signed figure.
     cell: (info) => {
       const value = info.getValue();
+      if (value === null) {
+        return (
+          <span className="font-mono tabular-nums text-[var(--fg-3)]">
+            {"—"}
+            <span className="sr-only">Not comparable — no source report for this day</span>
+          </span>
+        );
+      }
       const signed = value > 0 ? `+${value.toLocaleString()}` : value.toLocaleString();
       return <span className="font-mono tabular-nums text-[var(--fg-1)]">{signed}</span>;
     },
@@ -98,16 +109,29 @@ export function ReconciliationBillingTable({ rows }: ReconciliationBillingTableP
     getSortedRowModel: getSortedRowModel(),
   });
 
-  const needsReviewCount = rows.filter((row) => row.status !== "ok").length;
+  // Split summary (0022): a missing report is not the same failure mode as a
+  // genuine disagreement -- folding no_source_data into "need review" is
+  // exactly the conflation this feature exists to remove.
+  const needsReviewCount = rows.filter(
+    (row) => row.status !== "ok" && row.status !== "no_source_data",
+  ).length;
+  const noSourceDataCount = rows.filter((row) => row.status === "no_source_data").length;
+  const summaryParts: string[] = [];
+  if (needsReviewCount > 0) {
+    summaryParts.push(`${needsReviewCount} day${needsReviewCount === 1 ? "" : "s"} need review`);
+  }
+  if (noSourceDataCount > 0) {
+    summaryParts.push(
+      `${noSourceDataCount} day${noSourceDataCount === 1 ? "" : "s"} with no report`,
+    );
+  }
 
   return (
     <div className="flex flex-col gap-3">
       <div className="flex flex-wrap items-baseline justify-between gap-2">
         <h2 className="text-lg font-medium text-foreground">Billing vs verifications</h2>
         <p className="text-sm font-light text-muted-foreground">
-          {needsReviewCount === 0
-            ? "All days OK"
-            : `${needsReviewCount} day${needsReviewCount === 1 ? "" : "s"} need review`}
+          {summaryParts.length === 0 ? "All days OK" : summaryParts.join(" · ")}
         </p>
       </div>
       <p className="text-sm font-light text-muted-foreground">

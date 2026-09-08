@@ -306,7 +306,10 @@ async function ReconciliationBody({ searchParams }: { searchParams: PageSearchPa
       day_utc: row.day_utc,
       billing_count: row.billing_count ?? 0,
       verification_count: row.verification_count ?? 0,
-      delta: row.delta ?? 0,
+      // delta stays nullable (0022): a no_source_data day's absent
+      // comparison must never be coalesced to 0 -- that coalesce is exactly
+      // how a missing report became a false numeric mismatch.
+      delta: row.delta,
       status: row.status,
     }));
 
@@ -317,10 +320,12 @@ async function ReconciliationBody({ searchParams }: { searchParams: PageSearchPa
     )
     .map((row) => ({
       day: row.day,
-      enrolled_count: row.enrolled_count ?? 0,
-      unenrolled_count: row.unenrolled_count ?? 0,
+      // enrolled_count/unenrolled_count/delta stay nullable (0022): an
+      // unbracketed day's counts are genuinely unknown, never coalesced to 0.
+      enrolled_count: row.enrolled_count,
+      unenrolled_count: row.unenrolled_count,
       removed_count: row.removed_count ?? 0,
-      delta: row.delta ?? 0,
+      delta: row.delta,
       status: row.status,
     }));
 
@@ -348,12 +353,17 @@ async function ReconciliationBody({ searchParams }: { searchParams: PageSearchPa
     .map((row) => ({ missing_day: row.missing_day }));
 
   const liveCount = liveCountResult.data?.live_count ?? 0;
-  const enrolledToday = inventoryDailyRows.length > 0
-    ? inventoryDailyRows[inventoryDailyRows.length - 1].enrolled_count
-    : 0;
-  const unenrolledToday = inventoryDailyRows.length > 0
-    ? inventoryDailyRows[inventoryDailyRows.length - 1].unenrolled_count
-    : 0;
+  // Take the last row whose respective count is non-null (0022): with
+  // nullable counts, a trailing no_source_data day would otherwise crash
+  // .toLocaleString() below -- fall back to 0 only when no row qualifies.
+  const lastEnrolledRow = [...inventoryDailyRows]
+    .reverse()
+    .find((row) => row.enrolled_count !== null);
+  const enrolledToday = lastEnrolledRow?.enrolled_count ?? 0;
+  const lastUnenrolledRow = [...inventoryDailyRows]
+    .reverse()
+    .find((row) => row.unenrolled_count !== null);
+  const unenrolledToday = lastUnenrolledRow?.unenrolled_count ?? 0;
 
   const uploadedAt = freshnessResult.data?.uploaded_at ?? null;
   const hasMismatches = billingDailyRows.some((row) => row.status !== "ok");

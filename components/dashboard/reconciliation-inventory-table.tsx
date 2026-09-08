@@ -30,10 +30,13 @@ import {
 /** Row shape from `v_reconciliation_inventory_daily` (RECON-02/RECON-03). */
 export interface ReconciliationInventoryDailyRow {
   day: string;
-  enrolled_count: number;
-  unenrolled_count: number;
+  /** NULL for a no_source_data day (0022) -- no bracketing snapshot pair, so unknown, not zero. */
+  enrolled_count: number | null;
+  /** NULL for a no_source_data day (0022) -- no bracketing snapshot pair, so unknown, not zero. */
+  unenrolled_count: number | null;
   removed_count: number;
-  delta: number;
+  /** NULL for a no_source_data day (0022) -- an absent comparison is never rendered as a signed figure. */
+  delta: number | null;
   status: ReconciliationStatus;
 }
 
@@ -65,15 +68,35 @@ const columns = [
   }),
   columnHelper.accessor("enrolled_count", {
     header: "Enrolled",
-    cell: (info) => (
-      <span className="font-mono tabular-nums">{info.getValue().toLocaleString()}</span>
-    ),
+    // NULL (no_source_data, 0022) renders an em dash -- no bracketing
+    // snapshot pair means this count is genuinely unknown, not zero.
+    cell: (info) => {
+      const value = info.getValue();
+      if (value === null) {
+        return (
+          <span className="font-mono tabular-nums text-[var(--fg-3)]">
+            {"—"}
+            <span className="sr-only">Not comparable — no source report for this day</span>
+          </span>
+        );
+      }
+      return <span className="font-mono tabular-nums">{value.toLocaleString()}</span>;
+    },
   }),
   columnHelper.accessor("unenrolled_count", {
     header: "Unenrolled",
-    cell: (info) => (
-      <span className="font-mono tabular-nums">{info.getValue().toLocaleString()}</span>
-    ),
+    cell: (info) => {
+      const value = info.getValue();
+      if (value === null) {
+        return (
+          <span className="font-mono tabular-nums text-[var(--fg-3)]">
+            {"—"}
+            <span className="sr-only">Not comparable — no source report for this day</span>
+          </span>
+        );
+      }
+      return <span className="font-mono tabular-nums">{value.toLocaleString()}</span>;
+    },
   }),
   columnHelper.accessor("removed_count", {
     header: "Removed (removed-cards)",
@@ -85,8 +108,18 @@ const columns = [
     header: "Delta",
     // Delta ink is always neutral (--fg-1) -- colour lives in StatusBadge
     // only, never inferred from the sign/magnitude here (UI-SPEC binding rule).
+    // NULL (no_source_data, 0022) renders an em dash -- an absent comparison
+    // must never be rendered as a signed figure.
     cell: (info) => {
       const value = info.getValue();
+      if (value === null) {
+        return (
+          <span className="font-mono tabular-nums text-[var(--fg-3)]">
+            {"—"}
+            <span className="sr-only">Not comparable — no source report for this day</span>
+          </span>
+        );
+      }
       const signed = value > 0 ? `+${value.toLocaleString()}` : value.toLocaleString();
       return <span className="font-mono tabular-nums text-[var(--fg-1)]">{signed}</span>;
     },
@@ -136,16 +169,29 @@ export function ReconciliationInventoryTable({
     getSortedRowModel: getSortedRowModel(),
   });
 
-  const needsReviewCount = rows.filter((row) => row.status !== "ok").length;
+  // Split summary (0022): a missing report is not the same failure mode as a
+  // genuine disagreement -- folding no_source_data into "need review" is
+  // exactly the conflation this feature exists to remove.
+  const needsReviewCount = rows.filter(
+    (row) => row.status !== "ok" && row.status !== "no_source_data",
+  ).length;
+  const noSourceDataCount = rows.filter((row) => row.status === "no_source_data").length;
+  const summaryParts: string[] = [];
+  if (needsReviewCount > 0) {
+    summaryParts.push(`${needsReviewCount} day${needsReviewCount === 1 ? "" : "s"} need review`);
+  }
+  if (noSourceDataCount > 0) {
+    summaryParts.push(
+      `${noSourceDataCount} day${noSourceDataCount === 1 ? "" : "s"} with no report`,
+    );
+  }
 
   return (
     <div className="flex flex-col gap-4">
       <div className="flex flex-wrap items-baseline justify-between gap-2">
         <h2 className="text-lg font-medium text-foreground">Card inventory</h2>
         <p className="text-sm font-light text-muted-foreground">
-          {needsReviewCount === 0
-            ? "All days OK"
-            : `${needsReviewCount} day${needsReviewCount === 1 ? "" : "s"} need review`}
+          {summaryParts.length === 0 ? "All days OK" : summaryParts.join(" · ")}
         </p>
       </div>
 
@@ -223,11 +269,13 @@ export function ReconciliationInventoryTable({
               dashed/muted treatment -- communicating "we don't know" rather
               than "it's fine" or "it's wrong". Never silently skipped, never
               diffed across in the rows above. Not drillable (there is no
-              source data for this day). */}
+              source data for this day). Row class + badge now reuse the
+              shared no_source_data status vocabulary (0022) so both absence
+              signals in this table are one visual language. */}
           {gapRows.map((gapRow) => (
             <TableRow
               key={`gap-${gapRow.missing_day}`}
-              className="border-dashed bg-muted/30"
+              className={reconciliationStatusToRowClassName("no_source_data")}
             >
               <TableCell colSpan={5} className="text-[var(--fg-3)]">
                 No inventory snapshot for{" "}
@@ -237,12 +285,7 @@ export function ReconciliationInventoryTable({
                 — cannot compute a diff for this day.
               </TableCell>
               <TableCell>
-                <Badge
-                  variant="outline"
-                  className="border-[color:var(--warning)]/30 bg-[color:var(--warning)]/10 text-[color:var(--warning)]"
-                >
-                  Needs review
-                </Badge>
+                <StatusBadge status="no_source_data" />
               </TableCell>
             </TableRow>
           ))}

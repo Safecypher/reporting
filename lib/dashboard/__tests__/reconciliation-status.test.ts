@@ -34,6 +34,23 @@ describe("computeReconciliationStatus", () => {
   it("boundary: delta of exactly 1, unsettled -> needs_review", () => {
     expect(computeReconciliationStatus(101, 100, false)).toBe("needs_review");
   });
+
+  it("returns 'no_source_data' when settled and unequal but a side is uncovered", () => {
+    expect(computeReconciliationStatus(12, 0, true, false)).toBe("no_source_data");
+  });
+
+  it("returns 'no_source_data' when unsettled and unequal but a side is uncovered -- uncovered outranks the pending state", () => {
+    expect(computeReconciliationStatus(12, 0, false, false)).toBe("no_source_data");
+  });
+
+  it("returns 'ok' when counts are equal even though a side is uncovered -- equality wins over coverage", () => {
+    expect(computeReconciliationStatus(10, 10, true, false)).toBe("ok");
+  });
+
+  it("still returns 'mismatch'/'needs_review' when bothSidesCovered defaults to true (existing three-arg call sites unaffected)", () => {
+    expect(computeReconciliationStatus(10, 9, true)).toBe("mismatch");
+    expect(computeReconciliationStatus(10, 9, false)).toBe("needs_review");
+  });
 });
 
 describe("computeShortSide", () => {
@@ -70,6 +87,13 @@ describe("reconciliationStatusToBadge", () => {
     expect(reconciliationStatusToBadge("mismatch")).toEqual({
       label: "Mismatch",
       variant: "mismatch",
+    });
+  });
+
+  it("maps 'no_source_data' to the No report received badge descriptor", () => {
+    expect(reconciliationStatusToBadge("no_source_data")).toEqual({
+      label: "No report received",
+      variant: "no_source_data",
     });
   });
 });
