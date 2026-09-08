@@ -42,7 +42,6 @@ interface CardInventoryTableProps {
 export function CardInventoryTable({ rows }: CardInventoryTableProps) {
   const [sorting, setSorting] = useState<SortingState>([{ id: "reference", desc: false }]);
 
-  // eslint-disable-next-line react-hooks/incompatible-library
   const table = useReactTable({
     data: rows,
     columns: cardInventoryColumns,
