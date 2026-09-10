@@ -9,11 +9,21 @@ import {
 } from "@/components/dashboard/revenue-tier-drill-sheet";
 import { RevenueViewControls } from "@/components/dashboard/revenue-view-controls";
 import type { RevenueTierRow } from "@/components/dashboard/revenue-tier-breakdown";
+import { ScopeBadge } from "@/components/dashboard/scope-badge";
+import { PeriodControls } from "@/components/dashboard/period-controls";
+import { PeriodEmptyState } from "@/components/dashboard/period-empty-state";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { createClient } from "@/lib/supabase/server";
 import type { RevenueDailyRow } from "@/lib/dashboard/revenue-bucketing";
 import { parseDrillParams } from "@/lib/dashboard/drill-params";
+import {
+  monthOptions as buildMonthOptions,
+  yearOptions as buildYearOptions,
+  resolvePeriod,
+  type ResolvedPeriod,
+} from "@/lib/dashboard/period";
+import { fetchFinancialYearStart } from "@/lib/settings/fy-settings";
 import {
   fetchVerificationDrillRows,
   type VerificationDrillFetchResult,
@@ -37,7 +47,6 @@ type RevenueTierViewRow = {
  * pricing tier covers them" (ErrorState, never a silent $0). */
 type RevenueDailyCountsRow = { day_utc: string | null };
 type PricingTierSetRow = { id: string };
-type RevenueTotalRow = { total_revenue: string | null };
 type IngestedFileFreshness = { uploaded_at: string };
 
 function FreshnessBadge({ uploadedAt }: { uploadedAt: string | null }) {
@@ -61,9 +70,21 @@ function FreshnessBadge({ uploadedAt }: { uploadedAt: string | null }) {
   );
 }
 
-function PageHeader({ uploadedAt }: { uploadedAt: string | null }) {
+type PeriodOption = { value: string; label: string };
+
+function PageHeader({
+  uploadedAt,
+  period,
+  monthOptions,
+  yearOptions,
+}: {
+  uploadedAt: string | null;
+  period: ResolvedPeriod | null;
+  monthOptions: PeriodOption[];
+  yearOptions: PeriodOption[];
+}) {
   return (
-    <div className="flex flex-col gap-2 border-b border-border pb-4">
+    <div className="flex flex-col gap-3 border-b border-border pb-4">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <p className="text-xs font-medium uppercase tracking-[0.12em] text-primary">
@@ -71,8 +92,14 @@ function PageHeader({ uploadedAt }: { uploadedAt: string | null }) {
           </p>
           <h1 className="text-2xl font-medium text-foreground">Revenue</h1>
         </div>
-        <FreshnessBadge uploadedAt={uploadedAt} />
+        <div className="flex flex-wrap items-center gap-2">
+          {period && <ScopeBadge period={period} />}
+          <FreshnessBadge uploadedAt={uploadedAt} />
+        </div>
       </div>
+      {period && (
+        <PeriodControls period={period} monthOptions={monthOptions} yearOptions={yearOptions} />
+      )}
       <p className="text-sm font-light text-muted-foreground">
         {DATA_WINDOW_CAPTION}
       </p>
@@ -186,14 +213,21 @@ type PageSearchParams = Promise<{ [key: string]: string | string[] | undefined }
 async function fetchRevenueTierDrillRows(
   supabase: Awaited<ReturnType<typeof createClient>>,
   tierOrder: number | undefined,
+  range: { start: string; end: string | null },
 ): Promise<RevenueTierDrillRow[]> {
   if (tierOrder === undefined) return [];
 
-  const { data, error } = await supabase
+  let query = supabase
     .from("v_revenue_by_tier")
     .select("day_utc, overlap_count, rate, tier_revenue")
     .eq("tier_order", tierOrder)
     .gt("overlap_count", 0)
+    .gte("day_utc", range.start);
+  if (range.end !== null) {
+    query = query.lt("day_utc", range.end);
+  }
+
+  const { data, error } = await query
     .order("day_utc", { ascending: false })
     .returns<RevenueTierDrillRow[]>();
 
@@ -221,38 +255,82 @@ async function RevenueBody({ searchParams }: { searchParams: PageSearchParams })
   const isVerificationDrill = drillFilter?.drill === "verification";
   const isRevenueTierDrill = drillFilter?.drill === "revenue-tier";
 
+  // D-01/D-05: resolve the period BEFORE any query is built — `now` is
+  // captured once here from the runtime clock and passed in, so
+  // `resolvePeriod` itself stays pure (no wall-clock access inside it).
+  const now = new Date();
+  const fyStart = await fetchFinancialYearStart(supabase);
+  const period = resolvePeriod(params, fyStart, now);
+  const monthOptions = buildMonthOptions(now);
+  const yearOptions = buildYearOptions(now);
+
+  // RESEARCH Pattern 1: an outer .gte()/.lt() predicate on the unchanged
+  // v_revenue_daily / v_revenue_by_tier / v_revenue_daily_counts views —
+  // never a rewrite of any view itself. `.lt` is applied only when the
+  // period has a defined end ("all" leaves it open-ended).
+  let dailyQuery = supabase
+    .from("v_revenue_daily")
+    .select("day_utc, revenue")
+    .gte("day_utc", period.start);
+  if (period.end !== null) {
+    dailyQuery = dailyQuery.lt("day_utc", period.end);
+  }
+
+  let tierQuery = supabase
+    .from("v_revenue_by_tier")
+    .select("day_utc, tier_order, tier_revenue, tier_set_id")
+    .gte("day_utc", period.start);
+  if (period.end !== null) {
+    tierQuery = tierQuery.lt("day_utc", period.end);
+  }
+
+  // Period-scoped — drives both the T-03-17 error branch (period has
+  // activity but nothing got priced) and the PartialCoverageBanner's
+  // in-period day-set diff.
+  let countsQuery = supabase
+    .from("v_revenue_daily_counts")
+    .select("day_utc")
+    .gte("day_utc", period.start);
+  if (period.end !== null) {
+    countsQuery = countsQuery.lt("day_utc", period.end);
+  }
+
   const [
     dailyResult,
     tierResult,
     totalResult,
     verificationCountsResult,
+    domainActivityResult,
     pricingTierSetsResult,
     freshnessResult,
     verificationDrillResult,
     revenueTierDrillRows,
   ] = await Promise.all([
-    supabase
-      .from("v_revenue_daily")
-      .select("day_utc, revenue")
-      .order("day_utc", { ascending: true })
-      .returns<RevenueDailyViewRow[]>(),
-    supabase
-      .from("v_revenue_by_tier")
-      .select("day_utc, tier_order, tier_revenue, tier_set_id")
-      .returns<RevenueTierViewRow[]>(),
-    // Grand total summed in Postgres via the v_revenue_total view (0017) — the
-    // number reaching JS is already the final NUMERIC total, never summed
-    // client-side from the per-day/per-tier rows above. A view is used instead
-    // of a PostgREST `sum()` aggregate because Supabase blocks aggregate
-    // functions by default (PGRST123).
-    supabase
-      .from("v_revenue_total")
-      .select("total_revenue")
-      .returns<RevenueTotalRow[]>()
-      .maybeSingle(),
+    dailyQuery.order("day_utc", { ascending: true }).returns<RevenueDailyViewRow[]>(),
+    tierQuery.returns<RevenueTierViewRow[]>(),
+    // Grand total summed in Postgres via revenue_total_for_period (0024) —
+    // the number reaching JS is already the final NUMERIC total for the
+    // resolved period, never summed client-side from the per-day/per-tier
+    // rows above. An RPC is used instead of a PostgREST `sum()` aggregate
+    // because Supabase blocks aggregate functions by default (PGRST123).
+    // types/db.ts lacks this RPC until the orchestrator regenerates types
+    // after 0024 is pushed (plan 05-05) — narrow cast only, same pattern
+    // as deleteLatestPricingTierSet in settings/pricing/actions.ts.
+    (
+      supabase.rpc as unknown as (
+        fn: string,
+        args: { p_start: string; p_end: string | null },
+      ) => Promise<{ data: string | null; error: { message: string } | null }>
+    )("revenue_total_for_period", { p_start: period.start, p_end: period.end }),
+    countsQuery.returns<RevenueDailyCountsRow[]>(),
+    // UNSCOPED existence probe (never a period predicate) — distinguishes
+    // "no verifications at all" (EmptyState) from "verifications exist,
+    // this period has none" (PeriodEmptyState). A narrow period must never
+    // masquerade as a totally-empty view.
     supabase
       .from("v_revenue_daily_counts")
-      .select("day_utc")
+      .select("day_utc", { count: "exact", head: true })
+      .limit(1)
       .returns<RevenueDailyCountsRow[]>(),
     supabase
       .from("pricing_tier_sets")
@@ -272,10 +350,16 @@ async function RevenueBody({ searchParams }: { searchParams: PageSearchParams })
     // filters by it) — the shared fetcher's optional param makes that a
     // caller-side choice, not a second code path.
     isVerificationDrill
-      ? fetchVerificationDrillRows(supabase)
+      ? fetchVerificationDrillRows(supabase, undefined, {
+          start: period.start,
+          end: period.end,
+        })
       : Promise.resolve<VerificationDrillFetchResult>({ rows: [], totalCount: null }),
     isRevenueTierDrill
-      ? fetchRevenueTierDrillRows(supabase, drillFilter.tierOrder)
+      ? fetchRevenueTierDrillRows(supabase, drillFilter.tierOrder, {
+          start: period.start,
+          end: period.end,
+        })
       : Promise.resolve<RevenueTierDrillRow[]>([]),
   ]);
 
@@ -284,36 +368,65 @@ async function RevenueBody({ searchParams }: { searchParams: PageSearchParams })
     tierResult.error ||
     totalResult.error ||
     verificationCountsResult.error ||
+    domainActivityResult.error ||
     pricingTierSetsResult.error ||
     freshnessResult.error
   ) {
     return (
       <>
-        <PageHeader uploadedAt={null} />
+        <PageHeader uploadedAt={null} period={null} monthOptions={[]} yearOptions={[]} />
         <ErrorState />
       </>
     );
   }
 
-  const hasVerificationActivity = (verificationCountsResult.data ?? []).length > 0;
+  const hasVerificationActivity = (domainActivityResult.count ?? 0) > 0;
   const hasPricingTierSet = (pricingTierSetsResult.data ?? []).length > 0;
+  const uploadedAt = freshnessResult.data?.uploaded_at ?? null;
 
   if (!hasVerificationActivity) {
     return (
       <>
-        <PageHeader uploadedAt={freshnessResult.data?.uploaded_at ?? null} />
+        <PageHeader
+          uploadedAt={uploadedAt}
+          period={period}
+          monthOptions={monthOptions}
+          yearOptions={yearOptions}
+        />
         <EmptyState />
       </>
     );
   }
 
-  // T-03-17: verifications exist, but there is no pricing tier configured to
-  // price them (at all, or for the days that have activity) — an explicit
-  // error, never a silent $0.
+  const periodHasActivity = (verificationCountsResult.data ?? []).length > 0;
+
+  if (!periodHasActivity) {
+    return (
+      <>
+        <PageHeader
+          uploadedAt={uploadedAt}
+          period={period}
+          monthOptions={monthOptions}
+          yearOptions={yearOptions}
+        />
+        <PeriodEmptyState viewNoun="revenue" period={period} />
+      </>
+    );
+  }
+
+  // T-03-17: verifications exist in the selected period, but there is no
+  // pricing tier configured to price them (at all, or for the days that
+  // have activity within the period) — an explicit error, never a silent
+  // $0.
   if (!hasPricingTierSet || (dailyResult.data ?? []).length === 0) {
     return (
       <>
-        <PageHeader uploadedAt={freshnessResult.data?.uploaded_at ?? null} />
+        <PageHeader
+          uploadedAt={uploadedAt}
+          period={period}
+          monthOptions={monthOptions}
+          yearOptions={yearOptions}
+        />
         <ErrorState />
       </>
     );
@@ -348,13 +461,14 @@ async function RevenueBody({ searchParams }: { searchParams: PageSearchParams })
       tier_set_id: row.tier_set_id,
     }));
 
-  const totalRevenue = Number(totalResult.data?.total_revenue ?? "0");
-  const uploadedAt = freshnessResult.data?.uploaded_at ?? null;
+  // The RPC returns the exact-NUMERIC total as a string — no arithmetic
+  // over the fetched daily rows ever produces this value (Pitfall 2).
+  const totalRevenue = Number(totalResult.data ?? "0");
 
-  // WR-03: compare days WITH verification activity against days that were
-  // actually priced — a difference means a partial pricing-tier coverage
-  // gap that the earlier hasPricingTierSet/dailyResult.length checks (which
-  // only catch a TOTAL gap) don't detect.
+  // WR-03: compare days WITH verification activity (within the period)
+  // against days that were actually priced (within the period) — a
+  // difference means a partial pricing-tier coverage gap inside the
+  // selected period.
   const activityDayUtcs = new Set(
     (verificationCountsResult.data ?? [])
       .map((row) => row.day_utc)
@@ -367,7 +481,12 @@ async function RevenueBody({ searchParams }: { searchParams: PageSearchParams })
 
   return (
     <>
-      <PageHeader uploadedAt={uploadedAt} />
+      <PageHeader
+        uploadedAt={uploadedAt}
+        period={period}
+        monthOptions={monthOptions}
+        yearOptions={yearOptions}
+      />
       {missingDayCount > 0 && <PartialCoverageBanner missingDayCount={missingDayCount} />}
       <RevenueViewControls
         dailyRows={dailyRows}
