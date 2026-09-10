@@ -30,3 +30,7 @@ yarn-error.log*
 
 # TypeScript incremental build info
 *.tsbuildinfo
+
+# GSD session-local state (per-machine: holds a session id, PID and timestamps)
+.planning/milestone.lock
+.gsd/

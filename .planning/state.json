@@ -1,0 +1,48 @@
+{
+  "contract": "1.0.0",
+  "flavor": "core",
+  "milestone": "v1.0",
+  "phases": [
+    {
+      "number": "1",
+      "name": "End-to-End Spine",
+      "status": "complete"
+    },
+    {
+      "number": "2",
+      "name": "Complete the Six Sources",
+      "status": "complete"
+    },
+    {
+      "number": "3",
+      "name": "Revenue, SLA & Drill-down",
+      "status": "complete"
+    },
+    {
+      "number": "4",
+      "name": "Reconciliation & Discrepancy Flagging",
+      "status": "complete"
+    },
+    {
+      "number": "5",
+      "name": "Time Periods & Financial-Year Settings",
+      "status": "in_progress"
+    },
+    {
+      "number": "6",
+      "name": "Dual-Source Alignment: TSYS vs Bit Addict",
+      "status": "pending"
+    },
+    {
+      "number": "7",
+      "name": "TSYS Tiered Volume & Revenue Forecast",
+      "status": "pending"
+    }
+  ],
+  "next": {
+    "command": "/gsd:progress --next",
+    "label": "Advance to the next step",
+    "reason": "Phase 05 of 7 · executing"
+  },
+  "updated_at": "2026-09-10T18:58:41.923Z"
+}
