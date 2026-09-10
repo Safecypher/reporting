@@ -179,13 +179,35 @@ export function PricingTierForm({ tierSets }: PricingTierFormProps) {
 
   const watchedEffectiveFrom = form.watch("effectiveFrom");
 
-  // Live inline preview of the create-supersede gate (Task 1's
-  // resolveSaveImpact), recomputed on every effective-from keystroke.
-  // Guarded against an incomplete date the user is still typing — only a
-  // complete ten-character `YYYY-MM-DD` value is resolved.
+  // G-05-CR01 (Task 2): the save mode and the existing-set list, lifted to
+  // component scope so exactly ONE derivation feeds both the live inline
+  // preview below and the submit gate in `onSubmit` — the preview can never
+  // disagree with the gate that actually blocks the write. Create when
+  // nothing is selected; otherwise an edit carrying the selected set's id
+  // and its CURRENT effective date (before this keystroke's edit).
+  const saveMode: TierSetSaveMode = selectedTierSet
+    ? { kind: "edit", id: selectedTierSet.id, effectiveFrom: selectedTierSet.effectiveFrom }
+    : { kind: "create" };
+  const existingForImpact = selectedTierSet
+    ? tierSets.filter((set) => set.id !== selectedTierSet.id)
+    : tierSets;
+
+  // Live inline preview of the supersede gate (Task 1's resolveSaveImpact),
+  // recomputed on every effective-from keystroke for WHICHEVER mode the
+  // editor is currently in. Guarded against an incomplete date the user is
+  // still typing — only a complete ten-character `YYYY-MM-DD` value is
+  // resolved. Rendered only when the resolved impact reports a displaced
+  // set: for create that is exactly the pre-existing condition (a create
+  // resolves to null when nothing is displaced); for edit, resolveSaveImpact
+  // always returns a defined impact, so the `supersedes` check is what gates
+  // the edit-mode notice the same way.
+  const resolvedImpactPreview =
+    typeof watchedEffectiveFrom === "string" && watchedEffectiveFrom.length === 10
+      ? resolveSaveImpact(saveMode, watchedEffectiveFrom, existingForImpact)
+      : null;
   const supersedeNotice =
-    isCreatingNewSet && typeof watchedEffectiveFrom === "string" && watchedEffectiveFrom.length === 10
-      ? resolveSaveImpact({ kind: "create" }, watchedEffectiveFrom, tierSets)
+    resolvedImpactPreview && resolvedImpactPreview.supersedes !== null
+      ? resolvedImpactPreview
       : null;
 
   const tiersFieldError = form.formState.errors.tiers;
@@ -246,20 +268,13 @@ export function PricingTierForm({ tierSets }: PricingTierFormProps) {
 
     const tierSetIdForSave = selectedTierSet ? selectedTierSet.id : null;
 
-    // G-05-5: BOTH the create and edit paths go through the same resolver
-    // now. Mode is derived from `selectedTierSet` — create when nothing is
-    // selected, edit carrying the selected set's id/effectiveFrom
-    // otherwise. The edited set is excluded from the existing-sets list so
-    // an edit never reports itself as superseding itself (belt-and-braces:
-    // resolveSaveImpact's edit branch ignores the list entirely, but the
-    // exclusion keeps the call site honest about scope).
-    const mode: TierSetSaveMode = selectedTierSet
-      ? { kind: "edit", id: selectedTierSet.id, effectiveFrom: selectedTierSet.effectiveFrom }
-      : { kind: "create" };
-    const existingForImpact = selectedTierSet
-      ? tierSets.filter((set) => set.id !== selectedTierSet.id)
-      : tierSets;
-    const impact = resolveSaveImpact(mode, data.effectiveFrom, existingForImpact);
+    // G-05-5/G-05-CR01 (Task 2): `saveMode` and `existingForImpact` are the
+    // SAME component-scope values driving the live inline preview above —
+    // the submit gate can never disagree with what the operator was already
+    // shown. The edited set is excluded from the existing-sets list so an
+    // edit never reports itself as superseding itself (belt-and-braces:
+    // resolveSaveImpact's edit branch also excludes it internally by id).
+    const impact = resolveSaveImpact(saveMode, data.effectiveFrom, existingForImpact);
 
     if (impact === null) {
       // create-only: nothing active prices this date yet — the genuinely-
@@ -280,7 +295,7 @@ export function PricingTierForm({ tierSets }: PricingTierFormProps) {
       return;
     }
 
-    if (mode.kind === "edit") {
+    if (saveMode.kind === "edit") {
       if (impact.supersedes !== null) {
         // G-05-CR01: this edit takes days from a DIFFERENT, currently-active
         // tier set — ALWAYS open the confirmation, regardless of day count.
@@ -453,9 +468,19 @@ export function PricingTierForm({ tierSets }: PricingTierFormProps) {
                 yet, this is informational. */}
             {supersedeNotice && (
               <p className="rounded-md border border-[color:var(--warning)]/30 bg-[color:var(--warning)]/10 p-2 text-xs font-light text-foreground">
-                A tier set effective {supersedeNotice.supersedes} currently
-                prices {supersedeNotice.from} onward. Saving this supersedes
-                it from {supersedeNotice.from}.
+                {isCreatingNewSet ? (
+                  <>
+                    A tier set effective {supersedeNotice.supersedes} currently
+                    prices {supersedeNotice.from} onward. Saving this supersedes
+                    it from {supersedeNotice.from}.
+                  </>
+                ) : (
+                  <>
+                    A tier set effective {supersedeNotice.supersedes} currently
+                    prices some of those days. Saving moves that pricing to
+                    this set from {watchedEffectiveFrom}.
+                  </>
+                )}
               </p>
             )}
           </div>
