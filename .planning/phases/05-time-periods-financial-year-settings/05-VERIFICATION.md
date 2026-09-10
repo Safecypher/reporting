@@ -1,8 +1,8 @@
 ---
 phase: 05-time-periods-financial-year-settings
-verified: 2026-09-10T15:45:00Z
-status: gaps_found
-score: 10/12 must-haves verified
+verified: 2026-09-10T17:15:00Z
+status: human_needed
+score: 12/12 must-haves verified
 covered_files:
   - ".planning/REQUIREMENTS.md"
   - ".planning/phases/05-time-periods-financial-year-settings/05-01-PLAN.md"
@@ -15,6 +15,8 @@ covered_files:
   - ".planning/phases/05-time-periods-financial-year-settings/05-04-SUMMARY.md"
   - ".planning/phases/05-time-periods-financial-year-settings/05-05-PLAN.md"
   - ".planning/phases/05-time-periods-financial-year-settings/05-05-SUMMARY.md"
+  - ".planning/phases/05-time-periods-financial-year-settings/05-06-PLAN.md"
+  - ".planning/phases/05-time-periods-financial-year-settings/05-06-SUMMARY.md"
   - ".planning/phases/05-time-periods-financial-year-settings/05-CONTEXT.md"
   - ".planning/phases/05-time-periods-financial-year-settings/05-REVIEW.md"
   - ".planning/phases/05-time-periods-financial-year-settings/05-UI-SPEC.md"
@@ -44,7 +46,9 @@ covered_files:
   - "lib/dashboard/period.ts"
   - "lib/dashboard/reconciliation-drill.ts"
   - "lib/dashboard/verification-drill.ts"
+  - "lib/settings/__tests__/errors.test.ts"
   - "lib/settings/__tests__/schema.test.ts"
+  - "lib/settings/errors.ts"
   - "lib/settings/fy-settings.ts"
   - "lib/settings/schema.ts"
   - "supabase/migrations/0023_app_settings.sql"
@@ -53,28 +57,17 @@ covered_files:
   - "supabase/migrations/0026_tsys_msa_tier_seed.sql"
   - "supabase/tests/tsys_msa_tier_test.sql"
   - "types/db.ts"
-covered_digest: "v1:sha256:22c7c501ddfeb41ee37d8c4a4077da85af7c283c3dec6032ead7826d7888ef55"
+covered_digest: "v1:sha256:4297f2f111d2350d64c6899d200431372bdfba8dc78fb986b7e51e8068036e7f"
 behavior_unverified: 0
 overrides_applied: 0
-gaps:
-  - truth: "The reconciliation page's 'Enrolled today'/'Unenrolled today' figures always reflect the actual current state, or are clearly relabeled/captioned when they don't (mirroring the treatment already given to 'Live cards')"
-    status: failed
-    reason: "Confirmed in the live source: 0022's outer period predicate was added to the SAME query (v_reconciliation_inventory_daily) that feeds enrolledToday/unenrolledToday, so selecting any period other than the current month (a past month, a past year, an FY) now makes these two KPIs show the enrolled/unenrolled count as of the LAST DAY INSIDE THE SELECTED PERIOD -- which can be months or years stale -- while the on-screen label still reads 'Enrolled today'/'Unenrolled today' with no qualifying caption. The page's own sibling figure, liveCount, was correctly kept unscoped and carries an explicit 'as of latest import' caption; enrolledToday/unenrolledToday needed the identical treatment and did not get it. This is exactly the class of bug the reconciliation page exists to prevent: a plausible, confidently-labeled-as-current number that is silently wrong. Confirmed independently (not just via 05-REVIEW.md CR-01) by reading app/(dashboard)/reconciliation/page.tsx:461-472 and components/dashboard/reconciliation-inventory-table.tsx:214-225 directly."
-    artifacts:
-      - path: "app/(dashboard)/reconciliation/page.tsx"
-        issue: "enrolledToday/unenrolledToday derived from the now-period-scoped inventoryDailyRows array (lines ~461-472) with no unscoped fallback and no as-of-period-end relabeling"
-      - path: "components/dashboard/reconciliation-inventory-table.tsx"
-        issue: "Renders 'Enrolled today' / 'Unenrolled today' labels (lines ~214-225) unconditionally, with no caption qualifying the as-of date the way the adjacent 'Live cards' figure has (lines ~205-212)"
-    missing:
-      - "Either fetch enrolledToday/unenrolledToday from an UNSCOPED query (ignoring the selected period, mirroring v_inventory_live_count's pattern), keeping the 'today' label honest, OR rename the labels (e.g. 'Enrolled (period end)') and add an as-of-date caption exactly like liveCount's 'as of latest import' caption."
-  - truth: "An impossible day/month pair such as day 30 in February, when it reaches the app_settings make_date CHECK constraint directly (bypassing the client Zod form), is mapped to the UI-SPEC-documented friendly validation copy rather than a generic fallback message"
-    status: failed
-    reason: "Confirmed live against the linked Supabase project: UPDATE app_settings SET fy_start_month=2, fy_start_day=30 raises Postgres error 22008 'date field value out of range: 2001-02-30' -- NOT a 23514 check_violation, because make_date() itself raises before the CHECK expression's boolean 'is not null' test is ever reached. app/(dashboard)/settings/general/actions.ts's friendlyErrorMessage() only matches rawMessage.includes('app_settings_fy_start_day_check') or rawMessage.includes('make_date'), neither of which appears in the actual message text, so this path always falls through to the generic 'Could not save financial year settings' message instead of the documented 'Enter a valid day for the selected month...' copy. No raw constraint name leaks to the client (the security-relevant half of the must-have holds), but the specific-copy mapping does not. Low real-world exposure: the client-side Zod schema in lib/settings/schema.ts already rejects this input before the form ever submits, so this path is reachable only via a direct PostgREST/RPC call that bypasses the form -- matches 05-REVIEW.md WR-01, independently reproduced here via a live rolled-back UPDATE."
-    artifacts:
-      - path: "app/(dashboard)/settings/general/actions.ts"
-        issue: "friendlyErrorMessage() matches substrings ('app_settings_fy_start_day_check', 'make_date') that never appear in the actual Postgres 22008 error text for this constraint"
-    missing:
-      - "Match on the SQLSTATE/text Postgres actually returns for this error class (e.g. rawMessage.includes('date field value out of range')) in addition to the two existing substrings."
+re_verification:
+  previous_status: gaps_found
+  previous_score: 10/12
+  gaps_closed:
+    - "Reconciliation's 'Enrolled today'/'Unenrolled today' summary figures were period-scoped and silently stale under a present-tense label on any non-current period (05-VERIFICATION gap 1 / 05-REVIEW CR-01)"
+    - "app_settings's make_date day-validity error mapper never matched the real Postgres 22008 text, so the documented friendly copy was dead code (05-VERIFICATION gap 2 / 05-REVIEW WR-01)"
+  gaps_remaining: []
+  regressions: []
 human_verification:
   - test: "Load each of the five metric views and /settings/general at a 375px viewport with the longest financial-year scope-badge string on screen (e.g. 'FY2026-27 (6 Apr 2026 - 5 Apr 2027)')"
     expected: "The scope badge, period controls row, and (on /reconciliation) the four period-scoped tables stay readable and do not clip or overflow"
@@ -93,10 +86,13 @@ human_verification:
     why_human: "Backstop must-haves — dialog styling/token color and Select overflow behavior require a rendered browser"
   - test: "Trigger the blocked-delete path in the pricing tier editor (attempt to delete the only tier set covering the data window) from the UI"
     expected: "The exact blocked-delete toast copy is shown to the user, matching the RPC's check_violation message"
-    why_human: "The RPC-level block was independently confirmed live in this verification session (see Key Link Verification), but the toast's exact rendered copy in the browser was not — deferred per workflow.human_verify_mode=end-of-phase, consistent with every plan in this phase"
+    why_human: "The RPC-level block was independently confirmed live in a prior verification session (see 05-05 evidence), but the toast's exact rendered copy in the browser was not — deferred per workflow.human_verify_mode=end-of-phase, consistent with every plan in this phase"
   - test: "Save a financial-year change at /settings/general in the browser and watch the metric-view scope badges update"
     expected: "The FY boundary shown in the scope badge on a metric view moves to reflect the newly saved FY start after the save round-trip, with no stale badge requiring a hard reload"
-    why_human: "The underlying write path, audit trigger, and revalidatePath calls were independently confirmed live/in-code in this verification session; the rendered end-to-end browser round-trip (form submit -> toast -> badge update) was not, per 05-05-SUMMARY's D5 deferral to end-of-phase UAT"
+    why_human: "The underlying write path, audit trigger, and revalidatePath calls were independently confirmed live/in-code; the rendered end-to-end browser round-trip (form submit -> toast -> badge update) was not, per 05-05-SUMMARY's D5 deferral to end-of-phase UAT"
+  - test: "On /reconciliation, switch the period between the current month, a past month and All-time"
+    expected: "The three summary numbers (Live cards, Enrolled (latest snapshot), Unenrolled (latest snapshot)) do not change at all across those selections, while the four tables below them do; the as-of caption under Enrolled/Unenrolled shows the same day the last populated row of the card-inventory table shows when All-time is selected; at a 375px viewport the three-item strip wraps cleanly with no label or caption clipped"
+    why_human: "Harvested from 05-06-PLAN.md Task 1's deferred `<human-check>` — rendered period-invariance and viewport wrapping of the now-longer summary labels require a browser; source inspection confirms the new read carries no period predicate (proven by the grep region gate) but not the rendered visual/behavioral result"
 ---
 
 # Phase 5: Time Periods & Financial-Year Settings Verification Report
@@ -106,135 +102,165 @@ current year with a financial-year/calendar-year toggle, all time, and any previ
 year — with the financial-year start configurable in settings rather than hard-coded. Also seed
 the signed TSYS MSA tier table so revenue is priced off the real contract.
 
-**Verified:** 2026-09-10T15:45:00Z
-**Status:** gaps_found
-**Re-verification:** No — initial verification
+**Verified:** 2026-09-10T17:15:00Z
+**Status:** human_needed
+**Re-verification:** Yes — after gap closure (plan 05-06)
 
 ## Goal Achievement
 
-All verification in this report was performed independently against the live codebase and the
-live linked Supabase project (`gditxlxfdwlvnyhhxybf`) — not by trusting SUMMARY.md claims. Every
-live figure below was reproduced by this verifier via its own rolled-back SQL probes, run through
-`npx supabase db query --linked`, separately from the figures the plan SUMMARYs report.
+This is a re-verification after 05-06 closed both `status: failed` gaps recorded by the prior
+05-VERIFICATION.md. Per the re-verification protocol, the two previously-failed truths received a
+full three-level re-check (existence, substance, wiring) directly against the live source; the ten
+previously-verified truths received a regression check confirming the files backing them are
+unchanged since the prior verification pass (`git log` confirms `lib/dashboard/period.ts` and
+`supabase/migrations/0023`–`0026` were last touched in 05-01/05-02/05-03/05-04, not 05-06) plus a
+fresh run of the shared test/build gates. Nothing in this report is taken on SUMMARY.md's word —
+every claim below was independently re-read from the actual files or re-run.
 
 ### Observable Truths
 
 | # | Truth | Status | Evidence |
 |---|-------|--------|----------|
-| 1 | SC1/FY-01: Admin can set FY start (month+day) at `/settings/general` without a redeploy; the FY/CY toggle derives its boundaries from the saved value | ✓ VERIFIED | `app_settings` table live (1 row, RLS on, no delete policy); `saveFinancialYearSettings` writes through the session-scoped client; `resolveFinancialYearBounds`/`resolvePeriod` in `lib/dashboard/period.ts` consume the fetched `fyStart` param, not a hardcoded value; `revalidatePath` covers all 5 metric routes on save |
-| 2 | FY-01/D-13: Every FY-start change writes a timestamped, attributed old→new audit row via a `SECURITY DEFINER` trigger | ✓ VERIFIED | Live rolled-back probe: `UPDATE app_settings SET fy_start_month=4, fy_start_day=6` produced an `app_settings_audit` row with `old_fy_start_month=1, old_fy_start_day=1, new_fy_start_month=4, new_fy_start_day=6`; `trg_app_settings_audit` trigger confirmed present on `app_settings` via `pg_trigger` |
-| 3 | SC2/PERIOD-01: All five metric views (verifications, revenue, SLA, cards, reconciliation) accept the identical `?period=&of=&yearMode=` vocabulary and each states the active scope on screen | ✓ VERIFIED | All 5 page files import and call `resolvePeriod` before building any query, and all 5 render `<ScopeBadge period={period} />` sourced from the same resolved object used to build the query (grep-confirmed each file) |
-| 4 | SC3/PERIOD-02: Navigating to a previous month/year shows that period's figures, not the current period's | ✓ VERIFIED | Live probes (this verifier, independent of the SUMMARY): `v_verifications_daily` Aug=131 vs Sep=4436 rows; `v_sla_daily` breach_count Aug=1 vs Sep=0; `revenue_total_for_period` Aug=5.3055 vs Sep=179.6580 — genuinely different figures per month across multiple views |
-| 5 | SC5/PERIOD-03/D-06: Period scoping never changes tier maths — a year/all-time figure is the sum of per-month tiered figures | ✓ VERIFIED | Live probe: `revenue_total_for_period('2026-08-01','2026-09-01')=5.3055` + `('2026-09-01','2026-10-01')=179.6580` = `184.9635`, exactly equal to `revenue_total_for_period('2026-01-01','2027-01-01')=184.9635` and to the all-time figure; `tsys_msa_tier_test.sql`'s Block B (D-06 invariant) executed live with zero exceptions |
-| 6 | SC4/TSYS-01: The signed TSYS MSA tier table exists as one `pricing_tier_sets` row (`reset_window='monthly'`, `effective_from=2026-08-13`) with six correctly-rated tiers, and the MSA worked example (1.5M txns = $45,450) matches to the cent | ✓ VERIFIED | Live query: exactly 1 `pricing_tier_sets` row at `2026-08-13`/`monthly`; 6 `pricing_tiers` rows at 0.0405/0.0279/0.0225/0.0205/0.0189/0.0174 (sixth `upper_bound` null); this verifier independently computed the marginal-bracket sum for 1,500,000 units against the live rows and got exactly `45450.0000` |
-| 7 | TSYS-02: Tier sets are editable in place and any set can be deleted, refused when it would leave the data window uncovered | ✓ VERIFIED | Live probe: calling `delete_pricing_tier_set(id)` on the only existing tier set raised `check_violation` with the exact documented message ("this is the only tier set covering the data window..."); `delete_latest_pricing_tier_set` confirmed absent from `information_schema.routines`, the 4-arg `save_pricing_tier_set` confirmed present |
-| 8 | D-08: The FY/CY ToggleGroup is unmounted (not CSS-hidden) whenever scope is Month or All-time | ✓ VERIFIED | `components/dashboard/period-controls.tsx`: `{period.scope === "year" && (<ToggleGroup .../>)}` — a true conditional render, not a hidden/collapsed element |
-| 9 | `resolvePeriod` is pure — takes `today` as a parameter, no wall-clock/network/DOM access | ✓ VERIFIED | Code inspection of `lib/dashboard/period.ts` confirms every date helper operates on the injected `today: Date`; `npx vitest run lib/dashboard/__tests__/period.test.ts` reproduced 27/27 passing independently in this session |
-| 10 | No debt markers (TBD/FIXME/XXX/TODO/HACK/PLACEHOLDER) or "not implemented" copy in any of the 45 phase-touched files | ✓ VERIFIED | `grep` swept all 45 covered implementation files — zero matches |
-| 11 | Reconciliation's "Enrolled today"/"Unenrolled today" always reflect the actual current state, or are clearly relabeled/captioned like the sibling "Live cards" figure | ✗ FAILED | See Gaps — `app/(dashboard)/reconciliation/page.tsx` derives these from the now period-scoped `inventoryDailyRows` array with no unscoped fallback and no as-of caption |
-| 12 | 05-03 must-have: the `make_date` CHECK violation is mapped to the UI-SPEC friendly validation copy before it reaches the form | ✗ FAILED | See Gaps — live probe confirms Postgres's actual error text ("date field value out of range") never matches `friendlyErrorMessage`'s substring checks, so the generic fallback message shows instead of the specific copy |
+| 1 | SC1/FY-01: Admin can set FY start (month+day) at `/settings/general` without a redeploy; the FY/CY toggle derives its boundaries from the saved value | ✓ VERIFIED | Unchanged since prior pass — `app/(dashboard)/settings/general/actions.ts` and `lib/dashboard/period.ts` not touched by 05-06 (confirmed via `git log`); write path re-read in full this pass, unchanged in structure |
+| 2 | FY-01/D-13: Every FY-start change writes a timestamped, attributed old→new audit row via a `SECURITY DEFINER` trigger | ✓ VERIFIED | `supabase/migrations/0023_app_settings.sql` untouched since prior verification's live probe |
+| 3 | SC2/PERIOD-01: All five metric views accept the identical `?period=&of=&yearMode=` vocabulary and each states the active scope on screen | ✓ VERIFIED | 4 of 5 page files untouched by 05-06; `reconciliation/page.tsx` re-read this pass — still imports/calls `resolvePeriod` and renders `<ScopeBadge>` unchanged |
+| 4 | SC3/PERIOD-02: Navigating to a previous month/year shows that period's figures, not the current period's | ✓ VERIFIED | The four period-scoped reconciliation reads (`day_utc`/`day`/`missing_day` `.gte(period.start)`) confirmed unchanged and present exactly 4 times this pass; `lib/dashboard/period.ts` untouched |
+| 5 | SC5/PERIOD-03/D-06: Period scoping never changes tier maths — a year/all-time figure is the sum of per-month tiered figures | ✓ VERIFIED | `supabase/migrations/0024_revenue_total_for_period.sql` untouched since prior live-verified pass |
+| 6 | SC4/TSYS-01: The signed TSYS MSA tier table exists as one `pricing_tier_sets` row with six correctly-rated tiers; the MSA worked example (1.5M txns = $45,450) matches to the cent | ✓ VERIFIED | `supabase/migrations/0026_tsys_msa_tier_seed.sql` untouched since prior live-verified pass (`45450.0000` exact) |
+| 7 | TSYS-02: Tier sets are editable in place and any set can be deleted, refused when it would leave the data window uncovered | ✓ VERIFIED | `supabase/migrations/0025_pricing_tier_edit_in_place.sql` untouched since prior live-verified pass |
+| 8 | D-08: The FY/CY ToggleGroup is unmounted (not CSS-hidden) whenever scope is Month or All-time | ✓ VERIFIED | `components/dashboard/period-controls.tsx` untouched by 05-06 |
+| 9 | `resolvePeriod` is pure — takes `today` as a parameter, no wall-clock/network/DOM access | ✓ VERIFIED | `lib/dashboard/period.ts` untouched by 05-06; not re-run this pass since the orchestrator's cited `npm test` run (230/230) supersedes the prior 27/27 subset |
+| 10 | No debt markers (TBD/FIXME/XXX/TODO/HACK/PLACEHOLDER) or "not implemented" copy in any of the 51 phase-touched files | ✓ VERIFIED | Fresh `grep` swept the 5 files touched by 05-06 (`app/(dashboard)/reconciliation/page.tsx`, `components/dashboard/reconciliation-inventory-table.tsx`, `app/(dashboard)/settings/general/actions.ts`, `lib/settings/errors.ts`, `lib/settings/__tests__/errors.test.ts`) — zero matches; the other 46 files were swept in the prior pass and are unchanged |
+| 11 | (was FAILED) Reconciliation's "Enrolled"/"Unenrolled" summary figures always reflect the actual latest computable state and are clearly captioned with the day they belong to, mirroring the "Live cards" treatment | ✓ VERIFIED | Re-verified this pass: `app/(dashboard)/reconciliation/page.tsx` adds `latestInventoryResult`, an unscoped read of `v_reconciliation_inventory_daily` (`.not("enrolled_count","is",null).order("day",{ascending:false}).limit(1)`), confirmed to reference `period.` zero times between the P-07 comment and its `maybeSingle()`; the old `enrolledToday`/`unenrolledToday` reverse-scan is fully removed (zero tree-wide matches); `components/dashboard/reconciliation-inventory-table.tsx` renders `Enrolled (latest snapshot)` / `Unenrolled (latest snapshot)` with an `as of {date}` (or `no comparable day yet`) caption and the em-dash unknown-value treatment when null, matching the `Live cards` / `as of latest import` pattern exactly. All four period-scoped reads (`day_utc`/`day`/`missing_day` `.gte`) confirmed unchanged |
+| 12 | (was FAILED) An impossible day/month pair reaching the app_settings CHECK constraint directly is mapped to the UI-SPEC friendly validation copy, not a generic fallback | ✓ VERIFIED | Re-verified this pass: `lib/settings/errors.ts` now matches `"date field value out of range"` (the real Postgres 22008 text) in addition to the two original substrings; `npx vitest run lib/settings/__tests__/errors.test.ts` independently re-run in this session — 7/7 passing, including the exact-Postgres-text case and the security-guarantee case (return value always one of two exported constants, never contains input fragments); `app/(dashboard)/settings/general/actions.ts` confirmed to import and call `friendlyFinancialYearErrorMessage` from the new module, with the raw error still logged server-side via `console.error` first, and all six `revalidatePath` calls unchanged |
 
-**Score:** 10/12 truths verified (0 present-but-behavior-unverified)
+**Score:** 12/12 truths verified (0 present-but-behavior-unverified)
 
 ### Required Artifacts
 
 | Artifact | Expected | Status | Details |
 |----------|----------|--------|---------|
-| `supabase/migrations/0023_app_settings.sql` | `app_settings` singleton + audit table + RLS + trigger | ✓ VERIFIED | Live: table exists, 1 row, RLS on, trigger `trg_app_settings_audit` present |
-| `supabase/migrations/0024_revenue_total_for_period.sql` | Parameterised exact-NUMERIC period-total function | ✓ VERIFIED | Live: `revenue_total_for_period` present in `pg_proc`, `security invoker`, returns exact NUMERIC values reproduced above |
-| `supabase/migrations/0025_pricing_tier_edit_in_place.sql` | 4-arg save + generalized delete + coverage guard | ✓ VERIFIED | Live: 4-arg `save_pricing_tier_set`/`delete_pricing_tier_set` present; coverage guard confirmed to block live |
-| `supabase/migrations/0026_tsys_msa_tier_seed.sql` | Placeholder removed, TSYS six-tier set seeded | ✓ VERIFIED | Live: exactly 1 tier set at correct rates, no placeholder remains |
-| `lib/dashboard/period.ts` | Pure period resolver + boundary math | ✓ VERIFIED | Exports `resolvePeriod`, `resolveFinancialYearBounds`, etc.; wired into all 5 pages; 27/27 unit tests pass |
-| `components/dashboard/scope-badge.tsx` | Active-scope indicator | ✓ VERIFIED | Renders `Showing ${period.label}` directly from the resolved period object |
-| `components/dashboard/period-controls.tsx` | Month/Year/All-time + FY/CY controls | ✓ VERIFIED | Conditional FY/CY mount confirmed |
-| `components/dashboard/period-empty-state.tsx` | Neutral period-empty state | ✓ VERIFIED | Distinct `View current month` recovery link, no domain-empty-state upload CTA |
-| `lib/settings/fy-settings.ts` | Server-side FY reader with default fallback | ✓ VERIFIED | `fetchFinancialYearStart` reads `app_settings`, falls back to `DEFAULT_FY_START` (1 Jan) on error/no-row |
-| `app/(dashboard)/settings/general/{page,actions}.tsx` | 4-state FY editor + Server Action | ✓ VERIFIED | Wired to `financialYearSettingsSchema`, session-scoped write, `revalidatePath` for all 5 metric routes |
-| `types/db.ts` | Regenerated types incl. `app_settings`, new/changed RPCs | ✓ VERIFIED | `npx tsc --noEmit` clean, confirms types resolve against real signatures |
+| `app/(dashboard)/reconciliation/page.tsx` | Unscoped `latestInventoryResult` read feeding the summary strip, alongside the four unchanged period-scoped reads | ✓ VERIFIED | `latestInventoryResult` present, included in the combined error gate, zero period references in its region, all 4 `.gte()` period predicates intact |
+| `components/dashboard/reconciliation-inventory-table.tsx` | Date-qualified enrolled/unenrolled summary figures with as-of captions and an unknown-value treatment | ✓ VERIFIED | `enrolledLatest`/`unenrolledLatest`/`latestSnapshotDay` props, new labels, `as of {date}`/`no comparable day yet` captions, em-dash unknown treatment, `Live cards` block unchanged |
+| `lib/settings/errors.ts` | Testable financial-year settings error mapper covering the real Postgres 22008 text | ✓ VERIFIED | Plain module (no `"use server"`), exports exactly `friendlyFinancialYearErrorMessage`, `FY_SETTINGS_GENERIC_ERROR`, `FY_SETTINGS_INVALID_DAY_ERROR`; matches all 3 substrings; never echoes input |
+| `lib/settings/__tests__/errors.test.ts` | Regression test pinning the 22008 mapping and the never-leak-raw-text guarantee | ✓ VERIFIED | 7 cases, 7/7 passing, independently re-run this session |
+| `app/(dashboard)/settings/general/actions.ts` | Server Action importing the shared mapper instead of defining its own unreachable one | ✓ VERIFIED | Imports `friendlyFinancialYearErrorMessage` from `@/lib/settings/errors`, no local mapper/constant remains, `console.error` still logs raw error server-side first |
+
+(11 additional artifacts from 05-01–05-05 carried forward unchanged and re-confirmed present via
+`git log` showing no touch by 05-06: `supabase/migrations/0023`–`0026`, `lib/dashboard/period.ts`,
+`components/dashboard/scope-badge.tsx`, `components/dashboard/period-controls.tsx`,
+`components/dashboard/period-empty-state.tsx`, `lib/settings/fy-settings.ts`,
+`app/(dashboard)/settings/general/page.tsx`, `types/db.ts`.)
 
 ### Key Link Verification
 
 | From | To | Via | Status | Details |
 |------|-----|-----|--------|---------|
-| 5 metric pages | `lib/dashboard/period.ts` | `resolvePeriod(searchParams, fyStart, now)` before any query | ✓ WIRED | Grep-confirmed in all 5 page files |
-| `revenue/page.tsx` | `revenue_total_for_period` RPC | `.rpc()` call, no client-side sum | ✓ WIRED | Live call reproduced exact figures; no JS aggregation found |
-| `fy-settings-form.tsx` | `settings/general/actions.ts` | `saveFinancialYearSettings` Server Action | ✓ WIRED | Confirmed via source read |
-| `settings/general/actions.ts` | `app_settings` table | session-scoped `.update()`, fires `trg_app_settings_audit` | ✓ WIRED | Live rolled-back UPDATE produced the expected audit row |
-| `pricing-tier-form.tsx` | `save_pricing_tier_set`/`delete_pricing_tier_set` RPCs | `countRestatedDays` then RPC call | ✓ WIRED | Functions present live with correct signatures; narrow-cast workarounds removed per `types/db.ts` regeneration |
-| `0026_tsys_msa_tier_seed.sql` | `v_revenue_daily` view chain | seeded tier set resolved by `v_revenue_tier_set_by_day` | ✓ WIRED | Live Block C probe (500,050 verifications = 20251.3950) proves the real view chain reads the seeded rows, not just the formula |
+| `reconciliation/page.tsx` | `components/dashboard/reconciliation-inventory-table.tsx` | `enrolledLatest`/`unenrolledLatest`/`latestSnapshotDay` props replacing the period-derived pair | ✓ WIRED | Props threaded through the render call, confirmed by direct read of both files this pass |
+| `settings/general/actions.ts` | `lib/settings/errors.ts` | `import { friendlyFinancialYearErrorMessage } from "@/lib/settings/errors"`, called on the Supabase error message | ✓ WIRED | Confirmed via source read; `npx tsc --noEmit` re-run clean (exit 0) this pass |
+| 4 other metric pages | `lib/dashboard/period.ts` | `resolvePeriod(searchParams, fyStart, now)` before any query | ✓ WIRED | Unchanged since prior pass (files untouched by 05-06) |
 
 ### Behavioral Spot-Checks
 
 | Behavior | Command | Result | Status |
 |----------|---------|--------|--------|
-| Unit suite (period.test.ts) | `npx vitest run lib/dashboard/__tests__/period.test.ts` | 27/27 passed | ✓ PASS |
-| Full unit suite | `npm test` | 223/223 passed, 18 files | ✓ PASS |
-| Type-check | `npx tsc --noEmit` | exit 0 | ✓ PASS |
-| Production build | `npm run build` | exit 0, 14 routes incl. `/settings/general` | ✓ PASS |
-| Live TSYS assertions | `npx supabase db query --linked -f supabase/tests/tsys_msa_tier_test.sql` | zero exceptions across all 3 rolled-back blocks | ✓ PASS |
-| Live MSA worked example | rolled-back probe query against live `pricing_tiers` | `45450.0000` exact | ✓ PASS |
-| Live coverage guard | rolled-back `delete_pricing_tier_set()` call on sole covering set | `check_violation` raised with documented message | ✓ PASS |
-| Live FY audit round-trip | rolled-back `UPDATE app_settings ...` | audit row with correct old→new values | ✓ PASS |
-| Live WR-01 reproduction | rolled-back `UPDATE app_settings SET fy_start_day=30, fy_start_month=2` | raw error `22008 date field value out of range` (not matched by `friendlyErrorMessage`) | ✗ FAIL (confirms gap) |
+| FY settings error mapper (new/widened) | `npx vitest run lib/settings/__tests__/errors.test.ts` | 7/7 passed, independently re-run this session | ✓ PASS |
+| Type-check | `npx tsc --noEmit` | exit 0, independently re-run this session | ✓ PASS |
+| Region gate — new unscoped read carries no period reference | `sed -n '/P-07/,/maybeSingle/p' app/(dashboard)/reconciliation/page.tsx \| grep -c 'period\.'` | `0` | ✓ PASS |
+| Old period-derived prop names fully removed | `grep -rn 'enrolledToday\|unenrolledToday' app components lib` | no matches (exit 1 = not found) | ✓ PASS |
+| Full unit suite (orchestrator-run, cited) | `npm test` | 19 files / 230 tests, all passed | ✓ PASS (cited, not re-run) |
+| Production build (orchestrator-run, cited) | `npm run build` | passed | ✓ PASS (cited, not re-run) |
+| Regression gate over prior-phase test files (orchestrator-run, cited) | — | passed, no cross-phase regressions | ✓ PASS (cited, not re-run) |
+
+### Probe Execution
+
+Not applicable — this phase has no `scripts/*/tests/probe-*.sh` convention; the SQL assertion files
+(`supabase/tests/tsys_msa_tier_test.sql`) were verified live in the prior (initial) verification
+pass and are unchanged (untouched by 05-06, confirmed via `git log`).
 
 ### Requirements Coverage
 
 | Requirement | Source Plan | Description | Status | Evidence |
 |--------------|------------|--------------|--------|----------|
-| PERIOD-01 | 05-01, 05-02, 05-05 | Every metric view accepts the same period scope and states the active scope | ✓ SATISFIED | Truth #3 |
-| PERIOD-02 | 05-01, 05-02, 05-05 | Navigate back to previous month/year, figures are that period's | ✓ SATISFIED | Truth #4 |
+| PERIOD-01 | 05-01, 05-02, 05-05, 05-06 | Every metric view accepts the same period scope and states the active scope | ✓ SATISFIED | Truths #3, #11 |
+| PERIOD-02 | 05-01, 05-02, 05-05, 05-06 | Navigate back to previous month/year, figures are that period's | ✓ SATISFIED | Truths #4, #11 |
 | PERIOD-03 | 05-02, 05-04, 05-05 | Period scoping never changes tier maths | ✓ SATISFIED | Truth #5 |
-| FY-01 | 05-01, 05-03, 05-05 | Admin sets FY start without redeploy, audited | ✓ SATISFIED (with a related, narrow gap — see WR-01 truth #12) | Truths #1, #2 |
+| FY-01 | 05-01, 05-03, 05-05, 05-06 | Admin sets FY start without redeploy, audited; day-validity error mapped to friendly copy | ✓ SATISFIED | Truths #1, #2, #12 |
 | TSYS-01 | 05-04, 05-05 | TSYS MSA tier table seeded, worked example to the cent | ✓ SATISFIED | Truth #6 |
 | TSYS-02 | 05-04, 05-05 | Tier sets editable/deletable in place, coverage-guarded | ✓ SATISFIED | Truth #7 |
 
-No orphaned requirements — all six IDs mapped to Phase 5 in `.planning/REQUIREMENTS.md` appear in at least one plan's `requirements` frontmatter, and vice versa.
+No orphaned requirements — all six IDs mapped to Phase 5 in `.planning/REQUIREMENTS.md` appear in at
+least one plan's `requirements` frontmatter, and vice versa.
+
+**Note (informational, not a gap):** `.planning/REQUIREMENTS.md`'s per-ID table (lines 142–147)
+still shows `PERIOD-03`, `TSYS-01`, and `TSYS-02` as `Gaps Found` — a stale artifact of the prior
+`gaps_found` phase-level verdict, which reverted all six IDs regardless of which specific truths
+had actually failed. Per this re-verification, all three were independently re-confirmed
+(`Truths #5, #6, #7`) against files 05-06 did not touch, and should be restored to `Complete`
+alongside `PERIOD-01`/`PERIOD-02`/`FY-01` (already marked `Complete` per 05-06-SUMMARY.md). This
+verifier does not edit REQUIREMENTS.md directly; flagging for the orchestrator/ship workflow to
+reconcile.
 
 ### Anti-Patterns Found
 
 | File | Line | Pattern | Severity | Impact |
 |------|------|---------|----------|--------|
-| `app/(dashboard)/reconciliation/page.tsx` / `components/dashboard/reconciliation-inventory-table.tsx` | ~461-472 / ~214-225 | Silent re-scoping of a figure labeled "today" without a caption or relabel | 🛑 Blocker | A user selecting a past period on the reconciliation page — the one page whose entire purpose is flagging untrustworthy numbers — sees a stale figure confidently labeled as current. Directly undermines the project's core value ("the dashboard must make any discrepancy immediately visible"). See Gaps. |
-| `app/(dashboard)/settings/general/actions.ts` | 16-24 | Error-message substring match that never matches the real Postgres error text for the `make_date` CHECK | ⚠️ Warning | Narrow-scope: unreachable via the normal form (client Zod blocks it first), but a direct API caller sees a generic error instead of the documented specific copy. See Gaps. |
-| `lib/dashboard/period.ts` | 179-200, 287-291 | Financial-year `start` not clamped to `DATA_WINDOW_START`; two raw-table fetchers replace (not AND) their own floor with the caller-supplied range | ℹ️ Info | Currently masked by the ingestion-time DATA-06 floor (no pre-window row can exist to leak); a defense-in-depth gap, not a live bug. Noted in 05-REVIEW.md WR-02, independently confirmed by code read, not elevated to a gap here since no currently-reachable incorrect behavior results. |
-| `lib/dashboard/period.ts` | 287-291 | Current-year financial-year path resolves via wall-clock `today` while every other year resolves via 31 December, making the identical `?period=year&of=<currentYear>&yearMode=financial` URL resolve differently depending on the day it's loaded | ℹ️ Info | 05-REVIEW.md WR-03, independently confirmed by code read. A determinism/UX concern for a bookmarked link, not a data-correctness bug; no must-have explicitly requires this determinism. |
-| `supabase/migrations/0025_pricing_tier_edit_in_place.sql` | 67-70, 161-170, 209-212, 227-236 | No row lock / advisory lock around the coverage-guard check | ℹ️ Info | 05-REVIEW.md WR-05. TOCTOU window under concurrent edits; low likelihood in a 3-person internal tool. Not elevated to a gap. |
+| — | — | (prior Blocker — reconciliation stale-figure mislabeling) | — | **RESOLVED** — see Truth #11. Confirmed by direct code read this pass, not merely cited from 05-REVIEW.md |
+| — | — | (prior Warning — unreachable FY error mapping) | — | **RESOLVED** — see Truth #12. Confirmed by independent test re-run this pass |
+| `lib/dashboard/period.ts` | 179-200, 287-291 | Financial-year `start` not clamped to `DATA_WINDOW_START`; two raw-table fetchers replace (not AND) their own floor with the caller-supplied range | ℹ️ Info | Carried forward unchanged (WR-02, file untouched by 05-06). Currently masked by the ingestion-time DATA-06 floor — no reachable incorrect behavior today. |
+| `lib/dashboard/period.ts` | 287-291 | Current-year financial-year path resolves via wall-clock `today` while every other year resolves via 31 December | ℹ️ Info | Carried forward unchanged (WR-03, file untouched by 05-06). Determinism/UX concern for a bookmarked link, not a data-correctness bug. |
+| `supabase/migrations/0025_pricing_tier_edit_in_place.sql` | 67-70, 161-170, 209-212, 227-236 | No row lock / advisory lock around the coverage-guard check | ℹ️ Info | Carried forward unchanged (WR-05, file untouched by 05-06). TOCTOU window under concurrent edits; low likelihood in a 3-person internal tool. |
+| Multiple (5 TS modules + 1 SQL migration) | — | `DATA_WINDOW_START` ("2026-08-13") duplicated as an untyped literal in ≥5 places | ⚠️ Warning | New finding from 05-REVIEW.md's incremental pass (WR-06) — no single source of truth for the phase's core data-window constant. Not blocking; not in 05-06's scope (application-layer gap-closure plan, no migration/refactor authored). |
+| `supabase/migrations/0025_pricing_tier_edit_in_place.sql` | — | No committed automated test for the coverage guard (WR-04) | ⚠️ Warning | Carried forward from 05-REVIEW.md; file untouched by 05-06. |
+| `types/db.ts` | 13 | Regenerated PostgREST version string went backwards (`"14.15"` → `"14.5"`) | ℹ️ Info | Carried forward (IN-01), file untouched by 05-06. Should be confirmed against the linked project before shipping the phase, independent of this gap-closure round. |
+| `lib/dashboard/card-inventory.ts` | 153-161 | `rowsWithin`'s doc comment overstates what the function is actually exercised against | ℹ️ Info | Carried forward (IN-02), file untouched by 05-06. |
+
+None of the carried-forward items are newly evidenced blockers in this round — all sit in files
+05-06 did not touch, and none was elevated by the current code review (05-REVIEW.md: 0 critical, 5
+warning, 2 info, all pre-existing except WR-06 which is a naming/DRY finding, not a correctness
+defect).
 
 ### Human Verification Required
 
-See `human_verification` in frontmatter — 7 items, all either visual/rendering checks explicitly deferred by every plan in this phase to end-of-phase UAT (per `workflow.human_verify_mode=end-of-phase`), or `verification: backstop`-tagged must-haves that are non-inferable from source alone.
+See `human_verification` in frontmatter — 8 items. The first 7 are carried forward unchanged from
+the prior verification pass (visual/rendering checks explicitly deferred by every plan in this
+phase to end-of-phase UAT, or `verification: backstop`-tagged must-haves non-inferable from source
+alone). Item 8 is newly harvested from 05-06-PLAN.md Task 1's deferred `<human-check>` block — the
+rendered period-invariance and 375px-viewport behavior of the now-relabeled, longer reconciliation
+summary strip.
 
 ### Gaps Summary
 
-Two gaps block a clean pass, both confirmed independently against the live codebase/database in
-this verification session (not inferred from SUMMARY.md or 05-REVIEW.md alone):
+No gaps remain. Both truths the prior verification pass marked `status: failed` were re-verified
+directly against the live source in this session and are now `✓ VERIFIED`:
 
-1. **CR-01 (Blocker):** The reconciliation page's "Enrolled today"/"Unenrolled today" KPIs
-   silently became period-scoped when Phase 5 added an outer period predicate to
-   `v_reconciliation_inventory_daily`, but the UI labels still read "today" with no caption.
-   Selecting any period other than the current month shows a stale, mislabeled historical figure
-   on the one page whose job is flagging untrustworthy numbers. The page's own `liveCount` sibling
-   was correctly kept unscoped with an explicit "as of latest import" caption — `enrolledToday`/
-   `unenrolledToday` need the identical treatment.
+1. **Gap 1 (was Blocker, CR-01) — CLOSED.** `app/(dashboard)/reconciliation/page.tsx` now reads
+   `enrolledLatest`/`unenrolledLatest`/`latestSnapshotDay` from a genuinely unscoped
+   `latestInventoryResult` query (zero references to the resolved period anywhere in its chain,
+   confirmed by a region-bounded grep), replacing the old period-scoped reverse-scan derivation
+   entirely (zero tree-wide references to the removed prop names remain). The figures are relabeled
+   `Enrolled (latest snapshot)` / `Unenrolled (latest snapshot)` and carry an `as of {date}` (or
+   `no comparable day yet`) caption, plus the existing em-dash unknown-value treatment when the day
+   is not computable — mirroring the `Live cards` / `as of latest import` pattern exactly, and
+   never coalescing to a confident `0`.
 
-2. **WR-01 (Warning, narrow scope):** `app_settings`'s `make_date` CHECK constraint raises a raw
-   Postgres `22008` error (not a `23514` check_violation) for an invalid day/month pair, so the
-   Server Action's `friendlyErrorMessage()` substring match never fires and the generic fallback
-   message shows instead of the documented specific copy. No raw constraint name leaks (the
-   security-relevant half holds), and normal users never reach this path because the client-side
-   Zod schema already rejects the input before submission — but the must-have as literally stated
-   ("the make_date CHECK violation is mapped to the UI-SPEC validation copy before it is
-   returned") is not met for a direct-API caller.
+2. **Gap 2 (was Warning, WR-01) — CLOSED.** `lib/settings/errors.ts` (a new, plain, testable module)
+   now matches the real Postgres 22008 text (`date field value out of range`) in addition to the
+   two original substrings. `lib/settings/__tests__/errors.test.ts`'s 7 cases were independently
+   re-run in this session (not just cited) and all pass, including the security-guarantee case
+   (return value is always one of two exported constants, never contains any input fragment).
+   `app/(dashboard)/settings/general/actions.ts` now imports the shared mapper; the write path,
+   Zod re-validation, session-scoped client, server-side raw error log, and all six
+   `revalidatePath` calls are unchanged.
 
-Everything else — the FY-start setting end-to-end (including the live audit trigger round-trip),
-all five views sharing the period contract, previous-month/year navigation producing genuinely
-different figures, the TSYS MSA tier seed and its $45,450.00 worked example (independently
-recomputed by this verifier against the live rows), the D-06 per-month-vs-aggregate invariant, and
-the tier-set edit-in-place/delete/coverage-guard mechanics (independently triggered live) — was
-verified directly against the live database and passing test/build output, not taken on the
-SUMMARYs' word.
+The phase goal — a consistent, configurable time lens across every metric view, an admin-editable
+financial-year start, correct previous-period navigation, tier maths that never change under
+period scoping, and the seeded TSYS MSA tier table with its $45,450 worked example verified to the
+cent — is achieved. The remaining work is entirely human/browser verification of rendering and
+interaction behavior that static analysis cannot observe (see `human_verification`), none of which
+touches data correctness or the reconciliation trust guarantee this gap-closure round restored.
 
 ---
 
-*Verified: 2026-09-10T15:45:00Z*
+*Verified: 2026-09-10T17:15:00Z*
 *Verifier: Claude (gsd-verifier)*
