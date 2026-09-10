@@ -3,11 +3,11 @@ gsd_state_version: "1.0"
 milestone: v1.0
 current_phase: 05
 status: milestone_complete
-stopped_at: Phase 5 context gathered
-last_updated: "2026-09-10T09:36:03.665Z"
+stopped_at: Phase 5 UI-SPEC approved
+last_updated: "2026-09-10T10:04:42.771Z"
 last_activity: 2026-09-10
 last_activity_desc: Promoted the dual-source dashboard todo into Phases 5-7 (period/FY lens, TSYS-vs-Bit-Addict alignment, TSYS tiered volume + forecast)
-state_head: bbc2f359aa9d76a92433225060f9902600e0e265
+state_head: 8e329338d3598a51fa7fb550666baf99a947d2d9
 progress:
   total_phases: 7
   completed_phases: 2
@@ -113,6 +113,6 @@ Items acknowledged and carried forward from previous milestone close:
 
 ## Session Continuity
 
-Last session: 2026-09-10T09:36:03.413Z
-Stopped at: Phase 5 context gathered
-Resume file: .planning/phases/05-time-periods-financial-year-settings/05-CONTEXT.md
+Last session: 2026-09-10T10:04:42.518Z
+Stopped at: Phase 5 UI-SPEC approved
+Resume file: .planning/phases/05-time-periods-financial-year-settings/05-UI-SPEC.md
