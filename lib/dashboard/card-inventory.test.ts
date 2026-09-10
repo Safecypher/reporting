@@ -1,10 +1,12 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  DATA_WINDOW_START_DATE,
   firstSeenByCard,
   latestSnapshot,
   netChange,
   removalSeries,
+  rowsWithin,
   snapshotSeries,
   type CardInventoryRow,
   type RemovedCardRow,
@@ -145,5 +147,78 @@ describe("netChange", () => {
 
   it("returns an empty array for an empty series", () => {
     expect(netChange([])).toEqual([]);
+  });
+});
+
+describe("rowsWithin", () => {
+  it("keeps only rows whose date is >= start and < end (half-open window)", () => {
+    const rows: CardInventoryRow[] = [
+      row("2026-08-31", "card-1"),
+      row("2026-09-01", "card-2"),
+      row("2026-09-15", "card-3"),
+      row("2026-09-30", "card-4"),
+      row("2026-10-01", "card-5"),
+    ];
+
+    expect(rowsWithin(rows, "2026-09-01", "2026-10-01", (r) => r.report_date)).toEqual([
+      row("2026-09-01", "card-2"),
+      row("2026-09-15", "card-3"),
+      row("2026-09-30", "card-4"),
+    ]);
+  });
+
+  it("keeps every row on or after start when end is null (open-ended window)", () => {
+    const rows: CardInventoryRow[] = [
+      row("2026-08-31", "card-1"),
+      row("2026-09-01", "card-2"),
+      row("2026-12-25", "card-3"),
+    ];
+
+    expect(rowsWithin(rows, "2026-09-01", null, (r) => r.report_date)).toEqual([
+      row("2026-09-01", "card-2"),
+      row("2026-12-25", "card-3"),
+    ]);
+  });
+
+  it("returns an empty array when no rows fall inside the window", () => {
+    const rows: CardInventoryRow[] = [row("2026-08-01", "card-1")];
+
+    expect(rowsWithin(rows, "2026-09-01", "2026-10-01", (r) => r.report_date)).toEqual([]);
+  });
+});
+
+describe("rowsWithin composed with latestSnapshot (P-02 as-of-period-end KPI rule)", () => {
+  // Mirrors fetchCardInventoryRowsUpTo(supabase, period.end)'s DB-side
+  // filter: a lower bound at the data-window floor, an optional exclusive
+  // upper bound at the period end — expressed here as rowsWithin so the
+  // composition is unit-testable without a network call.
+  const rowsUpTo = (rows: CardInventoryRow[], endExclusive: string | null) =>
+    rowsWithin(rows, DATA_WINDOW_START_DATE, endExclusive, (r) => r.report_date);
+
+  const fixture: CardInventoryRow[] = [
+    ...Array.from({ length: 10 }, (_, i) => row("2026-08-20", `aug-card-${i}`)),
+    ...Array.from({ length: 12 }, (_, i) => row("2026-09-02", `sep-card-${i}`)),
+  ];
+
+  it("returns the most recent snapshot at or before the period end, even when it predates the period start", () => {
+    // October 2026 period: [2026-10-01, 2026-11-01) — no snapshot inside
+    // it, but the 2 Sep snapshot is the latest one at-or-before 2026-11-01.
+    const octoberRowsUpToEnd = rowsUpTo(fixture, "2026-11-01");
+
+    const result = latestSnapshot(octoberRowsUpToEnd);
+
+    expect(result?.day).toBe("2026-09-02");
+    expect(result?.references).toHaveLength(12);
+  });
+
+  it("excludes a later snapshot that falls after the period end", () => {
+    // August 2026 period: [2026-08-01, 2026-09-01) — the 2 Sep snapshot is
+    // AFTER the period end and must not leak into the KPI.
+    const augustRowsUpToEnd = rowsUpTo(fixture, "2026-09-01");
+
+    const result = latestSnapshot(augustRowsUpToEnd);
+
+    expect(result?.day).toBe("2026-08-20");
+    expect(result?.references).toHaveLength(10);
   });
 });
