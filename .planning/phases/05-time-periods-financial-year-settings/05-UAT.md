@@ -67,7 +67,9 @@ blocked: 0
 
 - gap_id: G-05-OBS1
   truth: "The app shell's navigation is reachable at mobile viewport widths (<768px)"
-  status: failed
+  status: resolved
+  resolved_by: 05-08-PLAN.md
+  resolved_at: 2026-09-10
   reason: "User reported during test 1: 'at 375px wide, there's no visible nav'"
   severity: major
   test: 1
@@ -82,7 +84,11 @@ blocked: 0
 
 - gap_id: G-05-5
   truth: "Editing an existing tier set's rate surfaces the restate warning dialog before changing already-elapsed pricing"
-  status: failed
+  status: resolved
+  resolved_by: 05-07-PLAN.md
+  resolved_at: 2026-09-10
+  note: "Create path closed. The sibling EDIT path remains open — tracked as G-05-CR01 below."
+
   reason: "User reported: 'Updating tier 1's rate and saving simply saved. Attempting to backdate a chanege to 13/08 showed the message (in red) A pricing tier set already exists for this date.'"
   severity: major
   test: 5
@@ -97,3 +103,23 @@ blocked: 0
     - "Warn when a new tier set would supersede an active set from a date that already carries revenue activity, even though the set itself is new"
     - "Re-tone the effective_from collision message from destructive-red to warning"
   live_data_impact: "A stray 2-tier set (0633b2d8, effective 2026-09-10, 8.5c/9c) was created during this test and was overriding the MSA ladder. Deleted via delete_pricing_tier_set RPC with user approval; MSA worked example re-verified at 45450.0000 exactly."
+
+- gap_id: G-05-CR01
+  truth: "Moving an existing tier set's effective_from across another tier set's date warns before silently reassigning pricing authority for the days between them"
+  status: failed
+  reason: "Code review CR-01 (BLOCKER), 05-REVIEW.md, round 2. Independently confirmed by the orchestrator."
+  severity: blocker
+  source: code-review
+  root_cause: "lib/pricing/restate-scope.ts resolveEditImpact() hardcodes `supersedes: null` and its doc comment claims an edit 'never displaces a different one'. That is false when two or more tier sets exist: v_revenue_tier_set_by_day (supabase/migrations/0012, `where effective_from <= day order by effective_from desc limit 1`) resolves pricing per day by relative effective_from ordering, so moving set B's effective_from back across set A transfers pricing authority for the intervening days with no warning. Migration 0025's UPDATE path guards only the data-window floor, not reordering. 05-07 deliberately scoped itself to the create path."
+  artifacts:
+    - path: "lib/pricing/restate-scope.ts"
+      issue: "resolveEditImpact always returns supersedes: null; doc comment at lines 66-68 is factually wrong for the multi-set case"
+    - path: "lib/pricing/__tests__/restate-scope.test.ts"
+      issue: "Test at line 143 ('never returns null and never returns a non-null supersedes for an edit') PINS the incomplete behaviour as correct — a future fix must delete a passing test"
+    - path: "app/(dashboard)/settings/pricing/actions.ts"
+      issue: "isValidCalendarDate (line 157) does no calendar validation — Date.parse('2026-02-30T00:00:00Z') returns a valid timestamp, not NaN — despite its name and the comment claiming a 'shape-plus-calendar round trip'"
+  missing:
+    - "Compute supersedes for the edit path when the move crosses another tier set's effective_from"
+    - "Replace the test that pins supersedes: null for edits with cases covering an edit across a differently-dated existing set"
+    - "Make isValidCalendarDate actually validate the calendar, or rename it and correct the comment"
+  reachability: "Not reachable today (one tier set exists). Reachable as soon as a second is created, which TSYS-02 explicitly supports."
