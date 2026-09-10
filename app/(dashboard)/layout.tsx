@@ -2,6 +2,7 @@ import Image from "next/image";
 import { redirect } from "next/navigation";
 
 import { createClient } from "@/lib/supabase/server";
+import { MobileNavBar } from "@/components/app-shell/mobile-nav-bar";
 import { SidebarNav } from "@/components/app-shell/sidebar-nav";
 import { SignOutButton } from "@/components/app-shell/sign-out-button";
 import { Separator } from "@/components/ui/separator";
@@ -51,7 +52,8 @@ export default async function DashboardLayout({
         </SidebarFooter>
       </Sidebar>
       <SidebarInset>
-        <main className="flex flex-1 flex-col">{children}</main>
+        <MobileNavBar />
+        <div className="flex flex-1 flex-col">{children}</div>
       </SidebarInset>
     </SidebarProvider>
   );
