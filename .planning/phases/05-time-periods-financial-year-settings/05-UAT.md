@@ -106,7 +106,10 @@ blocked: 0
 
 - gap_id: G-05-CR01
   truth: "Moving an existing tier set's effective_from across another tier set's date warns before silently reassigning pricing authority for the days between them"
-  status: failed
+  status: resolved
+  resolved_by: 05-09-PLAN.md
+  resolved_at: 2026-09-10
+  verified_by: "05-REVIEW.md round 3 — reviewer hand-traced resolveEditImpact against migration 0012 for all five scenarios including the backdating case; WR-01 calendar guard also confirmed closed
   reason: "Code review CR-01 (BLOCKER), 05-REVIEW.md, round 2. Independently confirmed by the orchestrator."
   severity: blocker
   source: code-review
@@ -123,3 +126,30 @@ blocked: 0
     - "Replace the test that pins supersedes: null for edits with cases covering an edit across a differently-dated existing set"
     - "Make isValidCalendarDate actually validate the calendar, or rename it and correct the comment"
   reachability: "Not reachable today (one tier set exists). Reachable as soon as a second is created, which TSYS-02 explicitly supports."
+
+## Known Open (accepted, not blocking Phase 5)
+
+Recorded 2026-09-10 by explicit user decision after code-review round 3. Neither can misprice
+revenue; both are disclosure/copy defects in the tier-editor save dialog. The decision to stop
+the incremental gap-closure loop was taken because rounds 1-3 each found a new defect in this
+same surface, which is evidence the save path wants one deliberate design pass rather than a
+fourth patch.
+
+- id: WR-08
+  source: 05-REVIEW.md round 3
+  summary: "resolveEditImpact's `supersedes` names only the immediately-crossed neighbour. With 3+ tier sets, a backdate can cede the edited set's own future territory to a further, unnamed set. The affected-day count stays accurate; the dialog copy just never names that third set."
+  severity: warning
+  impact: "Under-disclosure in a confirmation dialog. No mispricing — the count and the gate are correct."
+
+- id: WR-09
+  source: 05-REVIEW.md round 3
+  summary: "The new edit-supersede dialog reintroduces WR-02's defect class: self-referential 'supersedes itself' copy when the proposed date lands exactly on another set's effective_from. 05-09 guarded this for the create path but not the edit path it added. restate-scope.test.ts:274-282 pins the behaviour that produces it."
+  severity: warning
+  impact: "Confusing copy before the server's real duplicate-key rejection fires. No mispricing."
+
+- id: WR-02
+  source: 05-REVIEW.md round 2, still open
+  summary: "Create-mode exact-date-collision produces the same self-referential copy."
+  severity: warning
+
+- follow_up: "Tier-editor save-path design review — create/edit modes, supersede disclosure, collision handling — rather than further finding-by-finding patches."
