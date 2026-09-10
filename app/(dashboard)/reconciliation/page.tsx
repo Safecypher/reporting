@@ -17,6 +17,9 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
 import { Skeleton } from "@/components/ui/skeleton";
+import { ScopeBadge } from "@/components/dashboard/scope-badge";
+import { PeriodControls } from "@/components/dashboard/period-controls";
+import { PeriodEmptyState } from "@/components/dashboard/period-empty-state";
 import { createClient } from "@/lib/supabase/server";
 import { parseDrillParams } from "@/lib/dashboard/drill-params";
 import {
@@ -24,6 +27,13 @@ import {
   fetchReconciliationInventoryDrillRows,
 } from "@/lib/dashboard/reconciliation-drill";
 import type { ReconciliationStatus } from "@/lib/dashboard/reconciliation-status";
+import {
+  monthOptions as buildMonthOptions,
+  yearOptions as buildYearOptions,
+  resolvePeriod,
+  type ResolvedPeriod,
+} from "@/lib/dashboard/period";
+import { fetchFinancialYearStart } from "@/lib/settings/fy-settings";
 
 export const metadata: Metadata = {
   title: "Reconciliation — Safecypher Reporting",
@@ -84,9 +94,21 @@ function FreshnessBadge({ uploadedAt }: { uploadedAt: string | null }) {
   );
 }
 
-function PageHeader({ uploadedAt }: { uploadedAt: string | null }) {
+type PeriodOption = { value: string; label: string };
+
+function PageHeader({
+  uploadedAt,
+  period,
+  monthOptions,
+  yearOptions,
+}: {
+  uploadedAt: string | null;
+  period: ResolvedPeriod | null;
+  monthOptions: PeriodOption[];
+  yearOptions: PeriodOption[];
+}) {
   return (
-    <div className="flex flex-col gap-2 border-b border-border pb-4">
+    <div className="flex flex-col gap-3 border-b border-border pb-4">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <p className="text-xs font-medium uppercase tracking-[0.12em] text-primary">
@@ -94,8 +116,14 @@ function PageHeader({ uploadedAt }: { uploadedAt: string | null }) {
           </p>
           <h1 className="text-2xl font-medium text-foreground">Reconciliation</h1>
         </div>
-        <FreshnessBadge uploadedAt={uploadedAt} />
+        <div className="flex flex-wrap items-center gap-2">
+          {period && <ScopeBadge period={period} />}
+          <FreshnessBadge uploadedAt={uploadedAt} />
+        </div>
       </div>
+      {period && (
+        <PeriodControls period={period} monthOptions={monthOptions} yearOptions={yearOptions} />
+      )}
       <p className="max-w-2xl text-sm font-light text-muted-foreground">{PAGE_SUB_HEADING}</p>
       <p className="text-sm font-light text-muted-foreground">{DATA_WINDOW_CAPTION}</p>
     </div>
@@ -226,37 +254,105 @@ async function ReconciliationBody({ searchParams }: { searchParams: PageSearchPa
   const isBillingDrill = drillFilter?.drill === "recon-billing";
   const isInventoryDrill = drillFilter?.drill === "recon-inventory";
 
+  // D-01/D-05: resolve the period BEFORE any query is built — `now` is
+  // captured once here from the runtime clock and passed in, so
+  // `resolvePeriod` itself stays pure (no wall-clock access inside it).
+  const now = new Date();
+  const fyStart = await fetchFinancialYearStart(supabase);
+  const period = resolvePeriod(params, fyStart, now);
+  const monthOptions = buildMonthOptions(now);
+  const yearOptions = buildYearOptions(now);
+
+  // RESEARCH Pattern 1 / D-04 (binding): an outer .gte()/.lt() predicate on
+  // each unchanged view's OUTPUT rows — never a rewrite of any view. The
+  // settling and no_source_data state machines in 0018/0021/0022 derive
+  // `settled`/`status` from max(day_utc) of the FULL underlying count views
+  // computed INSIDE the view, before this predicate ever applies; narrowing
+  // the period therefore changes only which rows are displayed, never the
+  // status values rendered — a day that reads "Mismatch" on the all-time
+  // view cannot become "OK" just because the period was narrowed to its own
+  // month. v_inventory_live_count is deliberately excluded from this
+  // predicate (P-06, below).
+  let billingQuery = supabase
+    .from("v_reconciliation_billing_daily")
+    .select("day_utc, billing_count, verification_count, delta, status")
+    .gte("day_utc", period.start);
+  if (period.end !== null) {
+    billingQuery = billingQuery.lt("day_utc", period.end);
+  }
+
+  let inventoryQuery = supabase
+    .from("v_reconciliation_inventory_daily")
+    .select("day, enrolled_count, unenrolled_count, removed_count, delta, status")
+    .gte("day", period.start);
+  if (period.end !== null) {
+    inventoryQuery = inventoryQuery.lt("day", period.end);
+  }
+
+  let apigeeQuery = supabase
+    .from("v_apigee_cross_check")
+    .select(
+      "day_utc, endpoint_category, mapped_metric, apigee_count, mapped_count, error_500_count, status",
+    )
+    .gte("day_utc", period.start);
+  if (period.end !== null) {
+    apigeeQuery = apigeeQuery.lt("day_utc", period.end);
+  }
+
+  let gapDaysQuery = supabase
+    .from("v_inventory_gap_days")
+    .select("missing_day")
+    .gte("missing_day", period.start);
+  if (period.end !== null) {
+    gapDaysQuery = gapDaysQuery.lt("missing_day", period.end);
+  }
+
   const [
     billingDailyResult,
     inventoryDailyResult,
     apigeeResult,
     gapDaysResult,
+    // UNSCOPED existence probes (never a period predicate) — distinguish
+    // "no reconciliation data at all" (EmptyState, widened four-source
+    // check per 04-03) from "data exists, this period has none"
+    // (PeriodEmptyState). A narrow period must never masquerade as a
+    // totally-empty view.
+    billingDomainProbe,
+    inventoryDomainProbe,
+    apigeeDomainProbe,
+    gapDomainProbe,
+    // P-06: v_inventory_live_count stays UNSCOPED — it is a cumulative
+    // as-of-latest-snapshot stock figure derived from every snapshot, not a
+    // period-flow quantity; re-scoping it to a past month would silently
+    // change what the number means while keeping the same label.
     liveCountResult,
     freshnessResult,
     billingDrillResult,
     inventoryDrillResult,
   ] = await Promise.all([
+    billingQuery.order("day_utc", { ascending: true }).returns<ReconciliationBillingViewRow[]>(),
+    inventoryQuery.order("day", { ascending: true }).returns<ReconciliationInventoryViewRow[]>(),
+    apigeeQuery.order("day_utc", { ascending: true }).returns<ApigeeCrossCheckViewRow[]>(),
+    gapDaysQuery.order("missing_day", { ascending: true }).returns<InventoryGapViewRow[]>(),
     supabase
       .from("v_reconciliation_billing_daily")
-      .select("day_utc, billing_count, verification_count, delta, status")
-      .order("day_utc", { ascending: true })
+      .select("day_utc", { count: "exact", head: true })
+      .limit(1)
       .returns<ReconciliationBillingViewRow[]>(),
     supabase
       .from("v_reconciliation_inventory_daily")
-      .select("day, enrolled_count, unenrolled_count, removed_count, delta, status")
-      .order("day", { ascending: true })
+      .select("day", { count: "exact", head: true })
+      .limit(1)
       .returns<ReconciliationInventoryViewRow[]>(),
     supabase
       .from("v_apigee_cross_check")
-      .select(
-        "day_utc, endpoint_category, mapped_metric, apigee_count, mapped_count, error_500_count, status",
-      )
-      .order("day_utc", { ascending: true })
+      .select("day_utc", { count: "exact", head: true })
+      .limit(1)
       .returns<ApigeeCrossCheckViewRow[]>(),
     supabase
       .from("v_inventory_gap_days")
-      .select("missing_day")
-      .order("missing_day", { ascending: true })
+      .select("missing_day", { count: "exact", head: true })
+      .limit(1)
       .returns<InventoryGapViewRow[]>(),
     supabase
       .from("v_inventory_live_count")
@@ -272,10 +368,16 @@ async function ReconciliationBody({ searchParams }: { searchParams: PageSearchPa
       .returns<IngestedFileFreshness[]>()
       .maybeSingle(),
     isBillingDrill
-      ? fetchReconciliationBillingDrillRows(supabase, drillFilter.date)
+      ? fetchReconciliationBillingDrillRows(supabase, drillFilter.date, {
+          start: period.start,
+          end: period.end,
+        })
       : Promise.resolve(EMPTY_BILLING_DRILL_RESULT),
     isInventoryDrill
-      ? fetchReconciliationInventoryDrillRows(supabase, drillFilter.date)
+      ? fetchReconciliationInventoryDrillRows(supabase, drillFilter.date, {
+          start: period.start,
+          end: period.end,
+        })
       : Promise.resolve(EMPTY_INVENTORY_DRILL_RESULT),
   ]);
 
@@ -286,12 +388,16 @@ async function ReconciliationBody({ searchParams }: { searchParams: PageSearchPa
     inventoryDailyResult.error ||
     apigeeResult.error ||
     gapDaysResult.error ||
+    billingDomainProbe.error ||
+    inventoryDomainProbe.error ||
+    apigeeDomainProbe.error ||
+    gapDomainProbe.error ||
     liveCountResult.error ||
     freshnessResult.error
   ) {
     return (
       <>
-        <PageHeader uploadedAt={null} />
+        <PageHeader uploadedAt={null} period={null} monthOptions={[]} yearOptions={[]} />
         <ErrorState />
       </>
     );
@@ -369,11 +475,21 @@ async function ReconciliationBody({ searchParams }: { searchParams: PageSearchPa
   const hasMismatches = billingDailyRows.some((row) => row.status !== "ok");
   const hasInventoryFlags = inventoryDailyRows.some((row) => row.status !== "ok");
 
-  // Widened empty-state check (04-03): EmptyState shows only when NONE of
-  // the four contributing sources (billing recon, inventory recon, gap
-  // days, APIGEE) have any data -- not just the billing source (04-02
-  // checked billing only; UI-SPEC binding requires all four here).
-  const isEmpty =
+  // Widened empty-state check (04-03), now domain-wide (UNSCOPED probes) so
+  // a narrow period selection can never make an otherwise-populated set of
+  // sources look like it has no data at all: EmptyState shows only when
+  // NONE of the four contributing sources (billing recon, inventory recon,
+  // gap days, APIGEE) have any data, ever.
+  const isEmptyDomain =
+    (billingDomainProbe.count ?? 0) === 0 &&
+    (inventoryDomainProbe.count ?? 0) === 0 &&
+    (gapDomainProbe.count ?? 0) === 0 &&
+    (apigeeDomainProbe.count ?? 0) === 0;
+
+  // Period-empty (Phase 5): the sources have rows overall, but every
+  // period-scoped read came back empty for the selected period.
+  const isPeriodEmpty =
+    !isEmptyDomain &&
     billingDailyRows.length === 0 &&
     inventoryDailyRows.length === 0 &&
     gapRows.length === 0 &&
@@ -386,9 +502,16 @@ async function ReconciliationBody({ searchParams }: { searchParams: PageSearchPa
 
   return (
     <>
-      <PageHeader uploadedAt={uploadedAt} />
-      {isEmpty ? (
+      <PageHeader
+        uploadedAt={uploadedAt}
+        period={period}
+        monthOptions={monthOptions}
+        yearOptions={yearOptions}
+      />
+      {isEmptyDomain ? (
         <EmptyState />
+      ) : isPeriodEmpty ? (
+        <PeriodEmptyState viewNoun="reconciliation data" period={period} />
       ) : (
         <div className="flex flex-col gap-6">
           <Card>

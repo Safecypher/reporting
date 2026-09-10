@@ -8,11 +8,21 @@ import {
 } from "@/components/dashboard/sla-breach-drill-sheet";
 import { SlaBreachTable, type SlaBreachRow } from "@/components/dashboard/sla-breach-table";
 import { SlaViewControls } from "@/components/dashboard/sla-view-controls";
+import { ScopeBadge } from "@/components/dashboard/scope-badge";
+import { PeriodControls } from "@/components/dashboard/period-controls";
+import { PeriodEmptyState } from "@/components/dashboard/period-empty-state";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { createClient } from "@/lib/supabase/server";
 import type { SlaDailyRow } from "@/lib/dashboard/sla-bucketing";
 import { parseDrillParams } from "@/lib/dashboard/drill-params";
+import {
+  monthOptions as buildMonthOptions,
+  yearOptions as buildYearOptions,
+  resolvePeriod,
+  type ResolvedPeriod,
+} from "@/lib/dashboard/period";
+import { fetchFinancialYearStart } from "@/lib/settings/fy-settings";
 
 export const metadata: Metadata = {
   title: "SLA — Safecypher Reporting",
@@ -55,9 +65,21 @@ function FreshnessBadge({ uploadedAt }: { uploadedAt: string | null }) {
   );
 }
 
-function PageHeader({ uploadedAt }: { uploadedAt: string | null }) {
+type PeriodOption = { value: string; label: string };
+
+function PageHeader({
+  uploadedAt,
+  period,
+  monthOptions,
+  yearOptions,
+}: {
+  uploadedAt: string | null;
+  period: ResolvedPeriod | null;
+  monthOptions: PeriodOption[];
+  yearOptions: PeriodOption[];
+}) {
   return (
-    <div className="flex flex-col gap-2 border-b border-border pb-4">
+    <div className="flex flex-col gap-3 border-b border-border pb-4">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <p className="text-xs font-medium uppercase tracking-[0.12em] text-primary">
@@ -65,8 +87,14 @@ function PageHeader({ uploadedAt }: { uploadedAt: string | null }) {
           </p>
           <h1 className="text-2xl font-medium text-foreground">SLA</h1>
         </div>
-        <FreshnessBadge uploadedAt={uploadedAt} />
+        <div className="flex flex-wrap items-center gap-2">
+          {period && <ScopeBadge period={period} />}
+          <FreshnessBadge uploadedAt={uploadedAt} />
+        </div>
       </div>
+      {period && (
+        <PeriodControls period={period} monthOptions={monthOptions} yearOptions={yearOptions} />
+      )}
       <p className="text-sm font-light text-muted-foreground">
         {DATA_WINDOW_CAPTION}
       </p>
@@ -162,17 +190,27 @@ type PageSearchParams = Promise<{ [key: string]: string | string[] | undefined }
 async function fetchSlaBreachDrillRows(
   supabase: Awaited<ReturnType<typeof createClient>>,
   date: string | undefined,
+  range?: { start: string; end: string | null },
 ): Promise<SlaBreachDrillRow[]> {
   if (!date) return [];
 
   const dayStart = `${date}T00:00:00Z`;
   const dayEnd = new Date(new Date(dayStart).getTime() + 24 * 60 * 60 * 1000).toISOString();
 
-  const { data, error } = await supabase
+  let query = supabase
     .from("v_sla_breaches")
     .select("created_at, external_card_reference, duration_ms")
     .gte("created_at", dayStart)
-    .lt("created_at", dayEnd)
+    .lt("created_at", dayEnd);
+
+  if (range) {
+    query = query.gte("created_at", `${range.start}T00:00:00Z`);
+    if (range.end) {
+      query = query.lt("created_at", `${range.end}T00:00:00Z`);
+    }
+  }
+
+  const { data, error } = await query
     .order("created_at", { ascending: false })
     .returns<SlaBreachViewRow[]>();
 
@@ -200,35 +238,74 @@ async function SlaBody({ searchParams }: { searchParams: PageSearchParams }) {
   const drillFilter = parseDrillParams(params);
   const isSlaBreachDrill = drillFilter?.drill === "sla-breach";
 
-  const [dailyResult, breachResult, freshnessResult, drillRows] = await Promise.all([
-    supabase
-      .from("v_sla_daily")
-      .select("day_utc, avg_duration_ms, breach_count")
-      .order("day_utc", { ascending: true })
-      .returns<SlaDailyViewRow[]>(),
-    supabase
-      .from("v_sla_breaches")
-      .select("created_at, external_card_reference, duration_ms")
-      .order("created_at", { ascending: false })
-      .returns<SlaBreachViewRow[]>(),
-    supabase
-      .from("ingested_files")
-      .select("uploaded_at")
-      .eq("status", "done")
-      .order("uploaded_at", { ascending: false })
-      .limit(1)
-      .returns<IngestedFileFreshness[]>()
-      .maybeSingle(),
-    isSlaBreachDrill
-      ? fetchSlaBreachDrillRows(supabase, drillFilter.date)
-      : Promise.resolve<SlaBreachDrillRow[]>([]),
-  ]);
+  // D-01/D-05: resolve the period BEFORE any query is built — `now` is
+  // captured once here from the runtime clock and passed in, so
+  // `resolvePeriod` itself stays pure (no wall-clock access inside it).
+  const now = new Date();
+  const fyStart = await fetchFinancialYearStart(supabase);
+  const period = resolvePeriod(params, fyStart, now);
+  const monthOptions = buildMonthOptions(now);
+  const yearOptions = buildYearOptions(now);
+  const periodEndInstant = period.end !== null ? `${period.end}T00:00:00Z` : null;
+
+  // RESEARCH Pattern 1: outer .gte()/.lt() predicates on the unchanged
+  // v_sla_daily / v_sla_breaches views — never a rewrite of either view.
+  // v_sla_breaches' created_at is timestamptz, so the resolved date bounds
+  // are converted to UTC instants before filtering.
+  let dailyQuery = supabase
+    .from("v_sla_daily")
+    .select("day_utc, avg_duration_ms, breach_count")
+    .gte("day_utc", period.start);
+  if (period.end !== null) {
+    dailyQuery = dailyQuery.lt("day_utc", period.end);
+  }
+
+  let breachQuery = supabase
+    .from("v_sla_breaches")
+    .select("created_at, external_card_reference, duration_ms")
+    .gte("created_at", `${period.start}T00:00:00Z`);
+  if (periodEndInstant !== null) {
+    breachQuery = breachQuery.lt("created_at", periodEndInstant);
+  }
+
+  const [dailyResult, breachResult, domainActivityResult, freshnessResult, drillRows] =
+    await Promise.all([
+      dailyQuery.order("day_utc", { ascending: true }).returns<SlaDailyViewRow[]>(),
+      breachQuery.order("created_at", { ascending: false }).returns<SlaBreachViewRow[]>(),
+      // UNSCOPED existence probe (never a period predicate) — distinguishes
+      // "no SLA data at all" (EmptyState) from "SLA data exists, this
+      // period has none" (PeriodEmptyState).
+      supabase
+        .from("v_sla_daily")
+        .select("day_utc", { count: "exact", head: true })
+        .limit(1)
+        .returns<SlaDailyViewRow[]>(),
+      supabase
+        .from("ingested_files")
+        .select("uploaded_at")
+        .eq("status", "done")
+        .order("uploaded_at", { ascending: false })
+        .limit(1)
+        .returns<IngestedFileFreshness[]>()
+        .maybeSingle(),
+      isSlaBreachDrill
+        ? fetchSlaBreachDrillRows(supabase, drillFilter.date, {
+            start: period.start,
+            end: period.end,
+          })
+        : Promise.resolve<SlaBreachDrillRow[]>([]),
+    ]);
 
   // Query error renders ErrorState, never a silent zero (4-state contract).
-  if (dailyResult.error || breachResult.error || freshnessResult.error) {
+  if (
+    dailyResult.error ||
+    breachResult.error ||
+    domainActivityResult.error ||
+    freshnessResult.error
+  ) {
     return (
       <>
-        <PageHeader uploadedAt={null} />
+        <PageHeader uploadedAt={null} period={null} monthOptions={[]} yearOptions={[]} />
         <ErrorState />
       </>
     );
@@ -254,12 +331,20 @@ async function SlaBody({ searchParams }: { searchParams: PageSearchParams }) {
     }));
 
   const uploadedAt = freshnessResult.data?.uploaded_at ?? null;
+  const hasSlaData = (domainActivityResult.count ?? 0) > 0;
 
   return (
     <>
-      <PageHeader uploadedAt={uploadedAt} />
-      {dailyRows.length === 0 ? (
+      <PageHeader
+        uploadedAt={uploadedAt}
+        period={period}
+        monthOptions={monthOptions}
+        yearOptions={yearOptions}
+      />
+      {!hasSlaData ? (
         <EmptyState />
+      ) : dailyRows.length === 0 ? (
+        <PeriodEmptyState viewNoun="SLA data" period={period} />
       ) : (
         <>
           <SlaViewControls dailyRows={dailyRows} />

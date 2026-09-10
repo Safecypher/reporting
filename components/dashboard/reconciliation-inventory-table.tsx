@@ -202,6 +202,14 @@ export function ReconciliationInventoryTable({
           <span className="font-mono text-lg tabular-nums text-foreground">
             {liveCount.toLocaleString()}
           </span>
+          {/* P-06: this is the ONE unscoped figure on the page — it stays a
+              cumulative as-of-latest-snapshot stock quantity regardless of
+              the selected period, so the caption says so out loud rather
+              than letting the number silently claim to belong to the
+              period shown above it. */}
+          <span className="text-[11px] font-light text-muted-foreground">
+            as of latest import
+          </span>
         </div>
         <div className="flex flex-col gap-0.5">
           <span className="text-xs font-light text-muted-foreground">Enrolled today</span>

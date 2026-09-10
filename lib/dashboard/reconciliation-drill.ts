@@ -64,34 +64,57 @@ const EMPTY_RESULT: ReconciliationBillingDrillFetchResult = {
  * string (from `parseDrillParams`) -- this function only ever builds
  * `.gte()`/`.lt()` day-range filters from it, never a string-interpolated
  * query fragment.
+ *
+ * `range` (Phase 5, D-04): an additional bound, never a replacement -- when
+ * a specific drill `date` is supplied the date filter still wins (the drill
+ * is always for exactly one day); `range` only matters when this fetcher is
+ * ever called without a `date` in the future. Mirrors
+ * `verification-drill.ts`'s `fetchVerificationDrillRows` optional-range
+ * addition so a drill opened from a period-scoped reconciliation table never
+ * lists rows the scope badge above it doesn't claim to cover.
  */
 export async function fetchReconciliationBillingDrillRows(
   supabase: Awaited<ReturnType<typeof createClient>>,
   date: string | undefined,
+  range?: { start: string; end: string | null },
 ): Promise<ReconciliationBillingDrillFetchResult> {
   if (!date) return EMPTY_RESULT;
 
   const dayStart = `${date}T00:00:00Z`;
   const dayEnd = new Date(new Date(dayStart).getTime() + 24 * 60 * 60 * 1000).toISOString();
 
+  let billingQuery = supabase
+    .from("billing_transactions")
+    .select("event_time, transaction_id, authorised, verification_kind, region, source_file_id", {
+      count: "exact",
+    })
+    .gte("event_time", dayStart)
+    .lt("event_time", dayEnd);
+  let verificationQuery = supabase
+    .from("verifications")
+    .select("created_at, external_card_reference, duration_ms, authenticated", {
+      count: "exact",
+    })
+    .gte("created_at", dayStart)
+    .lt("created_at", dayEnd);
+
+  if (range) {
+    billingQuery = billingQuery
+      .gte("event_time", `${range.start}T00:00:00Z`);
+    verificationQuery = verificationQuery
+      .gte("created_at", `${range.start}T00:00:00Z`);
+    if (range.end) {
+      billingQuery = billingQuery.lt("event_time", `${range.end}T00:00:00Z`);
+      verificationQuery = verificationQuery.lt("created_at", `${range.end}T00:00:00Z`);
+    }
+  }
+
   const [billingResult, verificationResult] = await Promise.all([
-    supabase
-      .from("billing_transactions")
-      .select("event_time, transaction_id, authorised, verification_kind, region, source_file_id", {
-        count: "exact",
-      })
-      .gte("event_time", dayStart)
-      .lt("event_time", dayEnd)
+    billingQuery
       .order("event_time", { ascending: false })
       .limit(DRILL_ROW_LIMIT)
       .returns<ReconciliationBillingDrillRow[]>(),
-    supabase
-      .from("verifications")
-      .select("created_at, external_card_reference, duration_ms, authenticated", {
-        count: "exact",
-      })
-      .gte("created_at", dayStart)
-      .lt("created_at", dayEnd)
+    verificationQuery
       .order("created_at", { ascending: false })
       .limit(DRILL_ROW_LIMIT)
       .returns<ReconciliationVerificationDrillRow[]>(),
@@ -158,15 +181,34 @@ const EMPTY_INVENTORY_RESULT: ReconciliationInventoryDrillFetchResult = {
  * already be a validated `YYYY-MM-DD` string (from `parseDrillParams`) --
  * this function only ever builds `.eq()`/`.gte()`/`.lt()` filters from it,
  * never a string-interpolated query fragment.
+ *
+ * `range` (Phase 5, D-04): an additional bound on `removed_cards.removed_at`
+ * (`card_inventory` is already pinned to exactly `date` via `.eq()`, so a
+ * range predicate on it would be a no-op at best) -- never a replacement for
+ * the single-day `date` filter.
  */
 export async function fetchReconciliationInventoryDrillRows(
   supabase: Awaited<ReturnType<typeof createClient>>,
   date: string | undefined,
+  range?: { start: string; end: string | null },
 ): Promise<ReconciliationInventoryDrillFetchResult> {
   if (!date) return EMPTY_INVENTORY_RESULT;
 
   const dayStart = `${date}T00:00:00Z`;
   const dayEnd = new Date(new Date(dayStart).getTime() + 24 * 60 * 60 * 1000).toISOString();
+
+  let removedCardQuery = supabase
+    .from("removed_cards")
+    .select("removed_at, external_card_reference, source_file_id", { count: "exact" })
+    .gte("removed_at", dayStart)
+    .lt("removed_at", dayEnd);
+
+  if (range) {
+    removedCardQuery = removedCardQuery.gte("removed_at", `${range.start}T00:00:00Z`);
+    if (range.end) {
+      removedCardQuery = removedCardQuery.lt("removed_at", `${range.end}T00:00:00Z`);
+    }
+  }
 
   const [cardInventoryResult, removedCardResult] = await Promise.all([
     supabase
@@ -178,11 +220,7 @@ export async function fetchReconciliationInventoryDrillRows(
       .order("external_card_reference", { ascending: true })
       .limit(DRILL_ROW_LIMIT)
       .returns<ReconciliationInventoryCardRow[]>(),
-    supabase
-      .from("removed_cards")
-      .select("removed_at, external_card_reference, source_file_id", { count: "exact" })
-      .gte("removed_at", dayStart)
-      .lt("removed_at", dayEnd)
+    removedCardQuery
       .order("removed_at", { ascending: false })
       .limit(DRILL_ROW_LIMIT)
       .returns<ReconciliationRemovedCardRow[]>(),
