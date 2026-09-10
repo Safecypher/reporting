@@ -4,16 +4,16 @@ milestone: v1.0
 current_phase: 05
 current_phase_name: Time Periods & Financial-Year Settings
 status: executing
-stopped_at: Completed 05-02-PLAN.md
-last_updated: "2026-09-10T13:10:41.345Z"
+stopped_at: Completed 05-03-PLAN.md
+last_updated: "2026-09-10T13:18:11.646Z"
 last_activity: 2026-09-10
 last_activity_desc: Phase 05 execution started
-state_head: 6c4c173960be02aebef1da27103cb6a9fdf99eba
+state_head: e281a756f1d7bdae39f4b153d280cff2a80f7b29
 progress:
   total_phases: 7
   completed_phases: 2
   total_plans: 30
-  completed_plans: 27
+  completed_plans: 28
 milestone_name: milestone
 ---
 
@@ -29,7 +29,7 @@ See: .planning/PROJECT.md (updated 2026-08-18)
 ## Current Position
 
 Phase: 05 (Time Periods & Financial-Year Settings) — EXECUTING
-Plan: 3 of 5
+Plan: 4 of 5
 Status: Ready to execute
 Last activity: 2026-09-10 — Phase 05 execution started
 
@@ -64,6 +64,7 @@ Progress: [░░░░░░░░░░] 0%
 |------|----------|-------|-------|
 | Phase 05 P01 | 42min | 2 tasks | 10 files |
 | Phase 05 P02 | 65min | 3 tasks | 9 files |
+| Phase 05 P03 | 13min | 2 tasks | 7 files |
 
 ## Accumulated Context
 
@@ -87,6 +88,7 @@ Recent decisions affecting current work:
 - [Phase 05]: Domain-empty vs period-empty on /verifications is distinguished via a dedicated unscoped existence check on v_verifications_daily, not by reusing the period-scoped row count
 - [Phase 05]: Card inventory KPI caption always names the as-of snapshot date, stating carried-forward basis when it precedes period.start
 - [Phase 05]: reconciliation-inventory-table.tsx Live-cards figure carries an inline as-of-latest-import caption (P-06)
+- [Phase 05]: financial-year day validation uses date-fns getDaysInMonth against a fixed non-leap reference year (2001), never the current year — so an FY start valid only in leap years is rejected outright, mirroring lib/pricing/schema.ts's cross-field superRefine convention
 
 ### Pending Todos
 
@@ -124,6 +126,6 @@ Items acknowledged and carried forward from previous milestone close:
 
 ## Session Continuity
 
-Last session: 2026-09-10T13:10:41.216Z
-Stopped at: Completed 05-02-PLAN.md
+Last session: 2026-09-10T13:18:11.515Z
+Stopped at: Completed 05-03-PLAN.md
 Resume file: None
