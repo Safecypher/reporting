@@ -66,12 +66,16 @@ export interface PricingTierSetWithTiers extends TierSetSelectorOption {
 }
 
 /**
- * "edit" — the existing D-18/P-04 restate dialog (unchanged copy/behaviour).
+ * "edit" — the existing D-18/P-04 restate dialog (unchanged copy/behaviour),
+ * fired when an edit changes only the selected set's OWN days.
  * "create-supersede" — G-05-5: a NEW tier set landing on a date an existing
- * set already prices. `supersedes`/`proposedEffectiveFrom` are only
- * populated for that variant.
+ * set already prices.
+ * "edit-supersede" — G-05-CR01: an EDIT whose new effective date takes days
+ * from a DIFFERENT, currently-active tier set, in either crossing direction.
+ * `supersedes`/`proposedEffectiveFrom` are only populated for the two
+ * "-supersede" variants.
  */
-type RestateDialogVariant = "edit" | "create-supersede";
+type RestateDialogVariant = "edit" | "create-supersede" | "edit-supersede";
 
 interface RestateDialogState {
   open: boolean;
@@ -277,6 +281,22 @@ export function PricingTierForm({ tierSets }: PricingTierFormProps) {
     }
 
     if (mode.kind === "edit") {
+      if (impact.supersedes !== null) {
+        // G-05-CR01: this edit takes days from a DIFFERENT, currently-active
+        // tier set — ALWAYS open the confirmation, regardless of day count.
+        // Conditioning this gate on activity days is exactly the mistake
+        // that let the original (create-path) incident through; see the
+        // module header of lib/pricing/restate-scope.ts.
+        setRestateDialog({
+          open: true,
+          variant: "edit-supersede",
+          days: countResult.days,
+          pendingData: data,
+          supersedes: impact.supersedes,
+          proposedEffectiveFrom: data.effectiveFrom,
+        });
+        return;
+      }
       // D-18/P-04 verbatim: zero affected days saves immediately, one or
       // more opens the (unchanged) restate dialog.
       if (countResult.days === 0) {
@@ -305,7 +325,10 @@ export function PricingTierForm({ tierSets }: PricingTierFormProps) {
       // Non-null by construction: the create branch of resolveSaveImpact
       // only returns a non-null impact when it found a superseded set.
       supersedes: impact.supersedes as string,
-      proposedEffectiveFrom: impact.from,
+      // The submitted form value — the honest source on both the create and
+      // edit-supersede paths. For create this already equals the resolved
+      // `impact.from`, so no visible copy change here.
+      proposedEffectiveFrom: data.effectiveFrom,
     });
   });
 
@@ -328,9 +351,10 @@ export function PricingTierForm({ tierSets }: PricingTierFormProps) {
     });
   }
 
-  // Copy for the two restate-dialog variants (D-18 edit, unchanged; G-05-5
-  // create-supersede, new). Kept out of the JSX below so both bodies stay
-  // easy to diff against 05-UI-SPEC.md's Copywriting Contract verbatim.
+  // Copy for the three restate-dialog variants (D-18 edit, unchanged; G-05-5
+  // create-supersede; G-05-CR01 edit-supersede, new). Kept out of the JSX
+  // below so all three bodies stay easy to diff against 05-UI-SPEC.md's
+  // Copywriting Contract verbatim.
   const restateDialogCopy =
     restateDialog.variant === "create-supersede"
       ? {
@@ -342,11 +366,21 @@ export function PricingTierForm({ tierSets }: PricingTierFormProps) {
           confirmLabel:
             restateDialog.days > 0 ? "Add tier set and restate revenue" : "Add tier set",
         }
-      : {
-          title: "Save changes to pricing tiers?",
-          body: `This will restate revenue for ${restateDialog.days} ${restateDialog.days === 1 ? "day" : "days"}. Past figures shown for that period will change to reflect the corrected rates. This is recorded in the change history.`,
-          confirmLabel: "Save and restate revenue",
-        };
+      : restateDialog.variant === "edit-supersede"
+        ? {
+            title: "Save changes and take over pricing from another tier set?",
+            body:
+              restateDialog.days > 0
+                ? `Moving this tier set to ${restateDialog.proposedEffectiveFrom} makes it price days currently priced by the tier set effective ${restateDialog.supersedes}. This restates ${restateDialog.days} ${restateDialog.days === 1 ? "day" : "days"} already recorded — past figures shown for that period will change. This is recorded in the change history.`
+                : `Moving this tier set to ${restateDialog.proposedEffectiveFrom} makes it price days currently priced by the tier set effective ${restateDialog.supersedes}. No day recorded so far changes. This is recorded in the change history.`,
+            confirmLabel:
+              restateDialog.days > 0 ? "Save and restate revenue" : "Save changes",
+          }
+        : {
+            title: "Save changes to pricing tiers?",
+            body: `This will restate revenue for ${restateDialog.days} ${restateDialog.days === 1 ? "day" : "days"}. Past figures shown for that period will change to reflect the corrected rates. This is recorded in the change history.`,
+            confirmLabel: "Save and restate revenue",
+          };
 
   return (
     <div className="flex flex-col gap-6">
