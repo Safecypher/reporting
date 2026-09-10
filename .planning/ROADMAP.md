@@ -178,7 +178,7 @@ Plans:
   4. The TSYS MSA tier table (0–500k @ $0.0405, 500,001–1M @ $0.0279, 1,000,001–5M @ $0.0225, 5,000,001–10M @ $0.0205, 10,000,001–25M @ $0.0189, 25,000,001+ @ $0.0174) exists as a `pricing_tier_sets` row with `reset_window = 'monthly'`, and a hand calculation of the MSA's own worked example — 1.5M transactions in a month = **$45,450** — matches to the cent.
   5. Period scoping never changes the tier maths: a year or all-time figure is the sum of per-month tiered figures, never the tier ladder run over an aggregate multi-month volume.
 
-**Plans**: 5/6 plans executed, 1 gap-closure plan outstanding
+**Plans**: 6/8 plans executed, 2 UAT gap-closure plans outstanding
 Plans:
 
 **Wave 1** *(tracer — the whole period architecture proven end to end on one view before anything expands)*
@@ -197,7 +197,12 @@ Plans:
 
 **Gap closure** *(from 05-VERIFICATION.md `gaps_found` — run with `/gsd-execute-phase 5 --gaps-only`)*
 
-- [ ] 05-06-PLAN.md — Unscope and date-caption the reconciliation enrolled/unenrolled summary figures (CR-01), and make the app_settings day-validity friendly-error copy reachable and tested (WR-01)
+- [x] 05-06-PLAN.md — Unscope and date-caption the reconciliation enrolled/unenrolled summary figures (CR-01), and make the app_settings day-validity friendly-error copy reachable and tested (WR-01)
+
+**Gap closure — UAT** *(from 05-UAT.md `## Gaps` — run with `/gsd-execute-phase 5 --gaps-only`; both are wave 1 and touch disjoint files, so they run in parallel)*
+
+- [ ] 05-07-PLAN.md — G-05-5: make create-new vs edit-existing unmistakable in the tier editor, gate a new tier set that supersedes an active one behind a confirmation, and re-tone the effective_from collision message to warning
+- [ ] 05-08-PLAN.md — G-05-OBS1: render a sidebar trigger in a small-viewport top bar so the navigation is reachable below 768px (closes a Phase 1 app-shell defect found during Phase 5 UAT)
 
 ### Phase 6: Dual-Source Alignment: TSYS vs Bit Addict
 
