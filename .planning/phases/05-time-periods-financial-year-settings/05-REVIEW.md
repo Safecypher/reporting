@@ -1,265 +1,236 @@
 ---
 phase: 05-time-periods-financial-year-settings
-reviewed: 2026-09-10T20:15:00Z
+reviewed: 2026-09-10T21:10:00Z
 depth: standard
-files_reviewed: 10
+files_reviewed: 6
 files_reviewed_list:
   - lib/pricing/restate-scope.ts
   - lib/pricing/__tests__/restate-scope.test.ts
-  - lib/pricing/errors.ts
-  - lib/pricing/__tests__/errors.test.ts
+  - lib/pricing/calendar-date.ts
+  - lib/pricing/__tests__/calendar-date.test.ts
   - app/(dashboard)/settings/pricing/actions.ts
   - components/pricing/pricing-tier-form.tsx
-  - components/pricing/tier-set-selector.tsx
-  - components/app-shell/mobile-nav-bar.tsx
-  - app/(dashboard)/layout.tsx
-  - hooks/use-mobile.ts
 findings:
-  critical: 1
-  warning: 7
-  info: 4
-  total: 12
+  critical: 0
+  warning: 8
+  info: 2
+  total: 10
 status: issues_found
 ---
 
-# Phase 05: Code Review Report (incremental re-review, plans 05-07/05-08)
+# Phase 05: Code Review Report (incremental re-review, plan 05-09)
 
-**Reviewed:** 2026-09-10T20:15:00Z
+**Reviewed:** 2026-09-10T21:10:00Z
 **Depth:** standard
-**Files Reviewed:** 10 (the diff of gap-closure plans 05-07 and 05-08)
+**Files Reviewed:** 6 (the diff of gap-closure plan 05-09, commits `2e9ef5d`,
+`e67fc84`, `3d0e629`, `823c19e`, `da88015`)
 **Status:** issues_found
 
 ## Summary
 
-This is an incremental re-review scoped to plans **05-07** (closes G-05-5: the
-tier editor's create-path had zero supersede gating) and **05-08** (closes
-G-05-OBS1: navigation unreachable below 768px). Both closures were verified
-directly against the code, `git diff` of the actual gap-closure commits
-(`25512c4`, `1a32d9c`, `c14862b`, `484bce9`, `266ecc6`), and a live run of
-`npx vitest run lib/pricing/__tests__/{restate-scope,errors}.test.ts` (32/32
-pass) and `npx tsc --noEmit` (clean).
+This is a round-3 incremental re-review scoped to plan **05-09**, which
+claims to close round 2's BLOCKER **CR-01** (edit-path pricing-authority
+transfer) and **WR-01** (calendar-date validation that didn't actually
+validate). Both closures were verified by reading the shipped code directly
+(not the plan's description of it), hand-tracing `resolveEditImpact` against
+migration `0012_v_revenue.sql`'s `order by effective_from desc limit 1`
+resolution rule in all five scenarios the review brief specified, running
+`npx vitest run lib/pricing/__tests__/{restate-scope,calendar-date}.test.ts`
+(39/39 pass) and `npx tsc --noEmit` (clean), and diffing the actual 05-09
+commits against the prior review's fix suggestion to confirm the shipped
+predicate is not the one round 2 sketched (which was empty for every
+backdate).
 
-**G-05-OBS1 mobile-nav fix — verified correct and complete.** `MobileNavBar`
-is a genuine `md:hidden` opener wired to `SidebarTrigger`/`SidebarProvider`
-context; `app/(dashboard)/layout.tsx`'s `<main>`-inside-`<main>` nesting is
-resolved (confirmed `SidebarInset` itself renders `<main>`; the old inner
-`<main>` is now a plain `<div>`, and no page component renders its own
-`<main>`, so there is exactly one `<main>` landmark). The `useIsMobile`
-hydration fix is correct: initializing `false` unconditionally matches the
-server's window-less render, and the `Sidebar` component's own
-`hidden md:block` desktop-branch CSS means the brief pre-effect render on a
-narrow viewport is invisible — I traced this specifically per the review
-brief's "cannot reintroduce a mismatch or a flash of desktop layout"
-instruction and found no such flash. The Sheet's `z-50` renders above the
-new header's `z-40`, so no stacking conflict.
+**CR-01 — genuinely closed, both crossing directions, on the shipped code.**
+I hand-traced `resolveEditImpact` (`lib/pricing/restate-scope.ts:101-159`)
+against all five required scenarios:
+- Backdating set B across set A → A reported displaced. Confirmed: with
+  `current=2026-10-01`, `proposed=2026-09-01`, other set A at `2026-08-13`,
+  `alreadyGoverned` evaluates `proposed(09-01) >= current(10-01)` → false,
+  so `displaced = A`. Correct.
+- Forwarding set A across set B → displacement reported. Confirmed:
+  `current=2026-08-13`, `proposed=2026-11-01`, other set B at `2026-10-01`,
+  `alreadyGoverned` evaluates `candidate.effectiveFrom(10-01) <=
+  current(08-13)` → false, so `displaced = B`. Correct.
+- Single set edited in place, no other sets → `others` is empty,
+  `candidate = null`, `displaced = null`. No warning. Correct.
+- Edit moving within territory already governed (e.g. moving later but not
+  crossing the next later set) → `alreadyGoverned` is true
+  (`proposed >= current && candidate.effectiveFrom <= current`), `displaced
+  = null`. No warning. Correct.
+- The edited set never reports itself: `others = existingTierSets.filter(set
+  => set.id !== editedId)` excludes it before any candidate scan; confirmed
+  against the test that passes the edited set's own row in `existing`
+  (`restate-scope.test.ts:284-293`) and gets the *other* set's date back,
+  never its own.
 
-**G-05-5 create-path fix — the specific reported incident is genuinely
-closed, but the same defect class remains open via the EDIT path (CR-01
-below).** `resolveSaveImpact`'s create branch is pure, total, and correctly
-gates the exact reported scenario (structural "does an active set already
-price this date," not activity-day count) — I confirmed this by hand-tracing
-`resolveCreateImpact` against the incident's own numbers (existing set
-2026-08-13, stray set 2026-09-10) and by executing the committed test suite.
-`mapPricingSaveError`/`mapPricingDeleteError` fully close the prior review's
-WR-01 (no raw Postgres/constraint/table text can reach the client from
-either write path — both mappers are total with a generic fallback, and the
-data-window guard's tone/copy is untouched on both save and delete, per
-`errors.test.ts`'s explicit non-regression assertions). However, tracing the
-plan's own stated purpose ("a change to live contract pricing must never
-happen without the operator seeing what it replaces") against the **edit**
-path — which this plan explicitly left untouched by design — surfaced that
-an edit which moves a tier set's `effective_from` across another existing
-tier set's date silently reassigns pricing authority for the days between
-them, via the same `order by effective_from desc limit 1` resolution
-(`0012_*.sql`) that made the original create-path bug possible. See CR-01.
+I also independently re-derived governance day-by-day (not just via the
+predicate) for several multi-set scenarios beyond the five required ones —
+including the exact case the prior review's own suggested fix would have
+mishandled (backdating) — and the shipped `through`/`supersedes` values
+matched hand-calculated pricing-authority outcomes in every case I checked
+except the one noted in WR-08 below.
 
-Per the scoping note, the prior review's five still-open warnings (WR-02
-through WR-06) and two info items (IN-01, IN-02) target files this diff does
-not touch — confirmed via `git log -1` on each of `lib/dashboard/period.ts`,
-`lib/dashboard/verification-drill.ts`, `lib/dashboard/card-inventory.ts`,
-`supabase/migrations/0025_pricing_tier_edit_in_place.sql`, and `types/db.ts`,
-all last modified before 05-06/05-07/05-08. They are carried forward
-verbatim below, unverified in this pass.
+**The deleted test was legitimately replaced, not narrowed.** The commit
+message for `2e9ef5d` documents removing a test titled "never returns null
+and never returns a non-null supersedes for an edit" because that title
+enshrined the false universal CR-01 exploited, even though its specific
+fixture (a fixture where the other set predates the edited set's own
+current date) still passes post-fix. I confirmed the replacement is
+genuinely broader, not a re-pinning: the new `describe` block
+(`restate-scope.test.ts:218-303`) adds 8 cases spanning both crossing
+directions (forward across one/two sets, backdating across one set,
+capping `through` in both directions, an exact-date collision, the edited
+set's own row present in the input, and a tie between two other sets on the
+same date) — strictly more coverage than what was removed, and the
+"always returns a defined impact" property from the deleted test is
+explicitly retained in a new non-universal-titled test
+(`restate-scope.test.ts:187-202`).
 
-**D-06 per-month tier-summation invariant:** none of the ten files in this
-diff touch any revenue-computing SQL view (`v_revenue_daily`,
-`v_revenue_by_tier`, etc.) or the marginal-bracket RPC — `countRestatedDays`
-reads a separate, purely informational counting view
-(`v_revenue_daily_counts`) used only to size the confirmation dialog's copy,
-never to compute a displayed revenue figure. The invariant is structurally
-unaffected by this diff.
+**WR-01 — genuinely closed.** `lib/pricing/calendar-date.ts` is a plain,
+dependency-free module performing a real `Date.UTC` round trip (split
+components → reconstruct → compare all three fields back). Verified against
+the specific counter-examples round 2 cited: `isValidCalendarDate("2026-02-30")`
+and `isValidCalendarDate("2026-09-31")` are covered by committed, passing
+tests and reject correctly (the reconstructed UTC date rolls over to March
+1st / October 1st, which no longer equals the input's month/day). Leap-day
+handling is correctly bidirectional: `2024-02-29` accepted, `2026-02-29`
+rejected. `app/(dashboard)/settings/pricing/actions.ts` now imports this
+module and the old inline shape-regex-plus-`Date.parse` implementation is
+fully deleted — confirmed no orphaned references remain anywhere in the
+codebase.
+
+**05-07's create-path gate and D-06 are untouched by this diff.**
+`resolveCreateImpact` (lines 161-198) is byte-for-byte unchanged from round
+2's verified version. No revenue-computing SQL view is touched by this
+diff; `countRestatedDays` still reads only the informational
+`v_revenue_daily_counts` counting view.
+
+**D-19 coverage guard re-examined against the edit-path fix and still
+holds.** I specifically checked whether an edit-supersede backdate/forward
+move could open a *coverage gap* (some day with zero governing tier sets)
+that `resolveEditImpact`'s disclosure doesn't mention and the DB doesn't
+catch. It cannot: `save_pricing_tier_set`'s guard
+(`0025_pricing_tier_edit_in_place.sql:64-70,162-170`) checks a *global*
+predicate (does *any* row have `effective_from <= 2026-08-13`) before and
+after the write, not "does this specific row still cover it" — so as long
+as some other tier set continues to satisfy the floor, every day
+`>= 2026-08-13` always has at least one candidate row and no true gap can
+open. I could not construct a scenario where a day loses all governing
+candidates without also flipping the global floor predicate, which the
+guard already rejects. This holds for both `save_pricing_tier_set` and
+`delete_pricing_tier_set` (guard duplicated identically in both).
+
+However, tracing the same multi-set governance chain surfaced a genuine,
+new disclosure gap in the shipped fix — see **WR-08** — and the exact-date
+collision defect class round 2 flagged for create mode (WR-02) reappears,
+unfixed, in the new edit-supersede path this plan added — see **WR-09**.
 
 ## Critical Issues
 
-### CR-01: The G-05-5 fix does not extend to the EDIT path — moving an existing tier set's `effective_from` across another tier set's date silently reassigns which contract prices those days, with no disclosure of which set is displaced
-
-**File:** `lib/pricing/restate-scope.ts:63-71` (`resolveEditImpact`)
-**File:** `components/pricing/pricing-tier-form.tsx:279-294` (edit branch of `onSubmit`)
-**File:** `lib/pricing/__tests__/restate-scope.test.ts:103-170` (edit-mode test block)
-
-**Issue:** `resolveEditImpact`'s own doc comment claims an edit "Never
-supersedes anything — an edit modifies the selected set in place, it never
-displaces a different one" (`restate-scope.ts:67-68`). This is not true at
-the pricing level, only at the row level. `v_revenue_tier_set_by_day`
-(`supabase/migrations/0012_*.sql:64-65`) resolves the tier set governing a
-day via `where effective_from <= day order by effective_from desc limit 1`
-— the tier set with the *latest* `effective_from` on or before a given day
-wins, full stop, with no notion of "this row was already covering that day
-before the edit."
-
-Concretely: three tier sets A (`effective_from` 2026-08-13), B
-(2026-09-01), C (2026-10-01). Editing A and changing its `effective_from` to
-2026-09-15 does not just restate A's own historical days — for every day
-from 2026-09-15 through 2026-09-30 (previously priced by B), A now
-out-ranks B in the `order by effective_from desc` tie-break and silently
-takes over pricing authority for that range. This is the exact same class
-of defect G-05-5 was opened to fix (a live contract's pricing silently
-superseded with no confirmation naming what was displaced) — it is simply
-reachable via a different entry point (`edit`, not `create`) that this
-plan's own scope statement explicitly declared untouched: *"Explicitly out
-of scope (must not regress): the existing edit-path restate dialog...This
-plan adds a gate and re-tones one message; it removes no guard"*
-(`05-07-PLAN.md`).
-
-The existing D-18 restate dialog does still fire and does still show an
-accurate day count (because `resolveEditImpact`'s `from` is the earlier of
-the current/proposed date, so `countRestatedDays` correctly counts across
-the whole affected span, including the days now claimed from B) — so this
-is not a *silent, zero-friction* write like the original incident. But the
-dialog's copy ("This will restate revenue for {N} days...") never mentions
-that a *different*, currently-active tier set is having some of its days
-reassigned to the edited set, which is precisely the missing disclosure the
-whole G-05-5 effort exists to guarantee. An operator correcting set A's own
-rate by a day or two, who happens to also drag its `effective_from` past
-B's date, gets no indication that B's ladder is now partially overridden.
-
-Confirmed via the DB migration directly: `save_pricing_tier_set`'s UPDATE
-path (`0025_pricing_tier_edit_in_place.sql:90-160`) only guards the
-data-window floor (`effective_from <= 2026-08-13` coverage) before/after the
-write — there is no check for, or rejection of, an edit that reorders a set
-past another set's `effective_from`.
-
-Also confirmed as a real test gap: every edit-mode case in
-`restate-scope.test.ts` passes `existing` as either `[]` or an array
-containing only the edited set's own id (lines 110, 123, 136, 149-156,
-167). No test exercises the edit branch with a genuinely different,
-different-dated tier set in `existingTierSets` — the exact scenario above
-is unexercised by the committed suite.
-
-**Fix:** Extend `resolveEditImpact` to accept `existingTierSets` (the
-parameter `resolveSaveImpact` already threads through for the create
-branch, and which `pricing-tier-form.tsx` already computes as
-`existingForImpact` and currently discards for edits) and detect whether
-the proposed range now outranks a different set for any day it did not
-outrank before:
-
-```ts
-function resolveEditImpact(
-  editedId: string,
-  currentEffectiveFrom: string,
-  proposedEffectiveFrom: string,
-  existingTierSets: readonly ExistingTierSet[],
-): SaveImpact {
-  const from =
-    currentEffectiveFrom < proposedEffectiveFrom ? currentEffectiveFrom : proposedEffectiveFrom;
-
-  // A different set is displaced when the edit moves this set's
-  // effective_from to or past that set's effective_from, i.e. this set now
-  // out-ranks it in the `order by effective_from desc` tie-break for at
-  // least one day it did not out-rank before.
-  const displaced = existingTierSets
-    .filter((set) => set.id !== editedId && set.effectiveFrom <= proposedEffectiveFrom && set.effectiveFrom > currentEffectiveFrom)
-    .reduce<string | null>(
-      (latest, set) => (latest === null || set.effectiveFrom > latest ? set.effectiveFrom : latest),
-      null,
-    );
-
-  return { from, through: null, supersedes: displaced };
-}
-```
-
-Then in `pricing-tier-form.tsx`'s edit branch of `onSubmit`, when
-`impact.supersedes` is non-null, route to the `create-supersede`-style
-dialog copy (or a third `edit-supersede` variant) naming the displaced set,
-instead of unconditionally treating every non-null edit impact as the plain
-D-18 dialog. Add the missing test case to `restate-scope.test.ts` pinning
-the displaced-set detection so this cannot silently regress again.
+None found in this round. CR-01 is closed.
 
 ## Warnings
 
-### WR-01: `isValidCalendarDate`'s "calendar-validity round trip" does not actually reject invalid calendar dates — it silently rolls them over
+### WR-08: `resolveEditImpact`'s `supersedes` only names the immediately-crossed neighbor — a multi-set backdate can permanently hand the edited set's own future territory to a further, unnamed tier set with no disclosure of that fact
 
-**File:** `app/(dashboard)/settings/pricing/actions.ts:151-159`
+**File:** `lib/pricing/restate-scope.ts:101-159` (`resolveEditImpact`)
 
-**Issue:** The comment claims this is "a strict `YYYY-MM-DD` shape plus a
-calendar-validity round trip" and that it prevents "an attacker-supplied end
-date" from "widen[ing] the query unchecked" (lines 172-176). In V8 (Node,
-the runtime this Server Action executes on), `Date.parse` on an ISO
-date-time string does not reject an out-of-range day-of-month — it silently
-rolls over:
+**Issue:** Consider three tier sets: `x` (`effective_from` 2026-07-01), `y`
+(2026-08-01), and the edited set `e` (currently 2026-09-01). The operator
+backdates `e` to 2026-07-15 (crossing `x`, not `y`). Tracing
+`v_revenue_tier_set_by_day`'s `order by effective_from desc limit 1` rule
+day-by-day:
 
-```
-$ node -e "console.log(Date.parse('2026-02-30T00:00:00Z'))"   // valid number, not NaN
-$ node -e "console.log(Date.parse('2026-09-31T00:00:00Z'))"   // valid number, not NaN
-```
+- Before the edit: `x` governs 07-01–07-31, `y` governs 08-01 onward
+  (indefinitely, since `y`'s date 08-01 is less than `e`'s old date 09-01
+  but higher than `x`'s), and `e` never actually governs anything until its
+  old date 09-01 (at which point it would take over from `y`).
+- After the edit (`e` now at 07-15): `x` still governs 07-01–07-14, `e`
+  governs 07-15–07-31 (correctly reported as displacing `x`), but from
+  08-01 onward `y` (08-01) now permanently outranks `e`'s *new*, earlier
+  date (07-15) for every day forever — including all the days from 09-01
+  onward that `e` exclusively owned *before* this edit. `e` has silently
+  ceded its entire future pricing territory to `y`, a set the operator may
+  not even have been thinking about.
 
-Only an out-of-range *month* (13, 00) produces `NaN`. So `isValidCalendarDate("2026-02-30")`
-returns `true`. This function is pre-existing (05-04), but 05-07 doubled its
-attack surface by reusing it, unchanged, to validate the new `throughDate`
-parameter — a value that, unlike `fromDate`, is fed by `resolveSaveImpact`'s
-`through` (itself always well-formed) but is also directly reachable by
-anyone invoking the `countRestatedDays` Server Action endpoint directly with
-an arbitrary string, since Server Actions are POST-able independent of the
-UI. In practice this is not exploitable today — the raw string still reaches
-`.gte()/.lte()` unmodified, and Postgres's own `date` type parser *does*
-reject `2026-02-30` at query time (returning a generic mapped error) — but
-that means the actual protection is Postgres's strict parsing, not this
-function, and the code's own comment overstates what this validation
-achieves.
+Calling `resolveEditImpact("e", "2026-09-01", "2026-07-15", [x, y])`:
+`atOrBeforeProposed` only considers sets with `effectiveFrom <= proposed`
+(07-15), so `y` (08-01) is never even a candidate — only `x` is found and
+reported. The function returns `{ from: "2026-07-15", through: null,
+supersedes: "2026-07-01" }`. `through: null` means `countRestatedDays`
+still counts every day from 07-15 to today (so the *count* the operator
+sees is accurate — the 09-01+ days ceded to `y` are included in "N days
+restated"), but the confirmation dialog's copy
+(`pricing-tier-form.tsx:384-393`) says only *"Moving this tier set to
+2026-07-15 makes it price days currently priced by the tier set effective
+2026-07-01"* — it never mentions `y`, even though `y` is the set that
+silently and permanently absorbs the larger, more consequential share of
+the affected days. An operator who reads this dialog reasonably concludes
+the only consequence is a small adjustment relative to `x`; the actual
+consequence (surrendering all future pricing authority to `y`) is
+undisclosed by name.
 
-**Fix:** Either fix the validation to genuinely round-trip (compare the
-parsed `Date`'s UTC year/month/day back against the input's own numbers),
-or correct the comment to state that the real backstop is Postgres's
-`date` column type, not this function:
+This requires three tier sets and a specific backdating direction to
+reach, and the safety gate itself does not go silent (the dialog still
+opens and the day count is not undercounted) — so this is a WARNING, not a
+BLOCKER — but it is exactly the kind of "which contract is actually
+pricing which days" disclosure gap CR-01 was about, reachable in a
+scenario CR-01's own fix did not anticipate.
 
-```ts
-function isValidCalendarDate(value: string): boolean {
-  if (!RESTATE_DATE_RE.test(value)) return false;
-  const [y, m, d] = value.split("-").map(Number);
-  const parsed = new Date(Date.UTC(y, m - 1, d));
-  return (
-    parsed.getUTCFullYear() === y &&
-    parsed.getUTCMonth() === m - 1 &&
-    parsed.getUTCDate() === d
-  );
-}
-```
+**Fix:** Either (a) walk the full chain of sets whose governing territory
+changes (not just the single immediate predecessor at `proposed`) and
+report all of them, or (b) at minimum detect when the edited set's own
+*old* territory (days strictly after `max(current, proposed)` that it used
+to exclusively govern) is now claimed by a set other than itself, and
+surface that as a second named consequence in the dialog copy.
 
-### WR-02: The create-mode exact-date-collision case produces confusing, self-referential confirmation copy
+### WR-09: The edit-supersede path reintroduces WR-02's self-referential exact-date-collision copy, unfixed by 05-09
 
-**File:** `lib/pricing/restate-scope.ts:83-93` (`resolveCreateImpact`)
-**File:** `components/pricing/pricing-tier-form.tsx:420-426` (inline notice), `:334-341` (dialog body)
+**File:** `lib/pricing/restate-scope.ts:117-127` (`resolveEditImpact`)
+**File:** `components/pricing/pricing-tier-form.tsx:384-393` (edit-supersede dialog body)
 
-**Issue:** When a create's proposed `effectiveFrom` exactly equals an
-existing set's `effectiveFrom` (asserted as intentional, non-null behavior
-by `restate-scope.test.ts:84-90`), `resolveCreateImpact` returns
-`supersedes === from === proposedEffectiveFrom` — the same date on both
-sides. The rendered copy becomes self-referential and confusing, e.g. the
-inline notice: *"A tier set effective 2026-08-13 currently prices
-2026-08-13 onward. Saving this supersedes it from 2026-08-13."* — and the
-dialog body reads the same way. The user is shown a "you are superseding an
-active contract" warning for what is actually just a same-day duplicate
-that the server's `pricing_tier_sets_effective_from_key` UNIQUE constraint
-will unconditionally reject on confirm, only then surfacing the *actually*
-relevant `PRICING_DUPLICATE_EFFECTIVE_FROM` message. The user sees a
-supersede warning, confirms it, and is met with a different, contradictory
-message.
+**Issue:** Round 2's WR-02 flagged that a create whose proposed
+`effectiveFrom` exactly matches an existing set's date produces
+self-referential, confusing copy ("supersedes it from {same date}"), only
+for the server's UNIQUE constraint to reject the write on confirm with a
+contradictory message. 05-09 adds a second code path with the identical
+defect: `restate-scope.test.ts:274-282` explicitly pins that an edit whose
+proposed date exactly matches another set's `effective_from` reports
+`supersedes` equal to that same date. The edit-supersede dialog body then
+renders *"Moving this tier set to 2026-09-01 makes it price days currently
+priced by the tier set effective 2026-09-01"* — the same self-referential
+date-matches-date sentence WR-02 already identified as confusing, now
+also reachable via the edit form. The write will then be rejected by
+`pricing_tier_sets_effective_from_key` and mapped to
+`PRICING_DUPLICATE_EFFECTIVE_FROM`, which contradicts the "restate revenue"
+framing the operator just confirmed.
 
-**Fix:** In the exact-match case, either skip the supersede dialog/notice
-entirely in favor of a lightweight inline "a tier set already exists for
-this date" hint (reusing `PRICING_DUPLICATE_EFFECTIVE_FROM`'s copy), or
-special-case the copy so it does not read as if a *different* effective
-period is being taken over when the dates are identical.
+**Fix:** Same as WR-02's suggested fix, applied to both call sites: when
+`proposedEffectiveFrom === candidate.effectiveFrom` (create) or
+`=== displaced.effectiveFrom` (edit), skip the supersede dialog/notice in
+favor of a lightweight "a tier set already exists for this date" hint
+reusing `PRICING_DUPLICATE_EFFECTIVE_FROM`'s copy, rather than opening a
+restate confirmation for a write the server will unconditionally reject.
+
+### WR-01 (carried forward from round 2, now CLOSED — verified fixed)
+
+Round 2's WR-01 (`isValidCalendarDate` accepted `2026-02-30`) is resolved
+by this plan. Not re-listed as open; documented above under Summary for
+audit continuity.
+
+### WR-02 (carried forward from round 2, still open in create mode — NOT addressed by this plan)
+
+**File:** `lib/pricing/restate-scope.ts:161-198` (`resolveCreateImpact`)
+**File:** `components/pricing/pricing-tier-form.tsx:420-426, 334-341`
+
+Unchanged from round 2 (`resolveCreateImpact` is byte-identical to the
+version round 2 reviewed). 05-09 did not touch this branch and the
+exact-date-collision self-referential copy issue remains open in create
+mode, in addition to now also existing in edit mode per WR-09 above. See
+round 2's original WR-02 text (previous `05-REVIEW.md`, superseded by this
+file) for the full original write-up; the fix suggested there still
+applies unchanged.
 
 ### WR-03 (carried forward, not re-verified): Financial-year period `start` is not clamped to the data-window floor; two raw-table fetchers replace (not AND) their own floor with it
 
@@ -267,12 +238,17 @@ period is being taken over when the dates are identical.
 **File:** `lib/dashboard/verification-drill.ts:59`
 **File:** `lib/dashboard/card-inventory.ts:308`
 
+Confirmed via `git log -1` that none of these three files have been
+modified since before round 2 (`lib/dashboard/period.ts` last touched
+05-01, `verification-drill.ts` 05-01, `card-inventory.ts` 05-02) — carried
+forward verbatim, unverified in this pass.
+
 **Issue:** Every other `resolvePeriod` path validates that `of` is
 `>= DATA_WINDOW_OF_MONTH`/`DATA_WINDOW_OF_YEAR`, but the financial-year
-branch has no equivalent floor on the *computed* `start` date. Two fetchers
-that query raw tables directly use the caller-supplied `range.start` as a
-*replacement* for their own hardcoded floor rather than an additional
-AND-ed bound.
+branch has no equivalent floor on the *computed* `start` date. Two
+fetchers that query raw tables directly use the caller-supplied
+`range.start` as a *replacement* for their own hardcoded floor rather than
+an additional AND-ed bound.
 
 **Fix:** Clamp in the financial-year branch of `resolvePeriod`
 (`start: start < DATA_WINDOW_START ? DATA_WINDOW_START : start`), or have
@@ -282,6 +258,8 @@ of replacing it.
 ### WR-04 (carried forward, not re-verified): The current-year financial-year period is non-deterministic across page reloads and can duplicate an adjacent dropdown option
 
 **File:** `lib/dashboard/period.ts:287-291`
+
+Confirmed unmodified since 05-01 — carried forward verbatim, unverified.
 
 **Issue:** Every past year resolves via 31 December of that year, but the
 *current* year resolves via the literal wall-clock `today` instead.
@@ -295,6 +273,11 @@ every other year (via 31 December of `of`, capped so it never exceeds
 **File:** `supabase/migrations/0025_pricing_tier_edit_in_place.sql`
 **File:** `supabase/tests/` (no corresponding test file)
 
+Confirmed unmodified since 05-04 — carried forward verbatim, unverified.
+Note: this round's review manually re-derived the guard's coverage
+semantics by hand (see Summary) and found it sound for everything checked,
+but that hand-trace is not a substitute for a committed regression test.
+
 **Issue:** Unlike `revenue_boundary_test.sql` and `tsys_msa_tier_test.sql`,
 the coverage guard is only asserted by hand-tracing and manual UAT.
 
@@ -304,6 +287,8 @@ the existing `begin; ... rollback;` pattern.
 ### WR-06 (carried forward, not re-verified): Coverage guard has no row lock — a narrow TOCTOU window under concurrent edits
 
 **File:** `supabase/migrations/0025_pricing_tier_edit_in_place.sql:67-70, 161-170, 209-212, 227-236`
+
+Confirmed unmodified since 05-04 — carried forward verbatim, unverified.
 
 **Issue:** Coverage is checked via plain `select exists(...)` with no
 `select ... for update`/advisory lock — two concurrent calls could each
@@ -317,6 +302,9 @@ evaluating coverage in both RPCs.
 
 **File:** `lib/dashboard/period.ts:53`, `lib/dashboard/card-inventory.ts:218,228`, `lib/dashboard/verification-drill.ts:15`, `lib/ingestion/normalise.ts:5`, `supabase/migrations/0025_pricing_tier_edit_in_place.sql:69,163,211,229`
 
+Confirmed unmodified since before round 2 — carried forward verbatim,
+unverified.
+
 **Issue:** No single source of truth for the phase's most important
 constant.
 
@@ -325,50 +313,31 @@ constant.
 
 ## Info
 
-### IN-01: `MobileNavBar`'s `<header>` is nested inside `<main>` and therefore never receives an implicit ARIA "banner" landmark role
-
-**File:** `components/app-shell/mobile-nav-bar.tsx`, `app/(dashboard)/layout.tsx:54-57`
-
-**Issue:** Per the HTML/ARIA landmark spec, a `<header>` only carries the
-implicit `banner` role when it is not a descendant of `main` (or `article`,
-`aside`, `nav`, `section`). `SidebarInset` (line 55 of `layout.tsx`) is
-itself a `<main>`, and `MobileNavBar` renders inside it, so the new header
-is a plain, non-landmark grouping element to assistive tech, not a page
-banner. Low priority for this small internal tool, but worth knowing if
-accessibility is audited later.
-
-**Fix:** If landmark semantics matter here, move `MobileNavBar` to be a
-sibling of `SidebarInset`'s `<main>` rather than a child of it, or accept
-the non-landmark role as intentional and note it in the component comment.
-
-### IN-02: `SidebarTrigger`'s `aria-label="Open navigation"` in `MobileNavBar` does not reflect toggle/close semantics
-
-**File:** `components/app-shell/mobile-nav-bar.tsx:23`
-
-**Issue:** The label is static ("Open navigation") regardless of whether
-the sidebar sheet is currently open or closed; the button actually toggles.
-
-**Fix:** Either use a toggle-neutral label ("Toggle navigation") or drop the
-override in favor of the base component's existing "Toggle Sidebar"
-sr-only text.
-
 ### IN-03 (carried forward, not re-verified): `types/db.ts`'s regenerated PostgREST version string went backwards
 
 **File:** `types/db.ts:13`
+
+Confirmed unmodified since 05-05 — carried forward verbatim, unverified.
+
 **Issue:** `__InternalSupabase.PostgrestVersion` changed from `"14.15"` to
 `"14.5"`.
+
 **Fix:** Confirm this matches the linked Supabase project's actual
 PostgREST version; re-run `supabase gen types --linked` if not.
 
 ### IN-04 (carried forward, not re-verified): `rowsWithin`'s doc comment overstates what the function is actually exercised against
 
 **File:** `lib/dashboard/card-inventory.ts:153-161`
+
+Confirmed unmodified since 05-02 — carried forward verbatim, unverified.
+
 **Issue:** Claims to work for both `report_date` and `removed_at` callers
 but is only ever called with `report_date`.
+
 **Fix:** Add a test case for the `removed_at` usage, or narrow the comment.
 
 ---
 
-_Reviewed: 2026-09-10T20:15:00Z_
+_Reviewed: 2026-09-10T21:10:00Z_
 _Reviewer: Claude (gsd-code-reviewer)_
 _Depth: standard_
