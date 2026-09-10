@@ -156,6 +156,24 @@ export function PricingTierForm({ tierSets }: PricingTierFormProps) {
   // the delete-control-disappears-when-its-own-set-is-gone case.
   const selectedTierSet = tierSets.find((tierSet) => tierSet.id === selectedTierSetId) ?? null;
 
+  // G-05-5 (05-07): the mode is now a first-class value rather than a
+  // repeated `!selectedTierSet` null check — driving the always-on mode
+  // statement, the submit button label and the inline supersede notice
+  // below, so create-vs-edit can no longer be inferred only from the
+  // tier-set selector's dropdown value.
+  const isCreatingNewSet = !selectedTierSet;
+
+  const watchedEffectiveFrom = form.watch("effectiveFrom");
+
+  // Live inline preview of the create-supersede gate (Task 1's
+  // resolveSaveImpact), recomputed on every effective-from keystroke.
+  // Guarded against an incomplete date the user is still typing — only a
+  // complete ten-character `YYYY-MM-DD` value is resolved.
+  const supersedeNotice =
+    isCreatingNewSet && typeof watchedEffectiveFrom === "string" && watchedEffectiveFrom.length === 10
+      ? resolveSaveImpact({ kind: "create" }, watchedEffectiveFrom, tierSets)
+      : null;
+
   const tiersFieldError = form.formState.errors.tiers;
   const tiersError =
     tiersFieldError && "root" in tiersFieldError
@@ -330,6 +348,32 @@ export function PricingTierForm({ tierSets }: PricingTierFormProps) {
         onSubmit={onSubmit}
         className="flex flex-col gap-6 rounded-lg border border-border p-6"
       >
+        {/* G-05-5: always-on statement of which mode the editor is in — the
+            create/edit distinction can no longer be inferred only from the
+            tier-set selector's dropdown value. */}
+        <div className="flex flex-col gap-0.5">
+          {isCreatingNewSet ? (
+            <>
+              <p className="text-sm font-medium text-foreground">Creating a new tier set</p>
+              {tierSets.length > 0 && (
+                <p className="text-xs font-light text-muted-foreground">
+                  This is added alongside the {tierSets.length} existing tier{" "}
+                  {tierSets.length === 1 ? "set" : "sets"} — it does not change any of them.
+                </p>
+              )}
+            </>
+          ) : (
+            <>
+              <p className="text-sm font-medium text-foreground">
+                Editing the tier set effective {selectedTierSet?.effectiveFrom}
+              </p>
+              <p className="text-xs font-light text-muted-foreground">
+                Changes replace this set&apos;s current rates.
+              </p>
+            </>
+          )}
+        </div>
+
         {bannerError && (
           <div
             role="alert"
@@ -350,6 +394,17 @@ export function PricingTierForm({ tierSets }: PricingTierFormProps) {
             {form.formState.errors.effectiveFrom && (
               <p className="text-xs text-destructive">
                 {form.formState.errors.effectiveFrom.message}
+              </p>
+            )}
+            {/* G-05-5: inline pre-submit preview of the create-supersede
+                gate — legible before the confirmation dialog, not only
+                inside it. Never destructive tokens: nothing has gone wrong
+                yet, this is informational. */}
+            {supersedeNotice && (
+              <p className="rounded-md border border-[color:var(--warning)]/30 bg-[color:var(--warning)]/10 p-2 text-xs font-light text-foreground">
+                A tier set effective {supersedeNotice.supersedes} currently
+                prices {supersedeNotice.from} onward. Saving this supersedes
+                it from {supersedeNotice.from}.
               </p>
             )}
           </div>
@@ -457,7 +512,7 @@ export function PricingTierForm({ tierSets }: PricingTierFormProps) {
           disabled={form.formState.isSubmitting}
           className="self-start bg-[var(--cypher-blue)] text-white hover:bg-[var(--cypher-blue)]/90"
         >
-          Save pricing tiers
+          {isCreatingNewSet ? "Add new tier set" : "Save changes to this tier set"}
         </Button>
       </form>
 

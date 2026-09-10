@@ -52,7 +52,8 @@ export function TierSetSelector({ value, onValueChange, tierSets }: TierSetSelec
         </SelectContent>
       </Select>
       <p className="text-xs font-light text-muted-foreground">
-        Choose an existing tier set to correct it, or add a new one.
+        Choose an existing tier set to correct it in place, or add a new one
+        that takes over from its effective date.
       </p>
     </div>
   );
