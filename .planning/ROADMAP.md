@@ -169,7 +169,7 @@ Plans:
 **Goal**: Give every dashboard view a consistent, configurable time lens — current month, current year with a financial-year/calendar-year toggle, all time, and any previous month or year — with the financial-year start configurable in settings rather than hard-coded. Also seed the signed TSYS MSA tier table so revenue is priced off the real contract.
 **Mode:** mvp
 **Depends on**: Phase 3 (pricing tier config + revenue views), Phase 4 (reconciliation views to scope)
-**Requirements**: TBD (derive during planning)
+**Requirements**: PERIOD-01, PERIOD-02, PERIOD-03, FY-01, TSYS-01, TSYS-02
 **Success Criteria** (what must be TRUE):
 
   1. An admin can set the financial-year start (month, and day if needed) in the settings area without a redeploy, and the FY/CY toggle immediately derives its boundaries from that value.
@@ -178,11 +178,22 @@ Plans:
   4. The TSYS MSA tier table (0–500k @ $0.0405, 500,001–1M @ $0.0279, 1,000,001–5M @ $0.0225, 5,000,001–10M @ $0.0205, 10,000,001–25M @ $0.0189, 25,000,001+ @ $0.0174) exists as a `pricing_tier_sets` row with `reset_window = 'monthly'`, and a hand calculation of the MSA's own worked example — 1.5M transactions in a month = **$45,450** — matches to the cent.
   5. Period scoping never changes the tier maths: a year or all-time figure is the sum of per-month tiered figures, never the tier ladder run over an aggregate multi-month volume.
 
-**Plans**: 0 plans
-
+**Plans**: 5 plans
 Plans:
 
-- [ ] TBD (run /gsd-plan-phase 5 to break down)
+**Wave 1** *(tracer — the whole period architecture proven end to end on one view before anything expands)*
+
+- [ ] 05-01-PLAN.md — Tracer: app_settings store + pure period/FY resolver + period controls, scope badge and period-empty state, wired through /verifications
+
+**Wave 2** *(blocked on 05-01; the three slices are parallel — no shared-file overlap, migration numbers pre-allocated)*
+
+- [ ] 05-02-PLAN.md — Period lens across revenue, SLA, reconciliation and cards, plus the revenue_total_for_period RPC (0024) and the cards stock-vs-flow rule
+- [ ] 05-03-PLAN.md — /settings/general financial-year editor: Zod contract, audited Server Action, 4-state page, sidebar entry
+- [ ] 05-04-PLAN.md — TSYS MSA tier seed (0026) + edit-in-place/generalised-delete RPCs with the data-window guard (0025) + pricing editor selector and restate dialog
+
+**Wave 3** *(blocked on all)*
+
+- [ ] 05-05-PLAN.md — [BLOCKING] schema push (0023-0026) + type regen + live $45,450 hand-calc, D-06 invariant and phase UAT
 
 ### Phase 6: Dual-Source Alignment: TSYS vs Bit Addict
 
@@ -235,6 +246,6 @@ Phases execute in numeric order: 1 → 2 → 3 → 4 → 5 → 6 → 7 (Phase 3 
 | 2. Complete the Six Sources | 7/7 | Complete    | 2026-08-21 |
 | 3. Revenue, SLA & Drill-down | 7/7 | Complete   | 2026-08-21 |
 | 4. Reconciliation & Discrepancy Flagging | 4/4 | Complete   | 2026-08-23 |
-| 5. Time Periods & Financial-Year Settings | 0/0 | Not planned | — |
+| 5. Time Periods & Financial-Year Settings | 0/5 | Planned | — |
 | 6. Dual-Source Alignment: TSYS vs Bit Addict | 0/0 | Not planned | — |
 | 7. TSYS Tiered Volume & Revenue Forecast | 0/0 | Not planned | — |
