@@ -4,13 +4,20 @@ import type { Metadata } from "next";
 
 import { VerificationDrillSheet } from "@/components/dashboard/verification-drill-sheet";
 import { ScopeBadge } from "@/components/dashboard/scope-badge";
+import { PeriodControls } from "@/components/dashboard/period-controls";
+import { PeriodEmptyState } from "@/components/dashboard/period-empty-state";
 import { ViewControls } from "@/components/dashboard/view-controls";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { createClient } from "@/lib/supabase/server";
 import type { DailyRow } from "@/lib/dashboard/bucketing";
 import { parseDrillParams } from "@/lib/dashboard/drill-params";
-import { resolvePeriod, type ResolvedPeriod } from "@/lib/dashboard/period";
+import {
+  monthOptions as buildMonthOptions,
+  yearOptions as buildYearOptions,
+  resolvePeriod,
+  type ResolvedPeriod,
+} from "@/lib/dashboard/period";
 import { fetchFinancialYearStart } from "@/lib/settings/fy-settings";
 import {
   fetchVerificationDrillRows,
@@ -58,15 +65,21 @@ function FreshnessBadge({ uploadedAt }: { uploadedAt: string | null }) {
   );
 }
 
+type PeriodOption = { value: string; label: string };
+
 function PageHeader({
   uploadedAt,
   period,
+  monthOptions,
+  yearOptions,
 }: {
   uploadedAt: string | null;
   period: ResolvedPeriod | null;
+  monthOptions: PeriodOption[];
+  yearOptions: PeriodOption[];
 }) {
   return (
-    <div className="flex flex-col gap-2 border-b border-border pb-4">
+    <div className="flex flex-col gap-3 border-b border-border pb-4">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <p className="text-xs font-medium uppercase tracking-[0.12em] text-primary">
@@ -81,6 +94,9 @@ function PageHeader({
           <FreshnessBadge uploadedAt={uploadedAt} />
         </div>
       </div>
+      {period && (
+        <PeriodControls period={period} monthOptions={monthOptions} yearOptions={yearOptions} />
+      )}
       <p className="text-sm font-light text-muted-foreground">
         {DATA_WINDOW_CAPTION}
       </p>
@@ -187,8 +203,20 @@ async function VerificationsBody({ searchParams }: { searchParams: PageSearchPar
     dailyQuery = dailyQuery.lt("day_utc", period.end);
   }
 
-  const [dailyResult, freshnessResult, drillResult] = await Promise.all([
+  const monthOptions = buildMonthOptions(now);
+  const yearOptions = buildYearOptions(now);
+
+  const [dailyResult, sourceHasAnyRowsResult, freshnessResult, drillResult] = await Promise.all([
     dailyQuery.order("day_utc", { ascending: true }).returns<DailyViewRow[]>(),
+    // Distinguishes the domain empty state ("no verifications, ever") from
+    // the period-empty state ("verifications exist, this period has none")
+    // — an UNSCOPED existence check, so a narrow period can never make an
+    // otherwise-populated view look like it has no data at all.
+    supabase
+      .from("v_verifications_daily")
+      .select("day_utc")
+      .limit(1)
+      .returns<{ day_utc: string | null }[]>(),
     supabase
       .from("ingested_files")
       .select("uploaded_at")
@@ -198,17 +226,20 @@ async function VerificationsBody({ searchParams }: { searchParams: PageSearchPar
       .returns<IngestedFileFreshness[]>()
       .maybeSingle(),
     isVerificationDrill
-      ? fetchVerificationDrillRows(supabase, drillFilter.authenticated)
+      ? fetchVerificationDrillRows(supabase, drillFilter.authenticated, {
+          start: period.start,
+          end: period.end,
+        })
       : Promise.resolve<VerificationDrillFetchResult>({ rows: [], totalCount: null }),
   ]);
 
   // IN-03: surface a freshness-query failure as an error state rather than
   // silently folding it into "no imports yet" (which is indistinguishable from
   // a legitimately empty table and hides a real DB fault).
-  if (dailyResult.error || freshnessResult.error) {
+  if (dailyResult.error || sourceHasAnyRowsResult.error || freshnessResult.error) {
     return (
       <>
-        <PageHeader uploadedAt={null} period={null} />
+        <PageHeader uploadedAt={null} period={null} monthOptions={[]} yearOptions={[]} />
         <ErrorState />
       </>
     );
@@ -223,11 +254,25 @@ async function VerificationsBody({ searchParams }: { searchParams: PageSearchPar
     }));
 
   const uploadedAt = freshnessResult.data?.uploaded_at ?? null;
+  const sourceHasAnyRows = (sourceHasAnyRowsResult.data ?? []).length > 0;
+
+  const dataRegion = !sourceHasAnyRows ? (
+    <EmptyState />
+  ) : rows.length === 0 ? (
+    <PeriodEmptyState viewNoun="verifications" period={period} />
+  ) : (
+    <ViewControls dailyRows={rows} />
+  );
 
   return (
     <>
-      <PageHeader uploadedAt={uploadedAt} period={period} />
-      {rows.length === 0 ? <EmptyState /> : <ViewControls dailyRows={rows} />}
+      <PageHeader
+        uploadedAt={uploadedAt}
+        period={period}
+        monthOptions={monthOptions}
+        yearOptions={yearOptions}
+      />
+      {dataRegion}
       <VerificationDrillSheet
         filter={isVerificationDrill ? drillFilter : null}
         rows={drillResult.rows}

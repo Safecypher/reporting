@@ -37,19 +37,32 @@ export interface VerificationDrillFetchResult {
  * entity. Whitelisted, parameterised: only `.eq()`/`.gte()` builders are
  * used, never raw string interpolation of `searchParams` (T-03-19). The
  * session-scoped client keeps RLS in effect (T-03-20).
+ *
+ * `range` (Phase 5, D-04): a drill opened from a period-scoped metric must
+ * list only rows from that same period, or the drill silently contradicts
+ * the scope badge shown above it. Callers pass the SAME `{start, end}` the
+ * page's own daily query was scoped with (`lib/dashboard/period.ts`'s
+ * `ResolvedPeriod`). Omitting `range` behaves exactly as before — the
+ * DATA_WINDOW_START floor with no upper bound — so existing callers/tests
+ * are unaffected.
  */
 export async function fetchVerificationDrillRows(
   supabase: Awaited<ReturnType<typeof createClient>>,
   authenticated?: boolean,
+  range?: { start: string; end: string | null },
 ): Promise<VerificationDrillFetchResult> {
   let query = supabase
     .from("verifications")
     .select("created_at, external_card_reference, duration_ms, authenticated", {
       count: "exact",
     })
-    .gte("created_at", DATA_WINDOW_START)
+    .gte("created_at", range ? `${range.start}T00:00:00Z` : DATA_WINDOW_START)
     .order("created_at", { ascending: false })
     .limit(DRILL_ROW_LIMIT);
+
+  if (range?.end) {
+    query = query.lt("created_at", `${range.end}T00:00:00Z`);
+  }
 
   if (authenticated !== undefined) {
     query = query.eq("authenticated", authenticated);
