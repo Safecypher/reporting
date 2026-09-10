@@ -69,7 +69,8 @@ Recent decisions affecting current work:
 
 ### Pending Todos
 
-None yet.
+1 pending:
+- `2026-09-10-dual-source-card-and-revenue-dashboard.md` (ui, major) — dual-source (TIS vs Bit Addict) card counts, billing volume, TSYS-MSA forecast revenue; month / FY-CY / all-time period toggles
 
 ### Blockers/Concerns
 
