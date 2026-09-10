@@ -14,31 +14,24 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
-// Rule 3 transitional fix (05-04 Task 2): actions.ts's deleteLatestPricingTierSet
-// was replaced by the generalised deletePricingTierSet (D-19) in the same
-// commit that dropped its underlying RPC. This whole file is deleted and
-// replaced by components/pricing/delete-tier-set.tsx + tier-set-selector.tsx
-// in Task 3 — this import swap is only here to keep `npx tsc --noEmit`
-// green between the two tasks' commits.
 import { deletePricingTierSet } from "@/app/(dashboard)/settings/pricing/actions";
 
-interface DeleteLatestTierSetProps {
+interface DeleteTierSetProps {
   tierSetId: string;
   effectiveFrom: string;
 }
 
 /**
- * DeleteLatestTierSet — the UAT correction control (UAT-DELETE-01): lets a
- * user undo an accidental save by removing ONLY the most recent pricing
- * tier set, behind a confirmation Dialog (never one-click). The real
- * guard — "only the latest set can be deleted" — lives in the
- * delete_latest_pricing_tier_set RPC (0016), not here; this UI is just the
- * two-step confirmation surface.
+ * DeleteTierSet — the generalised correction control (D-19, replaces
+ * `DeleteLatestTierSet`): lets a user remove WHICHEVER tier set is currently
+ * selected in `TierSetSelector`, behind a confirmation `Dialog` (never
+ * one-click). The real guard — at least one tier set must keep covering the
+ * data window (from 2026-08-13) — lives in `delete_pricing_tier_set`
+ * (supabase/migrations/0025), not here; this UI is the two-step
+ * confirmation surface plus the explicit refusal toast when the server
+ * blocks the delete (UI-SPEC E8 error: never a silent no-op).
  */
-export function DeleteLatestTierSet({
-  tierSetId,
-  effectiveFrom,
-}: DeleteLatestTierSetProps) {
+export function DeleteTierSet({ tierSetId, effectiveFrom }: DeleteTierSetProps) {
   const [open, setOpen] = useState(false);
   const [isPending, startTransition] = useTransition();
 
@@ -60,14 +53,14 @@ export function DeleteLatestTierSet({
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>
         <Button type="button" variant="destructive">
-          Delete latest pricing tier set
+          Delete this tier set
         </Button>
       </DialogTrigger>
       <DialogContent>
         <DialogHeader>
-          <DialogTitle>Delete latest pricing tier set?</DialogTitle>
+          <DialogTitle>Delete this pricing tier set?</DialogTitle>
           <DialogDescription>
-            This removes the pricing tier set effective {effectiveFrom}. The
+            This removes the tier set effective {effectiveFrom}. The
             deletion is recorded in the change history below. This cannot be
             undone.
           </DialogDescription>
