@@ -65,8 +65,8 @@ Requirements for the initial release (the PoC dashboard shown to Mark). Each map
 - [x] **PERIOD-02**: User can navigate back to any previous month or previous year and the figures shown are that period's figures, not the current period's
 - [ ] **PERIOD-03**: Period scoping never changes the tier maths — a year or all-time figure is the sum of per-month tiered figures, never the tier ladder run over aggregate multi-month volume
 - [x] **FY-01**: Admin can set the financial-year start (month and day) in the settings area without a redeploy; the FY/CY toggle derives its boundaries from that value and every change is audited
-- [ ] **TSYS-01**: The signed TSYS MSA tier table exists as a `pricing_tier_sets` row with `reset_window = 'monthly'`, and the MSA's own worked example (1.5M transactions in a month = $45,450) matches to the cent
-- [ ] **TSYS-02**: Tier sets are editable in place and any set can be deleted, with the change audited and refused when it would leave the 13 Aug 2026 data window with no effective tier set
+- [x] **TSYS-01**: The signed TSYS MSA tier table exists as a `pricing_tier_sets` row with `reset_window = 'monthly'`, and the MSA's own worked example (1.5M transactions in a month = $45,450) matches to the cent
+- [x] **TSYS-02**: Tier sets are editable in place and any set can be deleted, with the change audited and refused when it would leave the 13 Aug 2026 data window with no effective tier set
 
 ## v2 Requirements
 
@@ -143,8 +143,8 @@ Which phases cover which requirements. Updated during roadmap creation.
 | PERIOD-02 | Phase 5 | Complete |
 | PERIOD-03 | Phase 5 | Gaps Found |
 | FY-01 | Phase 5 | Complete |
-| TSYS-01 | Phase 5 | Gaps Found |
-| TSYS-02 | Phase 5 | Gaps Found |
+| TSYS-01 | Phase 5 | Complete |
+| TSYS-02 | Phase 5 | Complete |
 
 **Coverage:**
 

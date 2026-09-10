@@ -4,16 +4,16 @@ milestone: v1.0
 current_phase: 05
 current_phase_name: Time Periods & Financial-Year Settings
 status: executing
-stopped_at: Completed 05-06-PLAN.md
-last_updated: "2026-09-10T15:39:18.268Z"
+stopped_at: Completed 05-07-PLAN.md
+last_updated: "2026-09-10T17:27:20.343Z"
 last_activity: 2026-09-10
 last_activity_desc: Phase 05 execution started
-state_head: b25fe8f90c5a7442e45bd797071f9887f0792089
+state_head: c14862b957a5715ffd894d7308cefa9c69256d15
 progress:
   total_phases: 7
   completed_phases: 2
-  total_plans: 31
-  completed_plans: 30
+  total_plans: 33
+  completed_plans: 32
 milestone_name: milestone
 ---
 
@@ -29,7 +29,7 @@ See: .planning/PROJECT.md (updated 2026-08-18)
 ## Current Position
 
 Phase: 05 (Time Periods & Financial-Year Settings) — EXECUTING
-Plan: 2 of 6
+Plan: 2 of 8
 Status: Ready to execute
 Last activity: 2026-09-10 — Phase 05 execution started
 
@@ -68,6 +68,7 @@ Progress: [░░░░░░░░░░] 0%
 | Phase 05 P04 | 18min | 3 tasks | 8 files |
 | Phase 05 P05 | 25min | 3 tasks | 4 files |
 | Phase 05 P06 | 35 min | 2 tasks | 5 files |
+| Phase 05 P07 | 68min | 3 tasks | 7 files |
 
 ## Accumulated Context
 
@@ -98,6 +99,8 @@ Recent decisions affecting current work:
 - [Phase 05]: [Phase 05] Phase 5 complete: TSYS MSA worked example verified live at exactly 45450.0000 for 1,500,000 transactions, all six band boundaries correct, D-06 per-month-vs-aggregate invariant holds (1200.0000 > 1050.0000)
 - [Phase 05]: [Phase 05] Reconciliation summary figures (enrolled/unenrolled) restored to unscoped, date-qualified reads (P-07) instead of period-derived: closes 05-VERIFICATION gap 1 / 05-REVIEW CR-01
 - [Phase 05]: [Phase 05] Financial-year error mapper extracted to lib/settings/errors.ts and widened to match the real Postgres 22008 "date field value out of range" text, covered by a committed 7-case test: closes 05-VERIFICATION gap 2 / 05-REVIEW WR-01
+- [Phase 05]: [Phase 05] G-05-5 create-supersede gate is structural (an existing tier set already prices the proposed date), not activity-day-count-based -- an activity-count gate would NOT have caught the live incident, since ingested data lagged the stray set's effective date by two days
+- [Phase 05]: [Phase 05] countRestatedDays now takes an optional inclusive-end argument, bounding the create-supersede day count to the range the new set actually displaces rather than counting to today
 
 ### Pending Todos
 
@@ -135,6 +138,6 @@ Items acknowledged and carried forward from previous milestone close:
 
 ## Session Continuity
 
-Last session: 2026-09-10T15:39:06.561Z
-Stopped at: Completed 05-06-PLAN.md
+Last session: 2026-09-10T17:27:20.055Z
+Stopped at: Completed 05-07-PLAN.md
 Resume file: None
