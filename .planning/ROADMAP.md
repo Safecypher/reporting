@@ -178,7 +178,7 @@ Plans:
   4. The TSYS MSA tier table (0–500k @ $0.0405, 500,001–1M @ $0.0279, 1,000,001–5M @ $0.0225, 5,000,001–10M @ $0.0205, 10,000,001–25M @ $0.0189, 25,000,001+ @ $0.0174) exists as a `pricing_tier_sets` row with `reset_window = 'monthly'`, and a hand calculation of the MSA's own worked example — 1.5M transactions in a month = **$45,450** — matches to the cent.
   5. Period scoping never changes the tier maths: a year or all-time figure is the sum of per-month tiered figures, never the tier ladder run over an aggregate multi-month volume.
 
-**Plans**: 8/8 plans executed, 2 UAT gap-closure plans outstanding
+**Plans**: 9 plans (8 executed, 1 code-review gap-closure plan outstanding)
 Plans:
 
 **Wave 1** *(tracer — the whole period architecture proven end to end on one view before anything expands)*
@@ -203,6 +203,10 @@ Plans:
 
 - [x] 05-07-PLAN.md — G-05-5: make create-new vs edit-existing unmistakable in the tier editor, gate a new tier set that supersedes an active one behind a confirmation, and re-tone the effective_from collision message to warning
 - [x] 05-08-PLAN.md — G-05-OBS1: render a sidebar trigger in a small-viewport top bar so the navigation is reachable below 768px (closes a Phase 1 app-shell defect found during Phase 5 UAT)
+
+**Gap closure — code review** *(from 05-REVIEW.md CR-01 / 05-UAT.md `## Gaps` G-05-CR01 — run with `/gsd-execute-phase 5 --gaps-only`)*
+
+- [ ] 05-09-PLAN.md — G-05-CR01: warn before an edit that moves a tier set's effective_from across another set's date silently transfers pricing authority for the days between them, replace the test pinning the wrong invariant, and make the pricing date guard actually reject impossible calendar dates
 
 ### Phase 6: Dual-Source Alignment: TSYS vs Bit Addict
 
