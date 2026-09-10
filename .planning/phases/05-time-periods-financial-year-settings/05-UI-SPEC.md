@@ -127,9 +127,21 @@ Unchanged base scale from 01-UI-SPEC.md. Phase-specific applications:
 | Period/FY toggle labels | Poppins 500 | 14px | 1.4 | `Month` / `Year` / `All time`; `Calendar` / `Financial` — matches existing `ToggleGroupItem` sizing in `ViewControls` |
 | Month/year select trigger + options | Poppins 400 | 14px (`--fs-small`) | 1.4 | e.g. `August 2026`; tabular-nums not required (these are calendar labels, not counts) |
 | FY boundary detail (inside scope badge, when Financial year selected) | Poppins 400, brand mono for the dates | 12px | 1.4 | e.g. `FY2026–27 (6 Apr 2026 – 5 Apr 2027)` — dates in mono per the existing "all dates/counts are tabular" rule (03-UI-SPEC.md) |
-| Period-empty state heading/body | Same as existing `EmptyState` (h2 Poppins 500 18px / body Poppins 300 14px) | — | — | Reused verbatim — see Copywriting |
 | `/settings/general` field labels | Poppins 500, 14px | — | Same as `/settings/pricing`'s `Label` usage | `Financial year start month`, `Financial year start day` |
 | Scope-impact inline notice | Poppins 400, `--fg-2` | 14px | 1.5 | De-emphasised via ink not weight, consistent with 04-UI-SPEC.md's delta-phrase rule |
+
+**Phase 5's own font-weight footprint is exactly 2 weights: Poppins 500 and Poppins 400** (the
+rows above). The period-empty state heading/body is deliberately **not** listed as a row here —
+it reuses the existing `EmptyState` component verbatim (h2 Poppins 500 18px / body Poppins 300
+14px), introducing no new styling, so it is not part of this phase's footprint. That reused 300
+weight is not a Phase 5 addition either way: 01-UI-SPEC.md's own Typography section documents
+Poppins 300 as the established base-scale body weight (`Body | Poppins 300 (Light) | 16px...`)
+and explicitly states the three-weight set already in use — "Weights in use: Poppins 300 (body),
+500 (headings/subtitles/labels/buttons), 700 (metrics)... This follows the brand — it is
+deliberately not the earlier '2 weights only' rule, which was a placeholder decision." Phase 5
+does not reopen that base-scale decision; it only asserts that *its own new elements* stay within
+2 weights, and that the one Poppins-300 usage it touches is inherited, pre-existing brand
+typography, not something this phase introduces.
 
 ---
 
@@ -186,7 +198,7 @@ numbers, no silent failure.
 | Restate-warning dialog title | `Save changes to pricing tiers?` |
 | Restate-warning dialog body | `This will restate revenue for {N} day{s}. Past figures shown for that period will change to reflect the corrected rates. This is recorded in the change history.` |
 | Restate-warning confirm button | `Save and restate revenue` |
-| Restate-warning cancel button | `Cancel` |
+| Restate-warning cancel button | `Keep editing` — not "Cancel": clicking it returns to the still-populated form without saving or discarding anything (the edit hasn't been submitted yet), so "Keep editing" states the actual effect rather than a generic dismissal |
 | Generalized delete button (was "Delete latest pricing tier set") | `Delete this tier set` |
 | Generalized delete dialog title | `Delete this pricing tier set?` |
 | Generalized delete dialog body | `This removes the tier set effective {date}. The deletion is recorded in the change history below. This cannot be undone.` |
