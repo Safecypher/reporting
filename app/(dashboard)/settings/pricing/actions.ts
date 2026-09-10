@@ -4,64 +4,11 @@ import { revalidatePath } from "next/cache";
 
 import { createClient } from "@/lib/supabase/server";
 import { pricingTierSetSchema } from "@/lib/pricing/schema";
-
-const GENERIC_ERROR =
-  "Could not save pricing tiers — please check the values and try again.";
-
-/**
- * Maps a raw Postgres/PostgREST error message to safe, user-facing copy
- * (WR-01: raw constraint/schema names must never reach the form UI). The
- * detailed message is always logged server-side first.
- */
-const DATA_WINDOW_BLOCKED_MESSAGE =
-  "This is the only tier set covering the data window (from 13 Aug 2026). Add a replacement before deleting this one.";
-
-/**
- * D-17/D-19: maps the data-window coverage guard's `check_violation` — new
- * in 0025, raised by both `save_pricing_tier_set` (an edit that backdates
- * or removes coverage) and `delete_pricing_tier_set` — to the UI-SPEC's
- * exact blocked-delete copy. The guard's underlying message differs
- * slightly by call site (`save_pricing_tier_set: this change would leave...`
- * vs `delete_pricing_tier_set: this is the only tier set...`), but the
- * user-facing consequence is identical: a write that would leave 2026-08-13
- * uncovered. `isDelete` only changes nothing today (both map to the same
- * copy) but keeps the call sites self-documenting about which action
- * triggered it.
- */
-function isDataWindowCoverageError(rawMessage: string): boolean {
-  return (
-    rawMessage.includes("would leave the data window") ||
-    rawMessage.includes("is the only tier set covering the data window")
-  );
-}
-
-/**
- * Maps a raw Postgres/PostgREST error message to safe, user-facing copy
- * (WR-01: raw constraint/schema names must never reach the form UI). The
- * detailed message is always logged server-side first.
- */
-function friendlyErrorMessage(rawMessage: string): string {
-  if (rawMessage.includes("pricing_tier_sets_effective_from_key")) {
-    return "A pricing tier set already exists for this date.";
-  }
-  if (isDataWindowCoverageError(rawMessage)) {
-    // D-17: the retired backdating guard's mapping is replaced by this one
-    // — the only guard left on effective_from is the data-window coverage
-    // check (RESEARCH Pitfall 1), never "must be after the latest existing".
-    return DATA_WINDOW_BLOCKED_MESSAGE;
-  }
-  if (rawMessage.includes("no pricing tier set found for id")) {
-    return "That pricing tier set no longer exists — it may have already been deleted.";
-  }
-  if (
-    rawMessage.includes("open-ended") ||
-    rawMessage.includes("contiguous tier_order") ||
-    rawMessage.includes("ascending upper_bound")
-  ) {
-    return "Tiers must be contiguous and in ascending order, ending with a single open-ended tier — check the thresholds and try again.";
-  }
-  return GENERIC_ERROR;
-}
+import {
+  mapPricingDeleteError,
+  mapPricingSaveError,
+  type PricingErrorTone,
+} from "@/lib/pricing/errors";
 
 /**
  * savePricingTierSet — the pricing admin's only write path (ADMIN-01, REV-02).
@@ -94,10 +41,13 @@ function friendlyErrorMessage(rawMessage: string): string {
 export async function savePricingTierSet(
   input: unknown,
   tierSetId?: string | null
-): Promise<{ success: true } | { error: string | Record<string, unknown> }> {
+): Promise<
+  | { success: true }
+  | { error: string | Record<string, unknown>; tone: PricingErrorTone }
+> {
   const parsed = pricingTierSetSchema.safeParse(input);
   if (!parsed.success) {
-    return { error: parsed.error.flatten() };
+    return { error: parsed.error.flatten(), tone: "error" };
   }
 
   const supabase = await createClient();
@@ -106,7 +56,7 @@ export async function savePricingTierSet(
   } = await supabase.auth.getUser();
 
   if (!user) {
-    return { error: "Unauthorized" };
+    return { error: "Unauthorized", tone: "error" };
   }
 
   // types/db.ts regenerated after 0025 was pushed (plan 05-05) — the RPC is
@@ -130,7 +80,8 @@ export async function savePricingTierSet(
     // WR-01: log the raw, detailed error server-side only; the client only
     // ever sees the mapped, friendly message.
     console.error("savePricingTierSet: save_pricing_tier_set RPC failed", error);
-    return { error: friendlyErrorMessage(error.message) };
+    const mapped = mapPricingSaveError(error.message);
+    return { error: mapped.message, tone: mapped.tone };
   }
 
   // REV-02: same-roundtrip revalidation, no re-ingestion required — Revenue
@@ -144,20 +95,6 @@ export async function savePricingTierSet(
   revalidatePath("/reconciliation");
 
   return { success: true };
-}
-
-/**
- * Maps a raw Postgres error from delete_pricing_tier_set (migration 0025) to
- * safe, user-facing copy (WR-01) — mirrors friendlyErrorMessage above.
- */
-function friendlyDeleteErrorMessage(rawMessage: string): string {
-  if (isDataWindowCoverageError(rawMessage)) {
-    return DATA_WINDOW_BLOCKED_MESSAGE;
-  }
-  if (rawMessage.includes("no pricing tier set found for id")) {
-    return "That pricing tier set no longer exists — it may have already been deleted.";
-  }
-  return "Could not delete the pricing tier set — please try again.";
 }
 
 /**
@@ -195,9 +132,13 @@ export async function deletePricingTierSet(
 
   if (error) {
     // WR-01: log the raw, detailed error server-side only; the client only
-    // ever sees the mapped, friendly message.
+    // ever sees the mapped, friendly message. Tone is discarded here — this
+    // return shape stays string-only (D-19 non-regression) so
+    // DeleteTierSet/its toast are untouched; delete-path messages keep
+    // --destructive styling unconditionally regardless of which guard
+    // rejected the delete.
     console.error("deletePricingTierSet: delete_pricing_tier_set RPC failed", error);
-    return { error: friendlyDeleteErrorMessage(error.message) };
+    return { error: mapPricingDeleteError(error.message).message };
   }
 
   revalidatePath("/settings/pricing");

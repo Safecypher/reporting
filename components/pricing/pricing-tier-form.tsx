@@ -35,6 +35,7 @@ import {
   resolveSaveImpact,
   type TierSetSaveMode,
 } from "@/lib/pricing/restate-scope";
+import type { PricingErrorTone } from "@/lib/pricing/errors";
 
 const RESET_WINDOW_OPTIONS = [
   { value: "monthly", label: "Monthly" },
@@ -115,8 +116,17 @@ interface PricingTierFormProps {
  * re-validates with the same schema server-side (T-03-05) — this component
  * never trusts its own validation as the security boundary.
  */
+/** The form's error banner carries a tone alongside its message (05-07):
+ * warning for a legitimate-but-blocked value (the effective_from
+ * collision), error for everything else — never destructive styling for a
+ * value the user can simply correct with a different date. */
+interface BannerError {
+  tone: PricingErrorTone;
+  message: string;
+}
+
 export function PricingTierForm({ tierSets }: PricingTierFormProps) {
-  const [bannerError, setBannerError] = useState<string | null>(null);
+  const [bannerError, setBannerError] = useState<BannerError | null>(null);
   const [selectedTierSetId, setSelectedTierSetId] = useState<string>(NEW_TIER_SET_VALUE);
   const [restateDialog, setRestateDialog] = useState<RestateDialogState>(CLOSED_RESTATE_DIALOG);
   const [isRestateSavePending, startRestateSaveTransition] = useTransition();
@@ -212,7 +222,7 @@ export function PricingTierForm({ tierSets }: PricingTierFormProps) {
         typeof result.error === "string"
           ? result.error
           : "Tiers must be contiguous and in ascending order — check the thresholds and try again.";
-      setBannerError(message);
+      setBannerError({ tone: result.tone, message });
       return false;
     }
 
@@ -258,9 +268,11 @@ export function PricingTierForm({ tierSets }: PricingTierFormProps) {
     const countResult = await countRestatedDays(impact.from, impact.through);
 
     if ("error" in countResult) {
-      setBannerError(
-        "Could not determine how many days this change would affect — please try again.",
-      );
+      setBannerError({
+        tone: "error",
+        message:
+          "Could not determine how many days this change would affect — please try again.",
+      });
       return;
     }
 
@@ -377,9 +389,14 @@ export function PricingTierForm({ tierSets }: PricingTierFormProps) {
         {bannerError && (
           <div
             role="alert"
-            className="rounded-lg border border-destructive/40 bg-destructive/5 p-3 text-sm text-destructive"
+            className={cn(
+              "rounded-lg border p-3 text-sm",
+              bannerError.tone === "warning"
+                ? "border-[color:var(--warning)]/30 bg-[color:var(--warning)]/10 text-[color:var(--warning)]"
+                : "border-destructive/40 bg-destructive/5 text-destructive",
+            )}
           >
-            {bannerError}
+            {bannerError.message}
           </div>
         )}
 
