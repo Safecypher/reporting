@@ -26,7 +26,13 @@ export const FY_SETTINGS_INVALID_DAY_ERROR =
 export function friendlyFinancialYearErrorMessage(rawMessage: string): string {
   if (
     rawMessage.includes("app_settings_fy_start_day_check") ||
-    rawMessage.includes("make_date")
+    rawMessage.includes("make_date") ||
+    // 05-VERIFICATION.md gap 2: the text Postgres actually raises for this
+    // constraint (SQLSTATE 22008) -- make_date() itself raises before the
+    // CHECK expression's boolean test is ever reached, so this is NOT a
+    // 23514 check_violation as 05-RESEARCH Pitfall 3 assumed. Live-
+    // reproduced against project gditxlxfdwlvnyhhxybf.
+    rawMessage.includes("date field value out of range")
   ) {
     return FY_SETTINGS_INVALID_DAY_ERROR;
   }
