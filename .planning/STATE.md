@@ -4,16 +4,16 @@ milestone: v1.0
 current_phase: 05
 current_phase_name: Time Periods & Financial-Year Settings
 status: executing
-stopped_at: Completed 05-03-PLAN.md
-last_updated: "2026-09-10T13:18:11.646Z"
+stopped_at: Completed 05-04-PLAN.md
+last_updated: "2026-09-10T13:36:11.971Z"
 last_activity: 2026-09-10
 last_activity_desc: Phase 05 execution started
-state_head: e281a756f1d7bdae39f4b153d280cff2a80f7b29
+state_head: 8a3937c761be437ce4e7e8b8a724fb56c702bf85
 progress:
   total_phases: 7
   completed_phases: 2
   total_plans: 30
-  completed_plans: 28
+  completed_plans: 29
 milestone_name: milestone
 ---
 
@@ -29,7 +29,7 @@ See: .planning/PROJECT.md (updated 2026-08-18)
 ## Current Position
 
 Phase: 05 (Time Periods & Financial-Year Settings) — EXECUTING
-Plan: 4 of 5
+Plan: 5 of 5
 Status: Ready to execute
 Last activity: 2026-09-10 — Phase 05 execution started
 
@@ -65,6 +65,7 @@ Progress: [░░░░░░░░░░] 0%
 | Phase 05 P01 | 42min | 2 tasks | 10 files |
 | Phase 05 P02 | 65min | 3 tasks | 9 files |
 | Phase 05 P03 | 13min | 2 tasks | 7 files |
+| Phase 05 P04 | 18min | 3 tasks | 8 files |
 
 ## Accumulated Context
 
@@ -89,6 +90,7 @@ Recent decisions affecting current work:
 - [Phase 05]: Card inventory KPI caption always names the as-of snapshot date, stating carried-forward basis when it precedes period.start
 - [Phase 05]: reconciliation-inventory-table.tsx Live-cards figure carries an inline as-of-latest-import caption (P-06)
 - [Phase 05]: financial-year day validation uses date-fns getDaysInMonth against a fixed non-leap reference year (2001), never the current year — so an FY start valid only in leap years is rejected outright, mirroring lib/pricing/schema.ts's cross-field superRefine convention
+- [Phase 05]: Both new pricing-tier RPCs (save UPDATE branch, delete) evaluate data-window coverage before and after the write, raising check_violation only on a before-covered/after-uncovered transition — Loosening backdating and any-set-delete (D-17/D-19) reopens v_revenue_tier_set_by_day's silent-drop failure mode; a database already uncovered before the operation stays correctable rather than getting permanently locked by a guard added after the fact
 
 ### Pending Todos
 
@@ -126,6 +128,6 @@ Items acknowledged and carried forward from previous milestone close:
 
 ## Session Continuity
 
-Last session: 2026-09-10T13:18:11.515Z
-Stopped at: Completed 05-03-PLAN.md
+Last session: 2026-09-10T13:36:11.850Z
+Stopped at: Completed 05-04-PLAN.md
 Resume file: None
