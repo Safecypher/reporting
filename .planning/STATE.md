@@ -4,16 +4,16 @@ milestone: v1.0
 current_phase: 05
 current_phase_name: Time Periods & Financial-Year Settings
 status: executing
-stopped_at: Completed 05-07-PLAN.md
-last_updated: "2026-09-10T17:27:20.343Z"
+stopped_at: Completed 05-08-PLAN.md (mobile nav reachability gap closure, G-05-OBS1 closed)
+last_updated: "2026-09-10T18:59:16.067Z"
 last_activity: 2026-09-10
-last_activity_desc: Phase 05 execution started
-state_head: c14862b957a5715ffd894d7308cefa9c69256d15
+last_activity_desc: Phase 05 gap-closure plan 08 complete (G-05-OBS1 closed) — all 8/8 plans in phase 05 now have SUMMARY.md
+state_head: 7440adbace58f9f61631e155ce46b53124b01319
 progress:
   total_phases: 7
   completed_phases: 2
   total_plans: 33
-  completed_plans: 32
+  completed_plans: 33
 milestone_name: milestone
 ---
 
@@ -28,10 +28,10 @@ See: .planning/PROJECT.md (updated 2026-08-18)
 
 ## Current Position
 
-Phase: 05 (Time Periods & Financial-Year Settings) — EXECUTING
-Plan: 2 of 8
-Status: Ready to execute
-Last activity: 2026-09-10 — Phase 05 execution started
+Phase: 05 (Time Periods & Financial-Year Settings) — 8/8 PLANS COMPLETE
+Plan: 8 of 8 (all plans have matching SUMMARY.md)
+Status: Ready for /gsd-verify-work 05
+Last activity: 2026-09-10 — Plan 05-08 (mobile nav reachability gap closure) complete, G-05-OBS1 closed
 
 Progress: [░░░░░░░░░░] 0%
 
@@ -69,6 +69,7 @@ Progress: [░░░░░░░░░░] 0%
 | Phase 05 P05 | 25min | 3 tasks | 4 files |
 | Phase 05 P06 | 35 min | 2 tasks | 5 files |
 | Phase 05 P07 | 68min | 3 tasks | 7 files |
+| Phase 05 P08 | 1h 20m | 3 tasks | 3 files |
 
 ## Accumulated Context
 
@@ -101,6 +102,7 @@ Recent decisions affecting current work:
 - [Phase 05]: [Phase 05] Financial-year error mapper extracted to lib/settings/errors.ts and widened to match the real Postgres 22008 "date field value out of range" text, covered by a committed 7-case test: closes 05-VERIFICATION gap 2 / 05-REVIEW WR-01
 - [Phase 05]: [Phase 05] G-05-5 create-supersede gate is structural (an existing tier set already prices the proposed date), not activity-day-count-based -- an activity-count gate would NOT have caught the live incident, since ingested data lagged the stray set's effective date by two days
 - [Phase 05]: [Phase 05] countRestatedDays now takes an optional inclusive-end argument, bounding the create-supersede day count to the range the new set actually displaces rather than counting to today
+- [Phase 05]: Fixed pre-existing SSR/client hydration mismatch in hooks/use-mobile.ts as an authorized Rule 1 deviation outside plan 05-08's declared files_modified — The plan's own acceptance criteria (no hydration error at first client render) could not pass while the mismatch stood; root-caused to Phase 1's useIsMobile hook, not introduced by this plan
 
 ### Pending Todos
 
@@ -138,6 +140,6 @@ Items acknowledged and carried forward from previous milestone close:
 
 ## Session Continuity
 
-Last session: 2026-09-10T17:27:20.055Z
-Stopped at: Completed 05-07-PLAN.md
+Last session: 2026-09-10T18:59:15.915Z
+Stopped at: Completed 05-08-PLAN.md (mobile nav reachability gap closure, G-05-OBS1 closed)
 Resume file: None
