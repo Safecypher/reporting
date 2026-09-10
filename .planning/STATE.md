@@ -25,10 +25,10 @@ See: .planning/PROJECT.md (updated 2026-08-18)
 
 ## Current Position
 
-Phase: 04
+Phase: 05
 Plan: Not started
-Status: Milestone complete
-Last activity: 2026-08-23 - Completed quick task 260823-l9c: reconciliation status row styling
+Status: Phase 5 added, not planned
+Last activity: 2026-09-10 - Promoted the dual-source dashboard todo into Phases 5-7 (period/FY lens, TSYS-vs-Bit-Addict alignment, TSYS tiered volume + forecast)
 
 Progress: [░░░░░░░░░░] 0%
 
@@ -58,6 +58,14 @@ Progress: [░░░░░░░░░░] 0%
 
 ## Accumulated Context
 
+### Roadmap Evolution
+
+- Phase 5 added (2026-09-10): Time Periods & Financial-Year Settings — configurable FY start, month/FY-CY/all-time/historical period lens, TSYS MSA tier set seeded
+- Phase 6 added (2026-09-10): Dual-Source Alignment: TSYS vs Bit Addict — side-by-side card/volume metrics with variance and status; elevates Phase 4's amber-only v_apigee_cross_check
+- Phase 7 added (2026-09-10): TSYS Tiered Volume & Revenue Forecast — stepped tiers on monthly billable volume, actual-to-date plus projected month-end
+- Source mapping resolved (2026-09-10, Mark): "TIS" = the TSYS/APIGEE report (`apigee_calls`); "Bit Addict" supplies the other five reports. Both sides already ingested — no prerequisite ingestion phase needed.
+- Forecast semantics resolved (2026-09-10, Mark): show actual-to-date AND projected month-end side by side.
+
 ### Decisions
 
 Decisions are logged in PROJECT.md Key Decisions table.
@@ -69,8 +77,9 @@ Recent decisions affecting current work:
 
 ### Pending Todos
 
-1 pending:
-- `2026-09-10-dual-source-card-and-revenue-dashboard.md` (ui, major) — dual-source (TIS vs Bit Addict) card counts, billing volume, TSYS-MSA forecast revenue; month / FY-CY / all-time period toggles
+None pending.
+
+- `2026-09-10-dual-source-card-and-revenue-dashboard.md` — promoted 2026-09-10 into Phases 5-7; kept in pending/ as the source-of-truth capture (TSYS rate table + maths rules) until Phase 7 verification.
 
 ### Blockers/Concerns
 

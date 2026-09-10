@@ -17,6 +17,9 @@ Decimal phases appear between their surrounding integers in numeric order.
 - [x] **Phase 2: Complete the Six Sources** - Parallel fan-out of the five remaining parsers so all six report types ingest, normalise, and de-duplicate (incl. cumulative billing + Thesis XLSX) (completed 2026-08-21)
 - [x] **Phase 3: Revenue, SLA & Drill-down** - Exact tiered revenue, configurable pricing admin, SLA-vs-750ms trend, and drill-from-metric-to-source (completed 2026-08-21)
 - [x] **Phase 4: Reconciliation & Discrepancy Flagging** - The core-value centrepiece: timing-aware billing-vs-verification and inventory reconciliation with explained, traceable discrepancy flags (completed 2026-08-23)
+- [ ] **Phase 5: Time Periods & Financial-Year Settings** - Configurable financial-year start plus a consistent month / FY-or-CY / all-time / historical period lens across every view, and the signed TSYS MSA tier table seeded
+- [ ] **Phase 6: Dual-Source Alignment: TSYS vs Bit Addict** - Enrolled, unenrolled, live cards and transaction volume shown for both sources side by side with variance and an explicit aligned/mismatch status
+- [ ] **Phase 7: TSYS Tiered Volume & Revenue Forecast** - Stepped TSYS tiers on monthly billable volume, with actual-to-date and projected month-end shown side by side per source
 
 ## Phase Details
 
@@ -161,10 +164,69 @@ Plans:
 
 **UI hint**: yes
 
+### Phase 5: Time Periods & Financial-Year Settings
+
+**Goal**: Give every dashboard view a consistent, configurable time lens — current month, current year with a financial-year/calendar-year toggle, all time, and any previous month or year — with the financial-year start configurable in settings rather than hard-coded. Also seed the signed TSYS MSA tier table so revenue is priced off the real contract.
+**Mode:** mvp
+**Depends on**: Phase 3 (pricing tier config + revenue views), Phase 4 (reconciliation views to scope)
+**Requirements**: TBD (derive during planning)
+**Success Criteria** (what must be TRUE):
+
+  1. An admin can set the financial-year start (month, and day if needed) in the settings area without a redeploy, and the FY/CY toggle immediately derives its boundaries from that value.
+  2. Every metric view (verifications, revenue, SLA, cards, reconciliation) accepts the same period scope — current month, current year (FY or CY), all time — and shows which scope is active.
+  3. A user can navigate back to any previous month or previous year and the figures shown are that period's figures, not the current period's.
+  4. The TSYS MSA tier table (0–500k @ $0.0405, 500,001–1M @ $0.0279, 1,000,001–5M @ $0.0225, 5,000,001–10M @ $0.0205, 10,000,001–25M @ $0.0189, 25,000,001+ @ $0.0174) exists as a `pricing_tier_sets` row with `reset_window = 'monthly'`, and a hand calculation of the MSA's own worked example — 1.5M transactions in a month = **$45,450** — matches to the cent.
+  5. Period scoping never changes the tier maths: a year or all-time figure is the sum of per-month tiered figures, never the tier ladder run over an aggregate multi-month volume.
+
+**Plans**: 0 plans
+
+Plans:
+
+- [ ] TBD (run /gsd-plan-phase 5 to break down)
+
+### Phase 6: Dual-Source Alignment: TSYS vs Bit Addict
+
+**Goal**: Show every card and volume metric for both upstream sources side by side — TSYS (the TSYS/APIGEE report, `apigee_calls`) versus Bit Addict (the other five reports) — so the team can see at a glance whether the two agree, and be told plainly when they do not. Elevates Phase 4's amber-only `v_apigee_cross_check` into a first-class comparison with variance and status.
+**Mode:** mvp
+**Depends on**: Phase 5 (period scoping), Phase 4 (`v_apigee_cross_check`, `v_inventory_daily_diff`, `v_inventory_live_count`, StatusBadge, drill-down)
+**Requirements**: TBD (derive during planning)
+**Success Criteria** (what must be TRUE):
+
+  1. Enrolled cards, unenrolled cards, calculated live cards, and transaction volume each show a TSYS figure and a Bit Addict figure side by side for the selected period, with the variance (absolute and %) and which side is short.
+  2. The TSYS side derives its figures from `apigee_calls.endpoint_category` (`enrol`, unenrol, `verify`, `cvv-fetch`); live cards on the TSYS side is a cumulative enrol-minus-unenrol derivation, and the derivation is stated in the UI so the number is auditable rather than magic.
+  3. Each comparison carries an explicit status (aligned / mismatch / needs-review) using the existing three-state badge — never just a red dot — and "needs-review" is used where one source's report day is missing rather than silently reading as zero.
+  4. A user can drill from either side of any comparison to the contributing rows and their originating source file.
+  5. A day where the two sources genuinely disagree is visibly flagged on the dashboard without the user having to open the reconciliation page.
+
+**Plans**: 0 plans
+
+Plans:
+
+- [ ] TBD (run /gsd-plan-phase 6 to break down)
+
+### Phase 7: TSYS Tiered Volume & Revenue Forecast
+
+**Goal**: Turn billable transaction volume into money the way the MSA actually pays it — TSYS stepped tiers on monthly volume — and show actual-to-date alongside a projected month-end forecast, for both sources, for any selected period.
+**Mode:** mvp
+**Depends on**: Phase 5 (TSYS tier set + period scoping), Phase 6 (per-source volume)
+**Requirements**: TBD (derive during planning)
+**Success Criteria** (what must be TRUE):
+
+  1. The revenue view shows, side by side, **actual-to-date** revenue (TSYS tiers applied to volume actually recorded) and a **projected month-end** forecast (current-month volume extrapolated at the observed daily run rate, then priced through the tiers) — both labelled so nobody mistakes a projection for a booked figure.
+  2. Revenue is computed from billable transaction volume, attributable per source, so a TSYS-vs-Bit-Addict volume disagreement is visible as a revenue disagreement rather than being averaged away.
+  3. Yearly and all-time revenue equal the sum of the per-month tiered figures; a test proves that running the ladder over aggregate annual volume instead produces a different (wrong, understated) number, so the correct path is locked in by a regression test.
+  4. Money stays exact `NUMERIC` end to end and is rounded once at display — no float arithmetic in the app layer, matching the Phase 3 convention.
+  5. The projection degrades honestly: a month with too few days of data to extrapolate says so rather than printing a wild forecast.
+
+**Notes / open questions for planning**:
+  - Whether the tier rates and financial-year setting need **effective-dating** (rate-change history) or whether a single current value is acceptable for v1 — matters only if a past month would ever be restated after an MSA amendment. `pricing_tier_sets` is already date-effective, so the FY setting is the open half.
+  - Confirm the agreed definition of "live cards" with Thesis so the calculated figure reconciles rather than merely displays.
+  - Existing `/revenue` prices **verification counts**; this phase moves to **billable transaction volume**. Confirm whether the two are the same population or whether `/revenue` should be restated.
+
 ## Progress
 
 **Execution Order:**
-Phases execute in numeric order: 1 → 2 → 3 → 4 (Phase 3 may run in parallel with Phase 2 given it depends only on Phase 1).
+Phases execute in numeric order: 1 → 2 → 3 → 4 → 5 → 6 → 7 (Phase 3 may run in parallel with Phase 2 given it depends only on Phase 1; Phases 6 and 7 both build on the Phase 5 period lens, and 7 needs Phase 6's per-source volume).
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
@@ -172,3 +234,6 @@ Phases execute in numeric order: 1 → 2 → 3 → 4 (Phase 3 may run in paralle
 | 2. Complete the Six Sources | 7/7 | Complete    | 2026-08-21 |
 | 3. Revenue, SLA & Drill-down | 7/7 | Complete   | 2026-08-21 |
 | 4. Reconciliation & Discrepancy Flagging | 4/4 | Complete   | 2026-08-23 |
+| 5. Time Periods & Financial-Year Settings | 0/0 | Not planned | — |
+| 6. Dual-Source Alignment: TSYS vs Bit Addict | 0/0 | Not planned | — |
+| 7. TSYS Tiered Volume & Revenue Forecast | 0/0 | Not planned | — |
