@@ -4,16 +4,16 @@ milestone: v1.0
 current_phase: 05
 current_phase_name: Time Periods & Financial-Year Settings
 status: executing
-stopped_at: Completed 05-01-PLAN.md
-last_updated: "2026-09-10T12:53:19.053Z"
+stopped_at: Completed 05-02-PLAN.md
+last_updated: "2026-09-10T13:10:41.345Z"
 last_activity: 2026-09-10
 last_activity_desc: Phase 05 execution started
-state_head: f82fb938378e3d249a330948d082bb56d59b6c30
+state_head: 6c4c173960be02aebef1da27103cb6a9fdf99eba
 progress:
   total_phases: 7
   completed_phases: 2
   total_plans: 30
-  completed_plans: 26
+  completed_plans: 27
 milestone_name: milestone
 ---
 
@@ -29,7 +29,7 @@ See: .planning/PROJECT.md (updated 2026-08-18)
 ## Current Position
 
 Phase: 05 (Time Periods & Financial-Year Settings) — EXECUTING
-Plan: 2 of 5
+Plan: 3 of 5
 Status: Ready to execute
 Last activity: 2026-09-10 — Phase 05 execution started
 
@@ -63,6 +63,7 @@ Progress: [░░░░░░░░░░] 0%
 | Plan | Duration | Tasks | Files |
 |------|----------|-------|-------|
 | Phase 05 P01 | 42min | 2 tasks | 10 files |
+| Phase 05 P02 | 65min | 3 tasks | 9 files |
 
 ## Accumulated Context
 
@@ -84,6 +85,8 @@ Recent decisions affecting current work:
 - [Roadmap]: Billing-vs-verification discrepancy flagging (Phase 4) is the demo centrepiece / core-value milestone.
 - [Phase 05]: period.ts implements its own UTC-only date formatting/arithmetic helpers instead of date-fns's format/addMonths/getDaysInMonth, which read local getters and would silently misdate UTC period boundaries in a non-UTC process timezone
 - [Phase 05]: Domain-empty vs period-empty on /verifications is distinguished via a dedicated unscoped existence check on v_verifications_daily, not by reusing the period-scoped row count
+- [Phase 05]: Card inventory KPI caption always names the as-of snapshot date, stating carried-forward basis when it precedes period.start
+- [Phase 05]: reconciliation-inventory-table.tsx Live-cards figure carries an inline as-of-latest-import caption (P-06)
 
 ### Pending Todos
 
@@ -121,6 +124,6 @@ Items acknowledged and carried forward from previous milestone close:
 
 ## Session Continuity
 
-Last session: 2026-09-10T12:53:18.934Z
-Stopped at: Completed 05-01-PLAN.md
+Last session: 2026-09-10T13:10:41.216Z
+Stopped at: Completed 05-02-PLAN.md
 Resume file: None
