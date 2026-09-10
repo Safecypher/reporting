@@ -1,14 +1,20 @@
 ---
-status: complete
+status: testing
 phase: 05-time-periods-financial-year-settings
 source: [05-VERIFICATION.md]
 started: 2026-09-10T17:20:00Z
-updated: 2026-09-10T18:25:00Z
+updated: 2026-09-10T21:10:00Z
 ---
 
 ## Current Test
 
-[testing complete]
+number: 9
+name: Create-vs-edit mode statement and inline supersede notice (05-07)
+expected: |
+  The pricing editor states unmistakably whether it is creating a new tier set
+  or editing the selected one, and the inline pre-submit notice appears when the
+  save would supersede an active set. Readable at 375px.
+awaiting: user response
 
 ## Tests
 
@@ -54,12 +60,20 @@ expected: The three summary numbers (Live cards, Enrolled (latest snapshot), Une
 result: pass
 note: \"Verified against live DB expectations: latest computable day 2026-09-08, enrolled=2, unenrolled=61 — confirmed period-invariant across month/past-month/all-time.\"
 
+### 9. Create-vs-edit mode statement and inline supersede notice (05-07, round 2)
+expected: The pricing editor states unmistakably whether it is creating a new tier set or editing the selected one; the inline pre-submit notice appears when the save would supersede an active set; both readable at 375px
+result: [pending]
+
+### 10. Edit-supersede dialog copy, tone and viewport (05-09, round 2)
+expected: Editing a tier set's effective_from across another set's date opens a warning-toned (not destructive-red) dialog naming the displaced set and the affected-day count, readable at 375px; the live pre-submit notice reflects the same in edit mode
+result: [pending]
+
 ## Summary
 
-total: 8
+total: 10
 passed: 5
 issues: 1
-pending: 0
+pending: 2
 skipped: 2
 blocked: 0
 
