@@ -14,7 +14,13 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
-import { deleteLatestPricingTierSet } from "@/app/(dashboard)/settings/pricing/actions";
+// Rule 3 transitional fix (05-04 Task 2): actions.ts's deleteLatestPricingTierSet
+// was replaced by the generalised deletePricingTierSet (D-19) in the same
+// commit that dropped its underlying RPC. This whole file is deleted and
+// replaced by components/pricing/delete-tier-set.tsx + tier-set-selector.tsx
+// in Task 3 — this import swap is only here to keep `npx tsc --noEmit`
+// green between the two tasks' commits.
+import { deletePricingTierSet } from "@/app/(dashboard)/settings/pricing/actions";
 
 interface DeleteLatestTierSetProps {
   tierSetId: string;
@@ -38,7 +44,7 @@ export function DeleteLatestTierSet({
 
   function handleConfirm() {
     startTransition(async () => {
-      const result = await deleteLatestPricingTierSet(tierSetId);
+      const result = await deletePricingTierSet(tierSetId);
 
       if ("error" in result) {
         toast.error(result.error);
