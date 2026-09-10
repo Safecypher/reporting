@@ -7,18 +7,29 @@ import { CardInventoryKpiCards } from "@/components/dashboard/card-inventory-kpi
 import { CardInventoryTable } from "@/components/dashboard/card-inventory-table";
 import type { CardInventoryTableRow } from "@/components/dashboard/card-inventory-columns";
 import { CardRemovalsChart, type CardRemovalsChartPoint } from "@/components/dashboard/card-removals-chart";
+import { ScopeBadge } from "@/components/dashboard/scope-badge";
+import { PeriodControls } from "@/components/dashboard/period-controls";
+import { PeriodEmptyState } from "@/components/dashboard/period-empty-state";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { createClient } from "@/lib/supabase/server";
 import {
-  fetchCardInventoryRows,
+  fetchCardInventoryRowsUpTo,
   fetchRemovedCardRows,
   firstSeenByCard,
   latestSnapshot,
   netChange,
   removalSeries,
+  rowsWithin,
   snapshotSeries,
 } from "@/lib/dashboard/card-inventory";
+import {
+  monthOptions as buildMonthOptions,
+  yearOptions as buildYearOptions,
+  resolvePeriod,
+  type ResolvedPeriod,
+} from "@/lib/dashboard/period";
+import { fetchFinancialYearStart } from "@/lib/settings/fy-settings";
 
 export const metadata: Metadata = {
   title: "Cards — Safecypher Reporting",
@@ -49,9 +60,21 @@ function FreshnessBadge({ uploadedAt }: { uploadedAt: string | null }) {
   );
 }
 
-function PageHeader({ uploadedAt }: { uploadedAt: string | null }) {
+type PeriodOption = { value: string; label: string };
+
+function PageHeader({
+  uploadedAt,
+  period,
+  monthOptions,
+  yearOptions,
+}: {
+  uploadedAt: string | null;
+  period: ResolvedPeriod | null;
+  monthOptions: PeriodOption[];
+  yearOptions: PeriodOption[];
+}) {
   return (
-    <div className="flex flex-col gap-2 border-b border-border pb-4">
+    <div className="flex flex-col gap-3 border-b border-border pb-4">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <p className="text-xs font-medium uppercase tracking-[0.12em] text-primary">
@@ -59,8 +82,14 @@ function PageHeader({ uploadedAt }: { uploadedAt: string | null }) {
           </p>
           <h1 className="text-2xl font-medium text-foreground">Cards</h1>
         </div>
-        <FreshnessBadge uploadedAt={uploadedAt} />
+        <div className="flex flex-wrap items-center gap-2">
+          {period && <ScopeBadge period={period} />}
+          <FreshnessBadge uploadedAt={uploadedAt} />
+        </div>
       </div>
+      {period && (
+        <PeriodControls period={period} monthOptions={monthOptions} yearOptions={yearOptions} />
+      )}
       <p className="text-sm font-light text-muted-foreground">
         {DATA_WINDOW_CAPTION}
       </p>
@@ -132,6 +161,8 @@ function formatDayLong(day: string): string {
   return new Date(`${day}T00:00:00Z`).toLocaleDateString("en-GB", { dateStyle: "medium" });
 }
 
+type PageSearchParams = Promise<{ [key: string]: string | string[] | undefined }>;
+
 /**
  * Async Server Component reading `card_inventory` and `removed_cards` via
  * the session-scoped server client so RLS applies, mirroring
@@ -142,13 +173,49 @@ function formatDayLong(day: string): string {
  *
  * No migration, no view (PLAN.md "No migration" decision): shaping happens
  * in TypeScript over the plain table reads in `lib/dashboard/card-inventory.ts`.
+ *
+ * P-02 (Phase 5): card inventory is a STOCK metric, not a flow metric like
+ * the other four period-scoped views — see the module doc comment on
+ * `lib/dashboard/card-inventory.ts` for the full rule. The Enrolled-cards
+ * KPI and the latest-snapshot table are both derived from
+ * `fetchCardInventoryRowsUpTo(supabase, period.end)` (as-of-period-end),
+ * while the enrolment-over-time chart and removals are windowed strictly to
+ * `[period.start, period.end)` (flow).
  */
-async function CardsBody() {
+async function CardsBody({ searchParams }: { searchParams: PageSearchParams }) {
   const supabase = await createClient();
+  const params = await searchParams;
 
-  const [inventoryResult, removedResult, freshnessResult] = await Promise.all([
-    fetchCardInventoryRows(supabase),
-    fetchRemovedCardRows(supabase),
+  // D-01/D-05: resolve the period BEFORE any query is built — `now` is
+  // captured once here from the runtime clock and passed in, so
+  // `resolvePeriod` itself stays pure (no wall-clock access inside it).
+  const now = new Date();
+  const fyStart = await fetchFinancialYearStart(supabase);
+  const period = resolvePeriod(params, fyStart, now);
+  const monthOptions = buildMonthOptions(now);
+  const yearOptions = buildYearOptions(now);
+
+  const [
+    rowsUpToEndResult,
+    removedResult,
+    // UNSCOPED domain-existence probes (never a period predicate) —
+    // distinguish "no card data at all, ever" (EmptyState) from "card data
+    // exists, this period has neither a snapshot at-or-before its end nor a
+    // removal inside it" (PeriodEmptyState, P-02).
+    inventoryDomainProbe,
+    removedDomainProbe,
+    freshnessResult,
+  ] = await Promise.all([
+    fetchCardInventoryRowsUpTo(supabase, period.end),
+    fetchRemovedCardRows(supabase, { start: period.start, end: period.end }),
+    supabase
+      .from("card_inventory")
+      .select("report_date", { count: "exact", head: true })
+      .limit(1),
+    supabase
+      .from("removed_cards")
+      .select("removed_at", { count: "exact", head: true })
+      .limit(1),
     supabase
       .from("ingested_files")
       .select("uploaded_at")
@@ -159,10 +226,16 @@ async function CardsBody() {
       .maybeSingle(),
   ]);
 
-  if (inventoryResult.error || removedResult.error || freshnessResult.error) {
+  if (
+    rowsUpToEndResult.error ||
+    removedResult.error ||
+    inventoryDomainProbe.error ||
+    removedDomainProbe.error ||
+    freshnessResult.error
+  ) {
     return (
       <>
-        <PageHeader uploadedAt={null} />
+        <PageHeader uploadedAt={null} period={null} monthOptions={[]} yearOptions={[]} />
         <ErrorState />
       </>
     );
@@ -170,22 +243,59 @@ async function CardsBody() {
 
   const uploadedAt = freshnessResult.data?.uploaded_at ?? null;
 
-  if (inventoryResult.rows.length === 0 && removedResult.rows.length === 0) {
+  const hasCardDataEver =
+    (inventoryDomainProbe.count ?? 0) > 0 || (removedDomainProbe.count ?? 0) > 0;
+
+  if (!hasCardDataEver) {
     return (
       <>
-        <PageHeader uploadedAt={uploadedAt} />
+        <PageHeader
+          uploadedAt={uploadedAt}
+          period={period}
+          monthOptions={monthOptions}
+          yearOptions={yearOptions}
+        />
         <EmptyState />
       </>
     );
   }
 
-  const snapshots = snapshotSeries(inventoryResult.rows);
-  const changes = netChange(snapshots);
-  const latest = latestSnapshot(inventoryResult.rows);
-  const firstSeen = firstSeenByCard(inventoryResult.rows);
+  // P-02 STOCK: the as-of-period-end snapshot. `latest` can be dated before
+  // `period.start` (carried forward) — that is the whole point of the rule.
+  const latest = latestSnapshot(rowsUpToEndResult.rows);
+  const firstSeen = firstSeenByCard(rowsUpToEndResult.rows);
+
+  // P-02 FLOW: strictly windowed to the selected period.
+  const rowsWithinPeriod = rowsWithin(
+    rowsUpToEndResult.rows,
+    period.start,
+    period.end,
+    (row) => row.report_date,
+  );
+  const snapshotsInPeriod = snapshotSeries(rowsWithinPeriod);
+  const changesInPeriod = netChange(snapshotsInPeriod);
   const removals = removalSeries(removedResult.rows);
 
-  const chartPoints: CardInventoryChartPoint[] = snapshots.map((point) => ({
+  const hasRemovalsInPeriod = removals.length > 0;
+
+  // Reach the period-empty state only when there is NEITHER a snapshot at
+  // or before the period end NOR a removal inside the window (P-02) — a
+  // carried-forward KPI is a legitimate populated state, never "empty".
+  if (latest === null && !hasRemovalsInPeriod) {
+    return (
+      <>
+        <PageHeader
+          uploadedAt={uploadedAt}
+          period={period}
+          monthOptions={monthOptions}
+          yearOptions={yearOptions}
+        />
+        <PeriodEmptyState viewNoun="card activity" period={period} />
+      </>
+    );
+  }
+
+  const chartPoints: CardInventoryChartPoint[] = snapshotsInPeriod.map((point) => ({
     timestamp: Date.parse(`${point.day}T00:00:00Z`),
     day: point.day,
     cardCount: point.cardCount,
@@ -196,6 +306,10 @@ async function CardsBody() {
     removedCount: point.removedCount,
   }));
 
+  // Table and KPI always agree (PLAN.md Task 3): both are built from the
+  // SAME `rowsUpToEndResult.rows` — `firstSeen` names every card seen up to
+  // the period end, `presentInLatest` flags exactly the as-of snapshot's
+  // own references.
   const latestReferences = new Set(latest?.references ?? []);
   const tableRows: CardInventoryTableRow[] = Array.from(firstSeen.entries())
     .map(([reference, day]) => ({
@@ -205,21 +319,44 @@ async function CardsBody() {
     }))
     .sort((a, b) => a.reference.localeCompare(b.reference));
 
-  // The latest snapshot's own net-change entry (change vs the PREVIOUS
-  // snapshot, plus the real day-gap between them — see PLAN.md "Design
-  // decisions": this report is not delivered daily, so the caption must
-  // never imply a daily delta).
-  const latestChange = changes[changes.length - 1] ?? null;
-  const changeCaption =
-    latestChange && latestChange.change !== null && latestChange.previousDay !== null
-      ? `${latestChange.change >= 0 ? "+" : ""}${latestChange.change} since ${formatDayLong(
-          latestChange.previousDay,
-        )} (${latestChange.dayGapDays} day${latestChange.dayGapDays === 1 ? "" : "s"} earlier)`
-      : null;
+  // The KPI caption ALWAYS names the as-of snapshot's real date (PLAN.md
+  // Task 3 acceptance criterion) — carried-forward basis stated explicitly
+  // when that date precedes the selected period's start (P-02); otherwise
+  // the existing net-change-vs-previous-snapshot wording, itself anchored
+  // to the same date, since this report is not delivered daily (PLAN.md
+  // "Design decisions": the caption must never imply a daily delta).
+  const carriedForward = latest !== null && latest.day < period.start;
+  const latestChangeInPeriod =
+    latest !== null ? (changesInPeriod.find((c) => c.day === latest.day) ?? null) : null;
+  const changeCaption = (() => {
+    if (latest === null) return null;
+    if (carriedForward) {
+      return `Carried forward from ${formatDayLong(latest.day)} — no snapshot in this period.`;
+    }
+    if (
+      latestChangeInPeriod &&
+      latestChangeInPeriod.change !== null &&
+      latestChangeInPeriod.previousDay !== null
+    ) {
+      return `As of ${formatDayLong(latest.day)} — ${
+        latestChangeInPeriod.change >= 0 ? "+" : ""
+      }${latestChangeInPeriod.change} since ${formatDayLong(
+        latestChangeInPeriod.previousDay,
+      )} (${latestChangeInPeriod.dayGapDays} day${
+        latestChangeInPeriod.dayGapDays === 1 ? "" : "s"
+      } earlier).`;
+    }
+    return `As of ${formatDayLong(latest.day)}.`;
+  })();
 
   return (
     <>
-      <PageHeader uploadedAt={uploadedAt} />
+      <PageHeader
+        uploadedAt={uploadedAt}
+        period={period}
+        monthOptions={monthOptions}
+        yearOptions={yearOptions}
+      />
       <CardInventoryKpiCards
         enrolledCount={latest?.references.length ?? 0}
         changeCaption={changeCaption}
@@ -233,11 +370,11 @@ async function CardsBody() {
   );
 }
 
-export default function CardsPage() {
+export default function CardsPage({ searchParams }: { searchParams: PageSearchParams }) {
   return (
     <div className="flex flex-1 flex-col gap-6 p-6">
       <Suspense fallback={<LoadingState />}>
-        <CardsBody />
+        <CardsBody searchParams={searchParams} />
       </Suspense>
     </div>
   );

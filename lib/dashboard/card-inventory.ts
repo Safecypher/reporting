@@ -1,9 +1,10 @@
 import type { createClient } from "@/lib/supabase/server";
 
 /**
- * Pure shaping helpers for the card-inventory page (quick task 260908-r3x).
- * No Supabase imports in the pure functions below — keeps them unit-testable
- * in isolation, matching `lib/dashboard/bucketing.ts`'s convention. Server
+ * Pure shaping helpers for the card-inventory page (quick task 260908-r3x;
+ * range-aware fetchers + stock/flow split added Phase 5, P-02). No Supabase
+ * imports in the pure functions below — keeps them unit-testable in
+ * isolation, matching `lib/dashboard/bucketing.ts`'s convention. Server
  * fetchers live in this same file and mirror `verification-drill.ts`'s
  * shape (a typed `{ rows, error }` result the caller checks explicitly).
  *
@@ -11,6 +12,22 @@ import type { createClient } from "@/lib/supabase/server";
  * directly and shaped in TypeScript (see PLAN.md "No migration" design
  * decision). At 912 inventory rows this costs nothing; revisit with a view
  * if inventory reaches five figures.
+ *
+ * P-02 (Phase 5, stock vs flow): card inventory is a STOCK metric, unlike
+ * the other four period-scoped views, which are all flow metrics (a sum of
+ * events inside a window). "How many cards are currently enrolled" is
+ * inherently an AS-OF question, not a within-range sum — a month with no
+ * new snapshot still has a real, non-zero enrolled count, carried forward
+ * from the last snapshot that actually happened. Binding split:
+ *   - Enrolled-cards KPI (STOCK): `latestSnapshot(fetchCardInventoryRowsUpTo
+ *     result)` — the most recent snapshot AT OR BEFORE the period's
+ *     exclusive end boundary, never "the latest snapshot strictly inside
+ *     the period" (which would show a misleading 0 for a snapshot-free
+ *     month).
+ *   - Enrolment-over-time chart, removals chart, removals total (FLOW):
+ *     `rowsWithin(..., period.start, period.end, ...)` / `fetchRemovedCardRows(
+ *     supabase, range)` — windowed strictly to `[start, end)`, same as
+ *     every other period-scoped view in this phase.
  */
 
 export interface CardInventoryRow {
@@ -133,6 +150,29 @@ export function removalSeries(rows: RemovedCardRow[]): RemovalPoint[] {
     .sort((a, b) => a.day.localeCompare(b.day));
 }
 
+/**
+ * Pure half-open `[start, end)` date-window filter (Phase 5, P-02). `end ===
+ * null` means open-ended — every row on or after `start` is kept. `dateOf`
+ * extracts the comparable `YYYY-MM-DD` (or any lexicographically-comparable
+ * ISO date/date-time prefix) string from each row, so this same helper works
+ * for both `card_inventory.report_date` (plain date) and `removed_cards.
+ * removed_at` (timestamptz) callers. No network/DOM access — safe to unit
+ * test and to call from a Server Component on every render.
+ */
+export function rowsWithin<T>(
+  rows: T[],
+  start: string,
+  end: string | null,
+  dateOf: (row: T) => string,
+): T[] {
+  return rows.filter((row) => {
+    const date = dateOf(row);
+    if (date < start) return false;
+    if (end !== null && date >= end) return false;
+    return true;
+  });
+}
+
 const MS_PER_DAY = 24 * 60 * 60 * 1000;
 
 function daysBetween(earlierDay: string, laterDay: string): number {
@@ -219,16 +259,59 @@ export async function fetchCardInventoryRows(
 }
 
 /**
+ * Server-fetches `card_inventory` rows from the DATA-06 floor up to (but
+ * excluding) `endExclusive` — every snapshot row at or before the period's
+ * end boundary, which is what makes the P-02 as-of-period-end KPI a single
+ * query rather than a two-step lookup: `latestSnapshot()` on the result
+ * always returns the correct as-of figure even when the most recent
+ * snapshot in this range predates the period's own start. `endExclusive ===
+ * null` means open-ended (no upper bound — the "all time" scope). Mirrors
+ * `fetchCardInventoryRows`'s `{ rows, error }` result shape.
+ */
+export async function fetchCardInventoryRowsUpTo(
+  supabase: Awaited<ReturnType<typeof createClient>>,
+  endExclusive: string | null,
+): Promise<CardInventoryFetchResult> {
+  let query = supabase
+    .from("card_inventory")
+    .select("report_date, external_card_reference")
+    .gte("report_date", DATA_WINDOW_START_DATE);
+
+  if (endExclusive !== null) {
+    query = query.lt("report_date", endExclusive);
+  }
+
+  const { data, error } = await query
+    .order("report_date", { ascending: true })
+    .returns<CardInventoryRow[]>();
+
+  if (error) return { rows: [], error: true };
+  return { rows: data ?? [], error: false };
+}
+
+/**
  * Server-fetches `removed_cards` rows via the session-scoped server client
  * (RLS applies), filtered to the DATA-06 floor.
+ *
+ * `range` (Phase 5, P-02): removals are a FLOW metric — window-filtered at
+ * the database to `[range.start, range.end)`, never carried forward like
+ * the stock-metric KPI. Omitting `range` behaves exactly as before (the
+ * DATA-06 floor with no upper bound), so existing callers are unaffected.
  */
 export async function fetchRemovedCardRows(
   supabase: Awaited<ReturnType<typeof createClient>>,
+  range?: { start: string; end: string | null },
 ): Promise<RemovedCardFetchResult> {
-  const { data, error } = await supabase
+  let query = supabase
     .from("removed_cards")
     .select("removed_at")
-    .gte("removed_at", REMOVED_CARDS_DATA_WINDOW_START)
+    .gte("removed_at", range ? `${range.start}T00:00:00Z` : REMOVED_CARDS_DATA_WINDOW_START);
+
+  if (range?.end) {
+    query = query.lt("removed_at", `${range.end}T00:00:00Z`);
+  }
+
+  const { data, error } = await query
     .order("removed_at", { ascending: true })
     .returns<RemovedCardRow[]>();
 
