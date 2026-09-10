@@ -4,24 +4,7 @@ import { revalidatePath } from "next/cache";
 
 import { createClient } from "@/lib/supabase/server";
 import { financialYearSettingsSchema } from "@/lib/settings/schema";
-
-const GENERIC_ERROR =
-  "Could not save financial year settings — please check the values and try again.";
-
-/**
- * Maps a raw Postgres/PostgREST error message to safe, user-facing copy
- * (WR-01: a raw constraint name must never reach the form UI). The detailed
- * message is always logged server-side first.
- */
-function friendlyErrorMessage(rawMessage: string): string {
-  if (
-    rawMessage.includes("app_settings_fy_start_day_check") ||
-    rawMessage.includes("make_date")
-  ) {
-    return "Enter a valid day for the selected month (e.g. day 30 is invalid for February).";
-  }
-  return GENERIC_ERROR;
-}
+import { friendlyFinancialYearErrorMessage } from "@/lib/settings/errors";
 
 /**
  * saveFinancialYearSettings — the FY-start admin editor's only write path
@@ -78,7 +61,7 @@ export async function saveFinancialYearSettings(
       "saveFinancialYearSettings: app_settings update failed",
       error,
     );
-    return { error: friendlyErrorMessage(error.message) };
+    return { error: friendlyFinancialYearErrorMessage(error.message) };
   }
 
   // Every period-scoped route whose year boundary the FY change moves must
