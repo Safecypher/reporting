@@ -1,9 +1,10 @@
 ---
 phase: 05-time-periods-financial-year-settings
-verified: 2026-09-10T22:05:00Z
-status: human_needed
+verified: 2026-09-10T22:40:00Z
+status: passed
 score: 14/14 must-haves verified
 covered_files:
+
   - ".planning/REQUIREMENTS.md"
   - ".planning/phases/05-time-periods-financial-year-settings/05-01-PLAN.md"
   - ".planning/phases/05-time-periods-financial-year-settings/05-01-SUMMARY.md"
@@ -73,7 +74,8 @@ covered_files:
   - "supabase/migrations/0026_tsys_msa_tier_seed.sql"
   - "supabase/tests/tsys_msa_tier_test.sql"
   - "types/db.ts"
-covered_digest: "v1:sha256:f1b2274e9556929be83ffa7b4785810fafadf2982fbb4e85f19ba012b8612098"
+
+covered_digest: "v1:sha256:cf614bb075c25d36dc8171dae125bc25c50f5e999a0f6861c4283d43fabcdbc3"
 behavior_unverified: 0
 overrides_applied: 0
 re_verification:
@@ -87,6 +89,7 @@ re_verification:
   regressions: []
 gaps: []
 advisory:
+
   - finding: "resolveEditImpact's supersedes names only the immediately-crossed neighbour; a 3+-tier-set backdate can cede the edited set's own future territory to a further, unnamed set (WR-08, 05-REVIEW.md round 3)"
     category: other
     reason: "Confirmed present by hand-tracing lib/pricing/restate-scope.ts:101-159 this pass. The affected-day count and the confirmation gate itself remain correct in every case (the dialog still opens, the day count is not undercounted) — only the disclosure copy under-names a rarer, further consequence. User explicitly accepted this as non-blocking (05-UAT.md 'Known Open') after three consecutive review rounds each surfacing a new defect in this same save-path surface; the user's own conclusion was that the surface needs one deliberate design pass, not a fourth incremental patch. No mispricing is possible."
@@ -97,6 +100,7 @@ advisory:
     evidence_status: "reviewer hand-trace (05-REVIEW.md round 3, WR-02 original + WR-09) + independently re-read by this verifier"
 behavior_unverified_items: []
 human_verification:
+
   - test: "Trigger the period-empty state on a view/period with genuinely no rows, and separately load the month/year Select with a synthetic >24-month option list"
     expected: "The period-empty body text does not clip at its longest interpolation, and the Select scrolls its own viewport rather than clipping the option list"
     why_human: "Backstop must-have (verification: backstop) — layout/overflow behavior not inferable from source. Carried forward from prior verification; 05-UAT.md test 3 confirmed it is genuinely unreachable with current data (2 month-options exist today; SelectContent's max-h + overflow-y-auto classes are present by inspection but the actual scroll behavior needs a real >24-item list)."
@@ -332,3 +336,31 @@ restored.
 
 *Verified: 2026-09-10T22:05:00Z*
 *Verifier: Claude (gsd-verifier)*
+
+---
+
+## Human-Verification Closure (2026-09-10, /gsd-verify-work 05)
+
+Canonicalized `status: human_needed` → `passed` after the UAT session that this report
+was waiting on completed with zero open issues (`05-UAT.md` status: complete, 7 passed,
+1 issue resolved by 05-07, 2 skipped with recorded reasons, 0 pending).
+
+Disposition of the four `human_verification` items:
+
+| Item | Outcome |
+|------|---------|
+| 05-07 D1/D4/D11 — create-vs-edit mode statement + live inline supersede notice | **Verified** — UAT test 9 passed (visual inspection, 375px) |
+| 05-09 D3/D4 — edit-supersede dialog tone, displaced-set naming, viewport | **Verified** — UAT test 10 passed (visual inspection, 375px) |
+| Period-empty copy + >24-month Select scroll (backstop) | **Deferred, not verified** — UAT test 3: unreachable with current data (2 month-options exist today). Re-test once the data window exceeds 24 months. |
+| `app_settings_audit` 50-row cap (backstop) | **Deferred, not verified** — UAT test 4: `app_settings_audit` has 0 rows live; user declined to seed synthetic rows into a live deployment's audit trail. Re-test once real change history accumulates. |
+
+The two deferred backstops are data-reachability limits, not implementation gaps: both
+controls are present by inspection (`SelectContent` carries
+`max-h-(--radix-select-content-available-height)` + `overflow-y-auto`;
+`settings/general/page.tsx:26,98` sets `AUDIT_ROW_CAP = 50` and `.limit(50)`). They are
+recorded here so the deferral stays visible rather than reading as verified.
+
+`covered_digest` refreshed (`f1b2274…` → `cf614bb…`). The prior digest went stale for one
+reason only: `05-UAT.md` is itself a covered input, and completing UAT changed it. No
+implementation file in the covered set drifted since the previous verification commit
+(`f920318`) — confirmed by diffing the covered list against `f920318..HEAD`.
