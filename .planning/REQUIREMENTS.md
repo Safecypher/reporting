@@ -61,10 +61,10 @@ Requirements for the initial release (the PoC dashboard shown to Mark). Each map
 
 *Minted 2026-09-10 during Phase 5 planning — the roadmap recorded these as "TBD (derive during planning)". Each maps to one of Phase 5's five ROADMAP success criteria.*
 
-- [ ] **PERIOD-01**: Every metric view (verifications, revenue, SLA, cards, reconciliation) accepts the same period scope — current month, current year (financial or calendar), all time — and states which scope produced the figures on screen
-- [ ] **PERIOD-02**: User can navigate back to any previous month or previous year and the figures shown are that period's figures, not the current period's
-- [ ] **PERIOD-03**: Period scoping never changes the tier maths — a year or all-time figure is the sum of per-month tiered figures, never the tier ladder run over aggregate multi-month volume
-- [ ] **FY-01**: Admin can set the financial-year start (month and day) in the settings area without a redeploy; the FY/CY toggle derives its boundaries from that value and every change is audited
+- [x] **PERIOD-01**: Every metric view (verifications, revenue, SLA, cards, reconciliation) accepts the same period scope — current month, current year (financial or calendar), all time — and states which scope produced the figures on screen
+- [x] **PERIOD-02**: User can navigate back to any previous month or previous year and the figures shown are that period's figures, not the current period's
+- [x] **PERIOD-03**: Period scoping never changes the tier maths — a year or all-time figure is the sum of per-month tiered figures, never the tier ladder run over aggregate multi-month volume
+- [x] **FY-01**: Admin can set the financial-year start (month and day) in the settings area without a redeploy; the FY/CY toggle derives its boundaries from that value and every change is audited
 - [x] **TSYS-01**: The signed TSYS MSA tier table exists as a `pricing_tier_sets` row with `reset_window = 'monthly'`, and the MSA's own worked example (1.5M transactions in a month = $45,450) matches to the cent
 - [x] **TSYS-02**: Tier sets are editable in place and any set can be deleted, with the change audited and refused when it would leave the 13 Aug 2026 data window with no effective tier set
 
@@ -139,10 +139,10 @@ Which phases cover which requirements. Updated during roadmap creation.
 | RECON-02 | Phase 4 | Pending |
 | RECON-03 | Phase 4 | Pending |
 | DASH-02 | Phase 4 | Pending |
-| PERIOD-01 | Phase 5 | Pending |
-| PERIOD-02 | Phase 5 | Pending |
-| PERIOD-03 | Phase 5 | Pending |
-| FY-01 | Phase 5 | Pending |
+| PERIOD-01 | Phase 5 | Complete |
+| PERIOD-02 | Phase 5 | Complete |
+| PERIOD-03 | Phase 5 | Complete |
+| FY-01 | Phase 5 | Complete |
 | TSYS-01 | Phase 5 | Complete |
 | TSYS-02 | Phase 5 | Complete |
 

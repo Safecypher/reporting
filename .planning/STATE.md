@@ -3,17 +3,17 @@ gsd_state_version: "1.0"
 milestone: v1.0
 current_phase: 05
 current_phase_name: Time Periods & Financial-Year Settings
-status: executing
-stopped_at: Completed 05-04-PLAN.md
-last_updated: "2026-09-10T13:36:11.971Z"
+status: verifying
+stopped_at: Completed 05-05-PLAN.md
+last_updated: "2026-09-10T14:04:42.585Z"
 last_activity: 2026-09-10
 last_activity_desc: Phase 05 execution started
-state_head: 8a3937c761be437ce4e7e8b8a724fb56c702bf85
+state_head: 241a178b94194221847f254f1d58781306f1699b
 progress:
   total_phases: 7
   completed_phases: 2
   total_plans: 30
-  completed_plans: 29
+  completed_plans: 30
 milestone_name: milestone
 ---
 
@@ -30,7 +30,7 @@ See: .planning/PROJECT.md (updated 2026-08-18)
 
 Phase: 05 (Time Periods & Financial-Year Settings) — EXECUTING
 Plan: 5 of 5
-Status: Ready to execute
+Status: Phase complete — ready for verification
 Last activity: 2026-09-10 — Phase 05 execution started
 
 Progress: [░░░░░░░░░░] 0%
@@ -66,6 +66,7 @@ Progress: [░░░░░░░░░░] 0%
 | Phase 05 P02 | 65min | 3 tasks | 9 files |
 | Phase 05 P03 | 13min | 2 tasks | 7 files |
 | Phase 05 P04 | 18min | 3 tasks | 8 files |
+| Phase 05 P05 | 25min | 3 tasks | 4 files |
 
 ## Accumulated Context
 
@@ -91,6 +92,9 @@ Recent decisions affecting current work:
 - [Phase 05]: reconciliation-inventory-table.tsx Live-cards figure carries an inline as-of-latest-import caption (P-06)
 - [Phase 05]: financial-year day validation uses date-fns getDaysInMonth against a fixed non-leap reference year (2001), never the current year — so an FY start valid only in leap years is rejected outright, mirroring lib/pricing/schema.ts's cross-field superRefine convention
 - [Phase 05]: Both new pricing-tier RPCs (save UPDATE branch, delete) evaluate data-window coverage before and after the write, raising check_violation only on a before-covered/after-uncovered transition — Loosening backdating and any-set-delete (D-17/D-19) reopens v_revenue_tier_set_by_day's silent-drop failure mode; a database already uncovered before the operation stays correctable rather than getting permanently locked by a guard added after the fact
+- [Phase 05]: [Phase 05] Applied migrations 0023-0026 via supabase db query --linked -f (direct SQL) rather than supabase db push, since the CLI's migration-history table does not track this project's local migration files 0001-0026 (everything through 0022 was applied via the MCP apply_migration fallback under different version stamps) -- reconciling that history is deliberate follow-up work, not done here
+- [Phase 05]: [Phase 05] tsys_msa_tier_test.sql had a reserved-keyword SQL syntax bug (overlaps used unquoted as a subquery alias) invisible until its first live execution -- fixed by renaming to tier_overlaps
+- [Phase 05]: [Phase 05] Phase 5 complete: TSYS MSA worked example verified live at exactly 45450.0000 for 1,500,000 transactions, all six band boundaries correct, D-06 per-month-vs-aggregate invariant holds (1200.0000 > 1050.0000)
 
 ### Pending Todos
 
@@ -128,6 +132,6 @@ Items acknowledged and carried forward from previous milestone close:
 
 ## Session Continuity
 
-Last session: 2026-09-10T13:36:11.850Z
-Stopped at: Completed 05-04-PLAN.md
+Last session: 2026-09-10T14:04:42.458Z
+Stopped at: Completed 05-05-PLAN.md
 Resume file: None
