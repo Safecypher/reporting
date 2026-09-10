@@ -1,14 +1,14 @@
 ---
-status: complete
+status: partial
 phase: 05-time-periods-financial-year-settings
 source: [05-VERIFICATION.md]
 started: 2026-09-10T17:20:00Z
-updated: 2026-09-10T22:10:00Z
+updated: 2026-09-10T22:45:00Z
 ---
 
 ## Current Test
 
-[testing complete]
+[testing paused — 2 items outstanding: tests 3 and 4, both data-unreachable]
 
 ## Tests
 
@@ -35,9 +35,11 @@ reason: "Not reachable with current data. app_settings_audit has 0 rows (verifie
 
 ### 5. Edit a TSYS tier set's rate/effective_from for a day on or before today (UTC), and separately accumulate several amended MSA tier sets in the Tier set selector
 expected: A warning-toned (not destructive-red) restate dialog appears stating the affected-day count, staying readable even at a three-digit day count; the Tier set Select scrolls rather than clipping
-result: issue
+result: pass
+originally: issue
 reported: "Updating tier 1's rate and saving simply saved. Attempting to backdate a chanege to 13/08 showed the message (in red) A pricing tier set already exists for this date."
 severity: major
+resolution: "Recorded as gap G-05-5 (see ## Gaps), closed by 05-07-PLAN.md and its sibling G-05-CR01 by 05-09-PLAN.md. Both fixes were re-tested visually in this same UAT session as tests 9 and 10 (round 2) and both passed. Re-recorded as pass on 2026-09-10 by explicit user decision; the original report and severity are retained above so the defect history stays visible. Residual copy defects WR-08/WR-09/WR-02 remain accepted-open (see ## Known Open) and are disclosure-only \u2014 no mispricing is possible."
 
 ### 6. Trigger the blocked-delete path in the pricing tier editor (attempt to delete the only tier set covering the data window) from the UI
 expected: The exact blocked-delete toast copy is shown to the user, matching the RPC's check_violation message
@@ -65,8 +67,8 @@ result: pass
 ## Summary
 
 total: 10
-passed: 7
-issues: 1
+passed: 8
+issues: 0
 pending: 0
 skipped: 2
 blocked: 0

@@ -75,7 +75,7 @@ covered_files:
   - "supabase/tests/tsys_msa_tier_test.sql"
   - "types/db.ts"
 
-covered_digest: "v1:sha256:cf614bb075c25d36dc8171dae125bc25c50f5e999a0f6861c4283d43fabcdbc3"
+covered_digest: "v1:sha256:6fd715b43f751816d63835a4a7146f467b8231268708e52da880989baef5c029"
 behavior_unverified: 0
 overrides_applied: 0
 re_verification:
