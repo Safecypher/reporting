@@ -219,10 +219,20 @@ function isValidCalendarDate(value: string): boolean {
 
 /**
  * countRestatedDays — the D-18 warning-dialog input: counts the days
- * between `fromDate` and today (UTC), inclusive, that carry verification
- * activity. `fromDate` is the EARLIER of a tier set's current and proposed
- * `effectiveFrom`, so an edit that moves the boundary in either direction
- * reports every day whose price changes.
+ * between `fromDate` and an (optional) inclusive `throughDate`, clamped to
+ * today (UTC), that carry verification activity. `fromDate` is the EARLIER
+ * of a tier set's current and proposed `effectiveFrom` for an edit; for a
+ * create-supersede (05-07/G-05-5) it is `resolveSaveImpact`'s `from`/`through`
+ * pair, bounding the count to the range the NEW set actually displaces
+ * rather than counting from `from` all the way to today.
+ *
+ * `throughDate`, when supplied, is validated with the same
+ * `isValidCalendarDate` shape-plus-calendar round trip already applied to
+ * `fromDate` (T-05-07-02) — an attacker-supplied end date cannot widen the
+ * query unchecked. The effective end is the EARLIER of `throughDate` and
+ * today's UTC date; omitting `throughDate` keeps today's UTC date as the
+ * effective end exactly as before. When the effective end precedes
+ * `fromDate`, this returns zero days without querying.
  *
  * Uses the `{ count: "exact", head: true }` exact-count mechanism against
  * `v_revenue_daily_counts` (RESEARCH Pattern 3) — never a blocked PostgREST
@@ -231,9 +241,13 @@ function isValidCalendarDate(value: string): boolean {
  * and therefore calls no revalidatePath.
  */
 export async function countRestatedDays(
-  fromDate: string
+  fromDate: string,
+  throughDate?: string | null
 ): Promise<{ days: number } | { error: string }> {
   if (!isValidCalendarDate(fromDate)) {
+    return { error: "Invalid date." };
+  }
+  if (throughDate != null && !isValidCalendarDate(throughDate)) {
     return { error: "Invalid date." };
   }
 
@@ -247,12 +261,18 @@ export async function countRestatedDays(
   }
 
   const todayUtc = new Date().toISOString().slice(0, 10);
+  const effectiveEnd =
+    throughDate != null && throughDate < todayUtc ? throughDate : todayUtc;
+
+  if (effectiveEnd < fromDate) {
+    return { days: 0 };
+  }
 
   const { count, error } = await supabase
     .from("v_revenue_daily_counts")
     .select("day_utc", { count: "exact", head: true })
     .gte("day_utc", fromDate)
-    .lte("day_utc", todayUtc);
+    .lte("day_utc", effectiveEnd);
 
   if (error) {
     console.error(

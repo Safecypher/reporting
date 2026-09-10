@@ -31,6 +31,10 @@ import {
   type TierSetSelectorOption,
 } from "@/components/pricing/tier-set-selector";
 import { DeleteTierSet } from "@/components/pricing/delete-tier-set";
+import {
+  resolveSaveImpact,
+  type TierSetSaveMode,
+} from "@/lib/pricing/restate-scope";
 
 const RESET_WINDOW_OPTIONS = [
   { value: "monthly", label: "Monthly" },
@@ -60,16 +64,30 @@ export interface PricingTierSetWithTiers extends TierSetSelectorOption {
   tiers: { upperBound: number | null; rate: number }[];
 }
 
+/**
+ * "edit" — the existing D-18/P-04 restate dialog (unchanged copy/behaviour).
+ * "create-supersede" — G-05-5: a NEW tier set landing on a date an existing
+ * set already prices. `supersedes`/`proposedEffectiveFrom` are only
+ * populated for that variant.
+ */
+type RestateDialogVariant = "edit" | "create-supersede";
+
 interface RestateDialogState {
   open: boolean;
+  variant: RestateDialogVariant;
   days: number;
   pendingData: PricingTierSetInput | null;
+  supersedes: string | null;
+  proposedEffectiveFrom: string | null;
 }
 
 const CLOSED_RESTATE_DIALOG: RestateDialogState = {
   open: false,
+  variant: "edit",
   days: 0,
   pendingData: null,
+  supersedes: null,
+  proposedEffectiveFrom: null,
 };
 
 interface PricingTierFormProps {
@@ -84,6 +102,14 @@ interface PricingTierFormProps {
  * change to an existing set first counts the affected already-elapsed days
  * via `countRestatedDays` — zero affected days saves immediately, one or
  * more opens a warning-styled confirmation dialog before the write happens.
+ *
+ * G-05-5 (05-07): BOTH the edit path above and the create (new-set) path
+ * now go through `resolveSaveImpact` (`lib/pricing/restate-scope.ts`) on
+ * submit. A create that lands on a date an existing set already prices
+ * ALWAYS opens a confirmation naming the superseded set — regardless of
+ * whether any affected day carries activity, which is what let the live
+ * incident happen silently (see restate-scope.ts's module header). A
+ * create for a date nothing prices yet still saves in one click.
  *
  * Client-side zodResolver validation is UX only; savePricingTierSet
  * re-validates with the same schema server-side (T-03-05) — this component
@@ -186,32 +212,71 @@ export function PricingTierForm({ tierSets }: PricingTierFormProps) {
   const onSubmit = form.handleSubmit(async (data) => {
     setBannerError(null);
 
-    if (selectedTierSet) {
-      // D-18/P-04: the earlier of the set's CURRENT and PROPOSED
-      // effectiveFrom, so an edit that moves the boundary in either
-      // direction reports every day whose price changes.
-      const fromDate =
-        data.effectiveFrom < selectedTierSet.effectiveFrom
-          ? data.effectiveFrom
-          : selectedTierSet.effectiveFrom;
-      const countResult = await countRestatedDays(fromDate);
+    const tierSetIdForSave = selectedTierSet ? selectedTierSet.id : null;
 
-      if ("error" in countResult) {
-        setBannerError(
-          "Could not determine how many days this change would affect — please try again.",
-        );
-        return;
-      }
+    // G-05-5: BOTH the create and edit paths go through the same resolver
+    // now. Mode is derived from `selectedTierSet` — create when nothing is
+    // selected, edit carrying the selected set's id/effectiveFrom
+    // otherwise. The edited set is excluded from the existing-sets list so
+    // an edit never reports itself as superseding itself (belt-and-braces:
+    // resolveSaveImpact's edit branch ignores the list entirely, but the
+    // exclusion keeps the call site honest about scope).
+    const mode: TierSetSaveMode = selectedTierSet
+      ? { kind: "edit", id: selectedTierSet.id, effectiveFrom: selectedTierSet.effectiveFrom }
+      : { kind: "create" };
+    const existingForImpact = selectedTierSet
+      ? tierSets.filter((set) => set.id !== selectedTierSet.id)
+      : tierSets;
+    const impact = resolveSaveImpact(mode, data.effectiveFrom, existingForImpact);
 
-      if (countResult.days > 0) {
-        setRestateDialog({ open: true, days: countResult.days, pendingData: data });
-        return;
-      }
+    if (impact === null) {
+      // create-only: nothing active prices this date yet — the genuinely-
+      // first-set case stays frictionless (P-04's exemption, now correctly
+      // scoped). Edit mode never returns null.
+      await performSave(data, tierSetIdForSave);
+      return;
     }
 
-    // A purely future-dated edit (P-04: zero affected days) or a brand-new
-    // tier set saves immediately, with no dialog.
-    await performSave(data, selectedTierSet ? selectedTierSet.id : null);
+    const countResult = await countRestatedDays(impact.from, impact.through);
+
+    if ("error" in countResult) {
+      setBannerError(
+        "Could not determine how many days this change would affect — please try again.",
+      );
+      return;
+    }
+
+    if (mode.kind === "edit") {
+      // D-18/P-04 verbatim: zero affected days saves immediately, one or
+      // more opens the (unchanged) restate dialog.
+      if (countResult.days === 0) {
+        await performSave(data, tierSetIdForSave);
+        return;
+      }
+      setRestateDialog({
+        ...CLOSED_RESTATE_DIALOG,
+        open: true,
+        variant: "edit",
+        days: countResult.days,
+        pendingData: data,
+      });
+      return;
+    }
+
+    // create: an existing set already prices this date — ALWAYS open the
+    // confirmation, regardless of day count. This is the gate the live
+    // incident needed and it must not be conditioned on activity days
+    // (see the module header of lib/pricing/restate-scope.ts).
+    setRestateDialog({
+      open: true,
+      variant: "create-supersede",
+      days: countResult.days,
+      pendingData: data,
+      // Non-null by construction: the create branch of resolveSaveImpact
+      // only returns a non-null impact when it found a superseded set.
+      supersedes: impact.supersedes as string,
+      proposedEffectiveFrom: impact.from,
+    });
   });
 
   function handleRestateCancel() {
@@ -232,6 +297,26 @@ export function PricingTierForm({ tierSets }: PricingTierFormProps) {
       setRestateDialog(CLOSED_RESTATE_DIALOG);
     });
   }
+
+  // Copy for the two restate-dialog variants (D-18 edit, unchanged; G-05-5
+  // create-supersede, new). Kept out of the JSX below so both bodies stay
+  // easy to diff against 05-UI-SPEC.md's Copywriting Contract verbatim.
+  const restateDialogCopy =
+    restateDialog.variant === "create-supersede"
+      ? {
+          title: "Add a new tier set and supersede the current rates?",
+          body:
+            restateDialog.days > 0
+              ? `This creates a new tier set effective ${restateDialog.proposedEffectiveFrom}. From that date it replaces the tier set effective ${restateDialog.supersedes}, including ${restateDialog.days} ${restateDialog.days === 1 ? "day" : "days"} already recorded, whose revenue will be restated. This is recorded in the change history.`
+              : `This creates a new tier set effective ${restateDialog.proposedEffectiveFrom}. From that date it replaces the tier set effective ${restateDialog.supersedes} for all revenue. No day recorded so far changes. This is recorded in the change history.`,
+          confirmLabel:
+            restateDialog.days > 0 ? "Add tier set and restate revenue" : "Add tier set",
+        }
+      : {
+          title: "Save changes to pricing tiers?",
+          body: `This will restate revenue for ${restateDialog.days} ${restateDialog.days === 1 ? "day" : "days"}. Past figures shown for that period will change to reflect the corrected rates. This is recorded in the change history.`,
+          confirmLabel: "Save and restate revenue",
+        };
 
   return (
     <div className="flex flex-col gap-6">
@@ -411,13 +496,8 @@ export function PricingTierForm({ tierSets }: PricingTierFormProps) {
                 <use href="/icons.svg#alert" />
               </svg>
               <div className="flex flex-col gap-2 text-left">
-                <DialogTitle>Save changes to pricing tiers?</DialogTitle>
-                <DialogDescription>
-                  This will restate revenue for {restateDialog.days}{" "}
-                  {restateDialog.days === 1 ? "day" : "days"}. Past figures
-                  shown for that period will change to reflect the corrected
-                  rates. This is recorded in the change history.
-                </DialogDescription>
+                <DialogTitle>{restateDialogCopy.title}</DialogTitle>
+                <DialogDescription>{restateDialogCopy.body}</DialogDescription>
               </div>
             </div>
           </DialogHeader>
@@ -436,7 +516,7 @@ export function PricingTierForm({ tierSets }: PricingTierFormProps) {
               onClick={handleRestateConfirm}
               className="bg-[var(--cypher-blue)] text-white hover:bg-[var(--cypher-blue)]/90"
             >
-              {isRestateSavePending ? "Saving…" : "Save and restate revenue"}
+              {isRestateSavePending ? "Saving…" : restateDialogCopy.confirmLabel}
             </Button>
           </DialogFooter>
         </DialogContent>
