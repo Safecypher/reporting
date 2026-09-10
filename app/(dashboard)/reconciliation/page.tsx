@@ -74,6 +74,21 @@ type InventoryGapViewRow = { missing_day: string | null };
 
 type InventoryLiveCountRow = { live_count: number };
 
+/**
+ * Row shape for the unscoped latest-computable-day read (see below): the
+ * same `v_reconciliation_inventory_daily` view, filtered to the most recent
+ * row whose counts are actually known (0022's no_source_data days have both
+ * columns NULL). Columns stay nullable in the type even though the query
+ * filters on `enrolled_count is not null` -- the view's declared shape
+ * doesn't change, and coding against `| null` here keeps the derivation
+ * below honest about never assuming a row exists.
+ */
+type ReconciliationInventoryLatestRow = {
+  day: string | null;
+  enrolled_count: number | null;
+  unenrolled_count: number | null;
+};
+
 type IngestedFileFreshness = { uploaded_at: string };
 
 function FreshnessBadge({ uploadedAt }: { uploadedAt: string | null }) {
@@ -326,6 +341,12 @@ async function ReconciliationBody({ searchParams }: { searchParams: PageSearchPa
     // period-flow quantity; re-scoping it to a past month would silently
     // change what the number means while keeping the same label.
     liveCountResult,
+    // P-07: these two figures are single-day flow quantities for the latest
+    // day a diff can be computed, not period totals and not rows of the
+    // scoped table, so re-scoping them to a past window silently changes
+    // what the number means while keeping its name -- the identical
+    // reasoning that keeps the live-card figure unscoped.
+    latestInventoryResult,
     freshnessResult,
     billingDrillResult,
     inventoryDrillResult,
@@ -358,6 +379,14 @@ async function ReconciliationBody({ searchParams }: { searchParams: PageSearchPa
       .from("v_inventory_live_count")
       .select("live_count")
       .returns<InventoryLiveCountRow[]>()
+      .maybeSingle(),
+    supabase
+      .from("v_reconciliation_inventory_daily")
+      .select("day, enrolled_count, unenrolled_count")
+      .not("enrolled_count", "is", null)
+      .order("day", { ascending: false })
+      .limit(1)
+      .returns<ReconciliationInventoryLatestRow[]>()
       .maybeSingle(),
     supabase
       .from("ingested_files")
@@ -393,6 +422,7 @@ async function ReconciliationBody({ searchParams }: { searchParams: PageSearchPa
     apigeeDomainProbe.error ||
     gapDomainProbe.error ||
     liveCountResult.error ||
+    latestInventoryResult.error ||
     freshnessResult.error
   ) {
     return (
@@ -459,17 +489,14 @@ async function ReconciliationBody({ searchParams }: { searchParams: PageSearchPa
     .map((row) => ({ missing_day: row.missing_day }));
 
   const liveCount = liveCountResult.data?.live_count ?? 0;
-  // Take the last row whose respective count is non-null (0022): with
-  // nullable counts, a trailing no_source_data day would otherwise crash
-  // .toLocaleString() below -- fall back to 0 only when no row qualifies.
-  const lastEnrolledRow = [...inventoryDailyRows]
-    .reverse()
-    .find((row) => row.enrolled_count !== null);
-  const enrolledToday = lastEnrolledRow?.enrolled_count ?? 0;
-  const lastUnenrolledRow = [...inventoryDailyRows]
-    .reverse()
-    .find((row) => row.unenrolled_count !== null);
-  const unenrolledToday = lastUnenrolledRow?.unenrolled_count ?? 0;
+  // Derived from the UNSCOPED latestInventoryResult read above, never from
+  // the period-scoped inventoryDailyRows array below -- these are single-day
+  // flow quantities for the latest day a diff can be computed, not totals
+  // for the selected window. No coalescing to 0: an unknown day must render
+  // as unknown, not zero.
+  const enrolledLatest = latestInventoryResult.data?.enrolled_count ?? null;
+  const unenrolledLatest = latestInventoryResult.data?.unenrolled_count ?? null;
+  const latestSnapshotDay = latestInventoryResult.data?.day ?? null;
 
   const uploadedAt = freshnessResult.data?.uploaded_at ?? null;
   const hasMismatches = billingDailyRows.some((row) => row.status !== "ok");
@@ -538,8 +565,9 @@ async function ReconciliationBody({ searchParams }: { searchParams: PageSearchPa
                   gapRows={gapRows}
                   apigeeRows={apigeeRows}
                   liveCount={liveCount}
-                  enrolledToday={enrolledToday}
-                  unenrolledToday={unenrolledToday}
+                  enrolledLatest={enrolledLatest}
+                  unenrolledLatest={unenrolledLatest}
+                  latestSnapshotDay={latestSnapshotDay}
                 />
               ) : (
                 <NoDiscrepanciesGoodNews />

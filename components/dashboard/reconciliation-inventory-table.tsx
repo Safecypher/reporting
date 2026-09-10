@@ -135,8 +135,12 @@ interface ReconciliationInventoryTableProps {
   gapRows: ReconciliationInventoryGapRow[];
   apigeeRows: ApigeeCrossCheckRow[];
   liveCount: number;
-  enrolledToday: number;
-  unenrolledToday: number;
+  /** P-07: unscoped latest-computable-day figure — null when no day has a computable diff. */
+  enrolledLatest: number | null;
+  /** P-07: unscoped latest-computable-day figure — null when no day has a computable diff. */
+  unenrolledLatest: number | null;
+  /** P-07: the day `enrolledLatest`/`unenrolledLatest` belong to — null when neither is known. */
+  latestSnapshotDay: string | null;
 }
 
 /**
@@ -154,8 +158,9 @@ export function ReconciliationInventoryTable({
   gapRows,
   apigeeRows,
   liveCount,
-  enrolledToday,
-  unenrolledToday,
+  enrolledLatest,
+  unenrolledLatest,
+  latestSnapshotDay,
 }: ReconciliationInventoryTableProps) {
   const [sorting, setSorting] = useState<SortingState>([{ id: "day", desc: false }]);
   const { openDrill } = useDrill();
@@ -176,6 +181,15 @@ export function ReconciliationInventoryTable({
     (row) => row.status !== "ok" && row.status !== "no_source_data",
   ).length;
   const noSourceDataCount = rows.filter((row) => row.status === "no_source_data").length;
+  // P-07: enrolledLatest/unenrolledLatest are deliberately NOT period-scoped
+  // -- they are single-day flow quantities for the latest day a diff can be
+  // computed, not period totals -- so they say which day they belong to
+  // rather than being re-derived from the scoped `rows` array above. Mirrors
+  // the P-06 treatment already given to `liveCount`.
+  const snapshotCaption = latestSnapshotDay
+    ? `as of ${new Date(latestSnapshotDay).toLocaleDateString("en-GB", { dateStyle: "medium" })}`
+    : "no comparable day yet";
+
   const summaryParts: string[] = [];
   if (needsReviewCount > 0) {
     summaryParts.push(`${needsReviewCount} day${needsReviewCount === 1 ? "" : "s"} need review`);
@@ -212,16 +226,36 @@ export function ReconciliationInventoryTable({
           </span>
         </div>
         <div className="flex flex-col gap-0.5">
-          <span className="text-xs font-light text-muted-foreground">Enrolled today</span>
-          <span className="font-mono text-lg tabular-nums text-foreground">
-            {enrolledToday.toLocaleString()}
+          <span className="text-xs font-light text-muted-foreground">
+            Enrolled (latest snapshot)
           </span>
+          {enrolledLatest === null ? (
+            <span className="font-mono text-lg tabular-nums text-[var(--fg-3)]">
+              {"—"}
+              <span className="sr-only">Not comparable — no source report for this day</span>
+            </span>
+          ) : (
+            <span className="font-mono text-lg tabular-nums text-foreground">
+              {enrolledLatest.toLocaleString()}
+            </span>
+          )}
+          <span className="text-[11px] font-light text-muted-foreground">{snapshotCaption}</span>
         </div>
         <div className="flex flex-col gap-0.5">
-          <span className="text-xs font-light text-muted-foreground">Unenrolled today</span>
-          <span className="font-mono text-lg tabular-nums text-foreground">
-            {unenrolledToday.toLocaleString()}
+          <span className="text-xs font-light text-muted-foreground">
+            Unenrolled (latest snapshot)
           </span>
+          {unenrolledLatest === null ? (
+            <span className="font-mono text-lg tabular-nums text-[var(--fg-3)]">
+              {"—"}
+              <span className="sr-only">Not comparable — no source report for this day</span>
+            </span>
+          ) : (
+            <span className="font-mono text-lg tabular-nums text-foreground">
+              {unenrolledLatest.toLocaleString()}
+            </span>
+          )}
+          <span className="text-[11px] font-light text-muted-foreground">{snapshotCaption}</span>
         </div>
       </div>
 
