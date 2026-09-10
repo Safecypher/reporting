@@ -4,16 +4,16 @@ milestone: v1.0
 current_phase: 05
 current_phase_name: Time Periods & Financial-Year Settings
 status: executing
-stopped_at: Completed 05-08-PLAN.md (mobile nav reachability gap closure, G-05-OBS1 closed)
-last_updated: "2026-09-10T18:59:16.067Z"
+stopped_at: Completed 05-09-PLAN.md (code-review gap closure, G-05-CR01/CR-01 closed)
+last_updated: "2026-09-10T21:00:00.000Z"
 last_activity: 2026-09-10
-last_activity_desc: Phase 05 gap-closure plan 08 complete (G-05-OBS1 closed) — all 8/8 plans in phase 05 now have SUMMARY.md
-state_head: 7440adbace58f9f61631e155ce46b53124b01319
+last_activity_desc: Phase 05 code-review gap-closure plan 09 complete (G-05-CR01/CR-01 closed) — all 9/9 plans in phase 05 now have SUMMARY.md
+state_head: da88015
 progress:
   total_phases: 7
   completed_phases: 2
-  total_plans: 33
-  completed_plans: 33
+  total_plans: 34
+  completed_plans: 34
 milestone_name: milestone
 ---
 
@@ -28,10 +28,10 @@ See: .planning/PROJECT.md (updated 2026-08-18)
 
 ## Current Position
 
-Phase: 05 (Time Periods & Financial-Year Settings) — 8/8 PLANS COMPLETE
-Plan: 8 of 8 (all plans have matching SUMMARY.md)
+Phase: 05 (Time Periods & Financial-Year Settings) — 9/9 PLANS COMPLETE
+Plan: 9 of 9 (all plans have matching SUMMARY.md)
 Status: Ready for /gsd-verify-work 05
-Last activity: 2026-09-10 — Plan 05-08 (mobile nav reachability gap closure) complete, G-05-OBS1 closed
+Last activity: 2026-09-10 — Plan 05-09 (code-review gap closure) complete, G-05-CR01/CR-01 closed
 
 Progress: [░░░░░░░░░░] 0%
 
@@ -70,6 +70,7 @@ Progress: [░░░░░░░░░░] 0%
 | Phase 05 P06 | 35 min | 2 tasks | 5 files |
 | Phase 05 P07 | 68min | 3 tasks | 7 files |
 | Phase 05 P08 | 1h 20m | 3 tasks | 3 files |
+| Phase 05 P09 | ~30min | 3 tasks | 6 files |
 
 ## Accumulated Context
 
@@ -103,6 +104,9 @@ Recent decisions affecting current work:
 - [Phase 05]: [Phase 05] G-05-5 create-supersede gate is structural (an existing tier set already prices the proposed date), not activity-day-count-based -- an activity-count gate would NOT have caught the live incident, since ingested data lagged the stray set's effective date by two days
 - [Phase 05]: [Phase 05] countRestatedDays now takes an optional inclusive-end argument, bounding the create-supersede day count to the range the new set actually displaces rather than counting to today
 - [Phase 05]: Fixed pre-existing SSR/client hydration mismatch in hooks/use-mobile.ts as an authorized Rule 1 deviation outside plan 05-08's declared files_modified — The plan's own acceptance criteria (no hydration error at first client render) could not pass while the mismatch stood; root-caused to Phase 1's useIsMobile hook, not introduced by this plan
+- [Phase 05]: [Phase 05] G-05-CR01/CR-01 closed (plan 05-09): resolveEditImpact now detects a genuine pricing-authority displacement in BOTH crossing directions — the code review's own one-line filter sketch (`effectiveFrom <= proposed && effectiveFrom > current`) is empty for every backdate and was not used as written; the actual predicate nulls out a candidate only when the edited set already governed the proposed day before the move (`proposed >= current` AND `candidate <= current`)
+- [Phase 05]: [Phase 05] Deleted a passing test (`lib/pricing/__tests__/restate-scope.test.ts`, "never returns null and never returns a non-null supersedes for an edit") because its title enshrined a universal ("an edit never displaces") that plan 05-09 proves false — its fixture happened not to trigger the new displacement logic, so it would still pass, but leaving it would invite a future reader to "restore the invariant" and reintroduce the CR-01 blocker
+- [Phase 05]: [Phase 05] The Task 1/Task 2 `<human-check>` scripts in plan 05-09 (visual confirmation of the edit-supersede dialog's copy/tone and the live inline notice) were deferred to the phase's end-of-phase UAT pass rather than triggering a mid-flight tracer-feedback checkpoint — consistent with `workflow.human_verify_mode: end-of-phase` (the project default, not overridden in config.json) and the plan's own `<verification>` section, which explicitly states these are human-checks deferred to phase UAT because this repo has no jsdom/React Testing Library
 
 ### Pending Todos
 
