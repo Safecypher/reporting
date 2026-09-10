@@ -88,7 +88,7 @@ begin
           ) as overlap
         from pricing_tiers pt
         where pt.tier_set_id = v_tier_set_id
-      ) overlaps;
+      ) tier_overlaps;
 
     if v_computed is distinct from v_expected then
       raise exception 'TSYS TIER TEST FAILED (Block A): volume % priced at %, expected %', v_volume, v_computed, v_expected;

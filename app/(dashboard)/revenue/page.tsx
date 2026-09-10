@@ -313,15 +313,12 @@ async function RevenueBody({ searchParams }: { searchParams: PageSearchParams })
     // resolved period, never summed client-side from the per-day/per-tier
     // rows above. An RPC is used instead of a PostgREST `sum()` aggregate
     // because Supabase blocks aggregate functions by default (PGRST123).
-    // types/db.ts lacks this RPC until the orchestrator regenerates types
-    // after 0024 is pushed (plan 05-05) — narrow cast only, same pattern
-    // as deleteLatestPricingTierSet in settings/pricing/actions.ts.
-    (
-      supabase.rpc as unknown as (
-        fn: string,
-        args: { p_start: string; p_end: string | null },
-      ) => Promise<{ data: string | null; error: { message: string } | null }>
-    )("revenue_total_for_period", { p_start: period.start, p_end: period.end }),
+    // types/db.ts regenerated after 0024 was pushed (plan 05-05) — called
+    // directly through the typed `supabase.rpc` client.
+    supabase.rpc("revenue_total_for_period", {
+      p_start: period.start,
+      p_end: period.end,
+    }),
     countsQuery.returns<RevenueDailyCountsRow[]>(),
     // UNSCOPED existence probe (never a period predicate) — distinguishes
     // "no verifications at all" (EmptyState) from "verifications exist,

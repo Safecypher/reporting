@@ -109,24 +109,13 @@ export async function savePricingTierSet(
     return { error: "Unauthorized" };
   }
 
-  // types/db.ts lacks the 4-argument save_pricing_tier_set until the
-  // orchestrator regenerates types after 0025 is pushed (plan 05-05) —
-  // narrow cast only, same pattern deleteLatestPricingTierSet already
-  // established (see delete_pricing_tier_set below). Passing all four named
-  // arguments explicitly also removes any PostgREST overload-ambiguity risk
-  // (P-03: the 3-argument function is dropped, not overloaded, by 0025 —
-  // this cast just keeps TypeScript honest about the new signature).
-  const { error } = await (
-    supabase.rpc as unknown as (
-      fn: string,
-      args: {
-        p_effective_from: string;
-        p_reset_window: string;
-        p_tiers: { tierOrder: number; upperBound: number | null; rate: number }[];
-        p_tier_set_id: string | null;
-      }
-    ) => Promise<{ error: { message: string } | null }>
-  )("save_pricing_tier_set", {
+  // types/db.ts regenerated after 0025 was pushed (plan 05-05) — the RPC is
+  // now called through the typed `supabase.rpc` client directly, letting the
+  // compiler check the argument names against the real 4-argument signature.
+  // Passing all four named arguments explicitly also removes any PostgREST
+  // overload-ambiguity risk (P-03: the 3-argument function is dropped, not
+  // overloaded, by 0025).
+  const { error } = await supabase.rpc("save_pricing_tier_set", {
     p_effective_from: parsed.data.effectiveFrom,
     p_reset_window: parsed.data.resetWindow,
     p_tiers: parsed.data.tiers.map((tier, index) => ({
@@ -134,7 +123,7 @@ export async function savePricingTierSet(
       upperBound: tier.upperBound,
       rate: tier.rate,
     })),
-    p_tier_set_id: tierSetId ?? null,
+    p_tier_set_id: tierSetId ?? undefined,
   });
 
   if (error) {
@@ -197,15 +186,12 @@ export async function deletePricingTierSet(
     return { error: "Unauthorized" };
   }
 
-  // types/db.ts lacks this RPC until orchestrator regenerates after 0025 is
-  // pushed (plan 05-05) — narrow cast only, same pattern as
-  // deleteLatestPricingTierSet previously used.
-  const { error } = await (
-    supabase.rpc as unknown as (
-      fn: string,
-      args: { p_tier_set_id: string }
-    ) => Promise<{ error: { message: string } | null }>
-  )("delete_pricing_tier_set", { p_tier_set_id: tierSetId });
+  // types/db.ts regenerated after 0025 was pushed (plan 05-05) — called
+  // directly through the typed `supabase.rpc` client, same as
+  // savePricingTierSet above.
+  const { error } = await supabase.rpc("delete_pricing_tier_set", {
+    p_tier_set_id: tierSetId,
+  });
 
   if (error) {
     // WR-01: log the raw, detailed error server-side only; the client only
