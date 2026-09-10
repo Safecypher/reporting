@@ -2,18 +2,18 @@
 gsd_state_version: "1.0"
 milestone: v1.0
 current_phase: 05
-current_phase_name: time-periods-financial-year-settings
-status: milestone_complete
-stopped_at: Phase 5 UI-SPEC approved
-last_updated: "2026-09-10T11:17:35.452Z"
+current_phase_name: Time Periods & Financial-Year Settings
+status: executing
+stopped_at: Completed 05-01-PLAN.md
+last_updated: "2026-09-10T12:53:19.053Z"
 last_activity: 2026-09-10
-last_activity_desc: Promoted the dual-source dashboard todo into Phases 5-7 (period/FY lens, TSYS-vs-Bit-Addict alignment, TSYS tiered volume + forecast)
-state_head: 71baadb49e801123250f5e77e432d73d33e70659
+last_activity_desc: Phase 05 execution started
+state_head: f82fb938378e3d249a330948d082bb56d59b6c30
 progress:
   total_phases: 7
   completed_phases: 2
   total_plans: 30
-  completed_plans: 25
+  completed_plans: 26
 milestone_name: milestone
 ---
 
@@ -24,14 +24,14 @@ milestone_name: milestone
 See: .planning/PROJECT.md (updated 2026-08-18)
 
 **Core value:** Trustworthy revenue reconciliation — billing must equal verifications, and any discrepancy must be immediately visible and traceable to source.
-**Current focus:** Milestone complete
+**Current focus:** Phase 05 — Time Periods & Financial-Year Settings
 
 ## Current Position
 
-Phase: 05 (time-periods-financial-year-settings) — READY TO EXECUTE
-Plan: Not started
-Status: Phase 5 added, not planned
-Last activity: 2026-09-10 - Promoted the dual-source dashboard todo into Phases 5-7 (period/FY lens, TSYS-vs-Bit-Addict alignment, TSYS tiered volume + forecast)
+Phase: 05 (Time Periods & Financial-Year Settings) — EXECUTING
+Plan: 2 of 5
+Status: Ready to execute
+Last activity: 2026-09-10 — Phase 05 execution started
 
 Progress: [░░░░░░░░░░] 0%
 
@@ -58,6 +58,11 @@ Progress: [░░░░░░░░░░] 0%
 - Trend: —
 
 *Updated after each plan completion*
+**Per-Plan Metrics:**
+
+| Plan | Duration | Tasks | Files |
+|------|----------|-------|-------|
+| Phase 05 P01 | 42min | 2 tasks | 10 files |
 
 ## Accumulated Context
 
@@ -77,6 +82,8 @@ Recent decisions affecting current work:
 - [Roadmap]: MVP resolved as correctness-first — Phase 1 is a thin end-to-end vertical slice (auth + upload + verification report fully de-duplicated + one view) that bakes the correctness foundation into the schema, rather than a horizontal schema-only phase.
 - [Roadmap]: Phases 2 (six parsers) and 3–4 (views) structured to exploit the two parallel fan-out points identified in research.
 - [Roadmap]: Billing-vs-verification discrepancy flagging (Phase 4) is the demo centrepiece / core-value milestone.
+- [Phase 05]: period.ts implements its own UTC-only date formatting/arithmetic helpers instead of date-fns's format/addMonths/getDaysInMonth, which read local getters and would silently misdate UTC period boundaries in a non-UTC process timezone
+- [Phase 05]: Domain-empty vs period-empty on /verifications is distinguished via a dedicated unscoped existence check on v_verifications_daily, not by reusing the period-scoped row count
 
 ### Pending Todos
 
@@ -114,6 +121,6 @@ Items acknowledged and carried forward from previous milestone close:
 
 ## Session Continuity
 
-Last session: 2026-09-10T10:04:42.518Z
-Stopped at: Phase 5 UI-SPEC approved
-Resume file: .planning/phases/05-time-periods-financial-year-settings/05-UI-SPEC.md
+Last session: 2026-09-10T12:53:18.934Z
+Stopped at: Completed 05-01-PLAN.md
+Resume file: None
