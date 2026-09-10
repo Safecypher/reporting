@@ -178,7 +178,7 @@ Plans:
   4. The TSYS MSA tier table (0–500k @ $0.0405, 500,001–1M @ $0.0279, 1,000,001–5M @ $0.0225, 5,000,001–10M @ $0.0205, 10,000,001–25M @ $0.0189, 25,000,001+ @ $0.0174) exists as a `pricing_tier_sets` row with `reset_window = 'monthly'`, and a hand calculation of the MSA's own worked example — 1.5M transactions in a month = **$45,450** — matches to the cent.
   5. Period scoping never changes the tier maths: a year or all-time figure is the sum of per-month tiered figures, never the tier ladder run over an aggregate multi-month volume.
 
-**Plans**: 5/5 plans executed, 1 gap-closure plan outstanding
+**Plans**: 5/6 plans executed, 1 gap-closure plan outstanding
 Plans:
 
 **Wave 1** *(tracer — the whole period architecture proven end to end on one view before anything expands)*
@@ -251,6 +251,6 @@ Phases execute in numeric order: 1 → 2 → 3 → 4 → 5 → 6 → 7 (Phase 3 
 | 2. Complete the Six Sources | 7/7 | Complete    | 2026-08-21 |
 | 3. Revenue, SLA & Drill-down | 7/7 | Complete   | 2026-08-21 |
 | 4. Reconciliation & Discrepancy Flagging | 4/4 | Complete   | 2026-08-23 |
-| 5. Time Periods & Financial-Year Settings | 5/5 | In Progress|  |
+| 5. Time Periods & Financial-Year Settings | 5/6 | In Progress|  |
 | 6. Dual-Source Alignment: TSYS vs Bit Addict | 0/0 | Not planned | — |
 | 7. TSYS Tiered Volume & Revenue Forecast | 0/0 | Not planned | — |
