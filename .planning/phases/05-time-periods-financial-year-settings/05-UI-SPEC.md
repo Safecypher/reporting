@@ -1,7 +1,7 @@
 ---
 phase: 5
 slug: time-periods-financial-year-settings
-status: draft
+status: approved
 shadcn_initialized: true
 preset: radix-nova (inherited — no re-init; components.json unchanged)
 brand_source: design-system/ (Safecypher Design System — same source as 01/03/04-UI-SPEC.md)
@@ -224,22 +224,80 @@ numbers, no silent failure.
 
 ## UI Considerations
 
-Applicable state considerations resolved: 8 covered, 2 backstop, 0 unresolved.
+State coverage from the post-approval UI-consideration probe (`ui-consideration-probe.cjs`,
+2026-09-10). 9 surfaces probed, **58 applicable considerations**: 44 covered (explicit), 5 backstop,
+9 dismissed with reason, 0 unresolved.
 
-| Category | Element(s) | Status | Resolution / Reason |
-|----------|------------|--------|---------------------|
-| empty | Period-scoped chart/table (list-collection, all 5 views) | ✅ covered | Renders the dedicated period-empty state (calendar icon, "No data in this period" + "View current month" link) — distinct from the domain "no data at all" empty state and from the error state (see Color/Copywriting) |
-| empty | Tier-set selector (list-collection, `/settings/pricing`) | ✅ covered | Always has ≥1 option ("New tier set") plus at least the seeded TSYS set post-migration (D-14) — never renders a bare/empty selector |
-| loading | Period control cluster (interactive-control, all 5 views) | ✅ covered | Changing period is a URL-param navigation (D-01/D-02, server-scoped); the existing per-page `Suspense`/`LoadingState` skeleton is the loading state — no separate spinner on the control itself |
-| error | Malformed/out-of-range `?period=`/`?of=` URL param (interactive-control) | ✅ covered | Silently falls back to the D-03 default (current month) via a whitelist-parse function mirroring `drill-params.ts` — never a crash or blank page, and never silently mislabels the scope badge (badge always reflects the *resolved* period actually applied) |
-| error | `/settings/general` form submit failure (form) | ✅ covered | Reuses the `PricingTierForm` banner-error pattern (`role="alert"`, destructive-tinted inline banner above the fields) |
-| partial | `/settings/general` form — day filled without a valid month/day combo (form) | ✅ covered | Zod cross-field validation (e.g. day 30 invalid for February); inline field error, same mechanism as `PricingTierForm` |
-| zero-one-many | Month/year select options (list-collection) | ✅ covered | Always ≥1 option (current month/year); singular case (only Aug 2026 available today) renders identically to the many-option case — labels are calendar dates, not counts, so no plural-copy branching is needed |
-| long-text | Active-scope badge text, Financial-year case (static-content) | ✅ covered | Longest string (`Showing FY2026–27 (6 Apr 2026 – 5 Apr 2027)`) fits the existing `Badge` component's `flex-wrap` header row without layout break — verified against the existing `FreshnessBadge` sibling, which already wraps at this width |
-| overflow | Month/year select listbox as data accumulates over years (list-collection) | 🧪 backstop | Radix `Select` viewport scrolls internally once options exceed visible height (default Radix behaviour, no pagination) — not exercised against real multi-year volume yet; flag for a visual check once >24 months of data exist |
-| long-text | Restate-warning dialog body with large `{N}` (form/interactive-control) | 🧪 backstop | Copy is fixed-shape (`This will restate revenue for {N} day{s}.`) and N is always a small integer (days in one tier-set's affected range) — no wrapping risk expected, but not explicitly tested against a multi-hundred-day N |
+`E8` (tier-set delete) initially returned `unclassified` — the classifier tripped no cue on its
+prose. Re-run with an authored `interactive-control` + `form` kind override per user confirmation,
+raising 5 categories that would otherwise have gone unasked.
 
----
+| Element | Category | Status | Resolution / Reason |
+|---------|----------|--------|---------------------|
+| E1 Period control cluster | empty | ✅ covered | No empty variant exists — Month/Year/All-time are static options and the month/year `Select` always carries ≥1 option (the current UTC month/year, since the data window opens 13 Aug 2026) |
+| E1 | loading | ✅ covered | The control stays interactive during a period change; only the data region below swaps to the existing `Suspense`/`LoadingState` skeleton. No spinner on the control itself |
+| E1 | error | ✅ covered | Invalid `?period=`/`?of=` falls back to the D-03 default via a whitelist parse mirroring `drill-params.ts`; the control renders the *resolved* period, never the invalid input |
+| E1 | populated | ✅ covered | Default render: `Month` selected, current UTC month in the `Select`, FY/CY toggle unmounted (D-08) |
+| E1 | partial | ✅ covered | **Binding:** `?period=year` with no `of` resolves to the current year; `?of=` with no `period` ignores `of` and uses the D-03 default. Neither is an error |
+| E1 | overflow | ✅ covered | `flex flex-wrap items-center gap-3` — controls wrap to a second line on narrow viewports rather than truncating |
+| E1 | zero-one-many | ✅ covered | With one month of data the `Select` holds exactly one option and renders identically to the many-option case (calendar labels, not counts — no plural branching) |
+| E1 | long-text | ✅ covered | Longest labels are short and fixed (`All time`, `Financial`, `September 2026`) |
+| E2 Active-scope badge | overflow | ✅ covered | Sits in the existing `flex-wrap` header row beside `FreshnessBadge`, which already wraps at this width |
+| E2 | long-text | ✅ covered | Longest string is the Financial-year case (`Showing FY2026–27 (6 Apr 2026 – 5 Apr 2027)`); wraps with its sibling badge, no truncation |
+| E3 Period-scoped data surface | empty | ✅ covered | Two distinct empties: domain-empty (source has nothing at all) keeps its existing per-view state; period-empty (source has rows, this period has none) uses the new state — see Copywriting |
+| E3 | loading | ✅ covered | Existing per-page `Suspense`/`LoadingState` skeleton, unchanged |
+| E3 | error | ✅ covered | Existing per-view `ErrorState`, unchanged — visually distinct from period-empty (which is neutral, never `--warning`/`--destructive`) |
+| E3 | populated | ✅ covered | Chart/table unchanged; the active-scope badge is always present whenever the view is populated |
+| E3 | partial | ✅ covered | A period with rows for only part of its span renders what exists; the data-window caption and freshness badge already account for absence |
+| E3 | overflow | ✅ covered | Year + Daily (~365 bars) is explicitly accepted by D-09 and is **not** a defect to design around. Chart must stay readable at that density; no coupling or auto-defaulting may be added |
+| E3 | zero-one-many | ✅ covered | Month + Monthly renders a single bar — also explicitly accepted by D-09 |
+| E4 Period-empty state | empty | ✅ covered | This surface *is* the empty variant — calendar icon, `No data in this period`, view-noun body, `View current month` recovery link |
+| E4 | loading | ⊘ dismissed | Not reachable: period-empty is determined only after the query returns. The pre-return state is E3's skeleton |
+| E4 | error | ✅ covered | Deliberately distinct from the error state — neutral tokens only, and it must never reuse the domain empty-state's `Upload report` CTA (uploading cannot fix a correct absence of past data) |
+| E4 | populated | ⊘ dismissed | Mutually exclusive with rows being present |
+| E4 | partial | ⊘ dismissed | Binary by definition — the period either has rows or it does not |
+| E4 | overflow | ✅ covered | Fixed short copy in a centred `EmptyState` container |
+| E4 | zero-one-many | ⊘ dismissed | Always zero rows by definition |
+| E4 | long-text | 🧪 backstop | Longest interpolation is `No reconciliation data recorded for FY2026–27 (6 Apr 2026 – 5 Apr 2027).` — not yet checked at narrow viewport width. Visual check during execution |
+| E5 FY settings form | empty | ✅ covered | First load with nothing saved shows the default (1 January) and the audit log's `No changes yet` copy |
+| E5 | loading | ✅ covered | `Skeleton`, matching the `/settings/pricing` loading shape |
+| E5 | error | ✅ covered | Submit failure renders the `PricingTierForm` banner-error pattern (`role="alert"`, destructive-tinted, above the fields) |
+| E5 | populated | ✅ covered | Month `Select` + day `Input` pre-filled from the saved value |
+| E5 | partial | ✅ covered | Zod cross-field validation for an impossible month/day pair (day 30 in February) → inline field error, same mechanism as `PricingTierForm` |
+| E5 | overflow | 🧪 backstop | The `Change history` audit log grows unbounded over time. Confirm whether the existing `AuditLog` already caps or scrolls on `/settings/pricing`; if it does not, add a limit. Not resolvable from the spec alone |
+| E5 | zero-one-many | ✅ covered | Zero entries has explicit copy; one and many render as the same list |
+| E5 | long-text | ✅ covered | Field labels are fixed; the success toast interpolates only a month name and a day number |
+| E6 Tier-set selector | empty | ✅ covered | Never empty — always `New tier set` plus at least the seeded TSYS set (D-14) |
+| E6 | loading | ✅ covered | Page-level `Skeleton`, unchanged |
+| E6 | error | ✅ covered | A failure loading the tier sets surfaces as the settings page `ErrorState` |
+| E6 | populated | ✅ covered | Defaults to `New tier set`; existing sets listed as `Effective {date}`, most recent first |
+| E6 | partial | ✅ covered | Selecting a set loads `effectiveFrom`, `resetWindow` and `tiers` together; a structurally malformed set cannot exist — the `0015` integrity trigger rejects it at write time |
+| E6 | overflow | 🧪 backstop | Sets accumulate as the MSA is amended; Radix `Select` scrolls its viewport internally. Not exercised against a long list yet |
+| E6 | zero-one-many | ✅ covered | One existing set (the seed) and many render identically |
+| E6 | long-text | ✅ covered | Options are the fixed shape `Effective {date}` |
+| E7 Restate-warning dialog | empty | ⊘ dismissed | Only opens when a pending edit exists |
+| E7 | loading | ✅ covered | **Binding:** while the save is in flight the confirm button is disabled and shows the pending label, reusing `PricingTierForm`'s existing pending-submit convention |
+| E7 | error | ✅ covered | A server-rejected save closes the dialog and surfaces the failure in the form's error banner — never a silent close |
+| E7 | partial | ⊘ dismissed | The dialog either confirms the whole pending edit or returns to the form |
+| E7 | long-text | 🧪 backstop | Copy is fixed-shape and `N` is a small integer (days in one set's affected range); no wrapping risk expected, not tested against a multi-hundred-day `N` |
+| E8 Tier-set delete | empty | ⊘ dismissed | The action only renders when a tier set is selected |
+| E8 | loading | ✅ covered | **Binding:** confirm button disabled with a pending label while the delete is in flight |
+| E8 | error | ✅ covered | The server guard's refusal (no remaining set would cover 13 Aug 2026) surfaces as the explicit `Generalized delete blocked` toast copy — **never a silent no-op**. This is the UI half of the `CROSS JOIN LATERAL … LIMIT 1` guard named in `05-CONTEXT.md` `<code_context>` |
+| E8 | partial | ⊘ dismissed | A tier set deletes whole (its tiers cascade) or not at all |
+| E8 | long-text | ✅ covered | Dialog body interpolates only an effective date into fixed copy |
+| E9 Month/year options | empty | ✅ covered | Never empty — at minimum the current UTC month/year |
+| E9 | loading | ✅ covered | Options are derived server-side from the data window, not fetched asynchronously — no listbox loading state |
+| E9 | error | ⊘ dismissed | Derived, not fetched — no failure mode of its own |
+| E9 | populated | ✅ covered | Reverse-chronological, hard-capped at the current UTC month/year (no future periods offered) |
+| E9 | partial | ✅ covered | **Binding:** options are calendar-derived, not data-derived — a month with no rows is still listed and selecting it yields the period-empty state. The picker must not silently hide gap months |
+| E9 | overflow | 🧪 backstop | Radix `Select` scrolls internally past the visible height; flag for a visual check once >24 months of data exist |
+| E9 | zero-one-many | ✅ covered | A single available month renders identically to many |
+
+**Considered and declined by the user (2026-09-10):** raising `zero-one-many` on the restate-warning
+dialog's `This will restate revenue for {N} day{s}` copy. Recorded here so the planner knows it was
+a decision, not an oversight — the `{s}` shape was judged sufficient. Note the reachable cases
+remain unspecified: `N=1` must not read "1 days", and `N=0` leaves open whether the dialog should
+appear at all.
 
 ## Interaction & State Contract (trust-critical)
 
