@@ -140,19 +140,35 @@ describe("resolveSaveImpact — edit mode (D-18/P-04 non-regression)", () => {
     });
   });
 
-  it("never returns null and never returns a non-null supersedes for an edit", () => {
+  it("does not displace a set that is earlier than the edited set's own current date, even after moving later", () => {
+    // The only other set (2026-08-13) already sat BEFORE the edited set's
+    // current date (2026-09-01) — it was never governing the days the move
+    // crosses into, so this is not a displacement.
     const mode: TierSetSaveMode = {
       kind: "edit",
       id: "msa",
-      effectiveFrom: "2026-08-13",
+      effectiveFrom: "2026-09-01",
     };
-    const existing = [
-      { id: "msa", effectiveFrom: "2026-08-13" },
-      { id: "other", effectiveFrom: "2026-01-01" },
-    ];
-    const result = resolveSaveImpact(mode, "2026-08-20", existing);
-    expect(result).not.toBeNull();
-    expect(result?.supersedes).toBeNull();
+    const existing = [{ id: "a", effectiveFrom: "2026-08-13" }];
+    expect(resolveSaveImpact(mode, "2026-10-01", existing)).toEqual({
+      from: "2026-09-01",
+      through: null,
+      supersedes: null,
+    });
+  });
+
+  it("does not displace a set when backdating into territory no other set prices", () => {
+    const mode: TierSetSaveMode = {
+      kind: "edit",
+      id: "msa",
+      effectiveFrom: "2026-10-01",
+    };
+    const existing = [{ id: "c", effectiveFrom: "2027-01-01" }];
+    expect(resolveSaveImpact(mode, "2026-09-01", existing)).toEqual({
+      from: "2026-09-01",
+      through: null,
+      supersedes: null,
+    });
   });
 
   it("excludes the set being edited from the supersede scan even if passed in the existing list", () => {
@@ -166,5 +182,122 @@ describe("resolveSaveImpact — edit mode (D-18/P-04 non-regression)", () => {
     // other set) as a supersede target.
     const existing = [{ id: "msa", effectiveFrom: "2026-08-13" }];
     expect(resolveSaveImpact(mode, "2026-08-13", existing)?.supersedes).toBeNull();
+  });
+
+  it("an edit always returns a defined impact — never null — whether or not it displaces another set", () => {
+    const displacingMode: TierSetSaveMode = {
+      kind: "edit",
+      id: "e",
+      effectiveFrom: "2026-08-13",
+    };
+    const displacingExisting = [{ id: "a", effectiveFrom: "2026-09-01" }];
+    expect(resolveSaveImpact(displacingMode, "2026-09-15", displacingExisting)).not.toBeNull();
+
+    const nonDisplacingMode: TierSetSaveMode = {
+      kind: "edit",
+      id: "e",
+      effectiveFrom: "2026-08-13",
+    };
+    expect(resolveSaveImpact(nonDisplacingMode, "2026-08-13", [])).not.toBeNull();
+  });
+});
+
+// G-05-CR01 (code review CR-01, closing 05-UAT.md's gap of the same id): an
+// edit that moves a tier set's effective_from across another tier set's date
+// silently reassigns pricing authority for the days between them, because
+// v_revenue_tier_set_by_day (supabase/migrations/0012_v_revenue.sql) resolves
+// each day's governing tier set purely by relative effective_from ordering —
+// "this row already covered that day before the edit" is not part of that
+// rule. Notation below: E is the edited set (id "e"), c is its CURRENT
+// effective date, p is its PROPOSED effective date, and every other set is
+// listed with its own id. The obvious single-filter predicate the code
+// review sketched (`effectiveFrom <= p && effectiveFrom > c`) is EMPTY for
+// every backdate (p < c makes the two bounds contradictory) — the cases
+// below cover BOTH crossing directions precisely because that predicate only
+// covers one of them.
+describe("resolveSaveImpact — edit mode displacement across another tier set (G-05-CR01/CR-01)", () => {
+  it("moving later across one set reports that set as displaced (the code review's own scenario)", () => {
+    const mode: TierSetSaveMode = { kind: "edit", id: "e", effectiveFrom: "2026-08-13" };
+    const existing = [{ id: "a", effectiveFrom: "2026-09-01" }];
+    expect(resolveSaveImpact(mode, "2026-09-15", existing)).toEqual({
+      from: "2026-08-13",
+      through: null,
+      supersedes: "2026-09-01",
+    });
+  });
+
+  it("moving later across one set caps the affected range at the day before the next later set", () => {
+    const mode: TierSetSaveMode = { kind: "edit", id: "e", effectiveFrom: "2026-08-13" };
+    const existing = [
+      { id: "a", effectiveFrom: "2026-09-01" },
+      { id: "b", effectiveFrom: "2026-10-01" },
+    ];
+    expect(resolveSaveImpact(mode, "2026-09-15", existing)).toEqual({
+      from: "2026-08-13",
+      through: "2026-09-30",
+      supersedes: "2026-09-01",
+    });
+  });
+
+  it("moving later across two sets reports the LATEST crossed one", () => {
+    const mode: TierSetSaveMode = { kind: "edit", id: "e", effectiveFrom: "2026-08-13" };
+    const existing = [
+      { id: "a", effectiveFrom: "2026-09-01" },
+      { id: "a2", effectiveFrom: "2026-09-10" },
+    ];
+    expect(resolveSaveImpact(mode, "2026-09-15", existing)?.supersedes).toBe("2026-09-10");
+  });
+
+  it("moving EARLIER (backdating) across a set reports that set as displaced", () => {
+    const mode: TierSetSaveMode = { kind: "edit", id: "e", effectiveFrom: "2026-10-01" };
+    const existing = [{ id: "a", effectiveFrom: "2026-08-13" }];
+    expect(resolveSaveImpact(mode, "2026-09-01", existing)).toEqual({
+      from: "2026-09-01",
+      through: null,
+      supersedes: "2026-08-13",
+    });
+  });
+
+  it("moving earlier caps the affected range at the day before the next later set, proving the year-boundary decrement", () => {
+    const mode: TierSetSaveMode = { kind: "edit", id: "e", effectiveFrom: "2026-10-01" };
+    const existing = [
+      { id: "a", effectiveFrom: "2026-08-13" },
+      { id: "c", effectiveFrom: "2027-01-01" },
+    ];
+    expect(resolveSaveImpact(mode, "2026-09-01", existing)).toEqual({
+      from: "2026-09-01",
+      through: "2026-12-31",
+      supersedes: "2026-08-13",
+    });
+  });
+
+  it("reports a displacement even when the proposed date lands exactly on another set's date", () => {
+    // The server UNIQUE constraint rejects this write outright, but the
+    // resolver must not pretend the collision is harmless — same stance the
+    // create branch already takes for an exact-date collision.
+    const mode: TierSetSaveMode = { kind: "edit", id: "e", effectiveFrom: "2026-08-13" };
+    const existing = [{ id: "a", effectiveFrom: "2026-09-01" }];
+    const result = resolveSaveImpact(mode, "2026-09-01", existing);
+    expect(result?.supersedes).toBe("2026-09-01");
+  });
+
+  it("never reports the edited set's own row as displaced, even when passed alongside a genuinely different set", () => {
+    const mode: TierSetSaveMode = { kind: "edit", id: "e", effectiveFrom: "2026-10-01" };
+    const existing = [
+      { id: "e", effectiveFrom: "2026-10-01" },
+      { id: "a", effectiveFrom: "2026-08-13" },
+    ];
+    const result = resolveSaveImpact(mode, "2026-09-01", existing);
+    expect(result?.supersedes).toBe("2026-08-13");
+    expect(result?.supersedes).not.toBe("2026-10-01");
+  });
+
+  it("resolves a tie between two other sets sharing the same effective_from to that shared date", () => {
+    const mode: TierSetSaveMode = { kind: "edit", id: "e", effectiveFrom: "2026-08-13" };
+    const existing = [
+      { id: "a", effectiveFrom: "2026-09-01" },
+      { id: "b", effectiveFrom: "2026-09-01" },
+    ];
+    expect(resolveSaveImpact(mode, "2026-09-15", existing)?.supersedes).toBe("2026-09-01");
   });
 });
