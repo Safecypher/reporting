@@ -3,12 +3,15 @@ import Link from "next/link";
 import type { Metadata } from "next";
 
 import { VerificationDrillSheet } from "@/components/dashboard/verification-drill-sheet";
+import { ScopeBadge } from "@/components/dashboard/scope-badge";
 import { ViewControls } from "@/components/dashboard/view-controls";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { createClient } from "@/lib/supabase/server";
 import type { DailyRow } from "@/lib/dashboard/bucketing";
 import { parseDrillParams } from "@/lib/dashboard/drill-params";
+import { resolvePeriod, type ResolvedPeriod } from "@/lib/dashboard/period";
+import { fetchFinancialYearStart } from "@/lib/settings/fy-settings";
 import {
   fetchVerificationDrillRows,
   type VerificationDrillFetchResult,
@@ -55,7 +58,13 @@ function FreshnessBadge({ uploadedAt }: { uploadedAt: string | null }) {
   );
 }
 
-function PageHeader({ uploadedAt }: { uploadedAt: string | null }) {
+function PageHeader({
+  uploadedAt,
+  period,
+}: {
+  uploadedAt: string | null;
+  period: ResolvedPeriod | null;
+}) {
   return (
     <div className="flex flex-col gap-2 border-b border-border pb-4">
       <div className="flex flex-wrap items-center justify-between gap-3">
@@ -67,7 +76,10 @@ function PageHeader({ uploadedAt }: { uploadedAt: string | null }) {
             Verifications
           </h1>
         </div>
-        <FreshnessBadge uploadedAt={uploadedAt} />
+        <div className="flex flex-wrap items-center gap-2">
+          {period && <ScopeBadge period={period} />}
+          <FreshnessBadge uploadedAt={uploadedAt} />
+        </div>
       </div>
       <p className="text-sm font-light text-muted-foreground">
         {DATA_WINDOW_CAPTION}
@@ -156,12 +168,27 @@ async function VerificationsBody({ searchParams }: { searchParams: PageSearchPar
   const drillFilter = parseDrillParams(params);
   const isVerificationDrill = drillFilter?.drill === "verification";
 
+  // D-01/D-05: resolve the period BEFORE any query is built — `now` is
+  // captured once here from the runtime clock and passed in, so
+  // `resolvePeriod` itself stays pure (no wall-clock access inside it).
+  const now = new Date();
+  const fyStart = await fetchFinancialYearStart(supabase);
+  const period = resolvePeriod(params, fyStart, now);
+
+  // RESEARCH Pattern 1: an outer .gte()/.lt() predicate on the unchanged
+  // v_verifications_daily view — never a rewrite of the view itself. `.lt`
+  // is applied only when the period has a defined end ("all" leaves it
+  // open-ended, per D-01's ResolvedPeriod contract).
+  let dailyQuery = supabase
+    .from("v_verifications_daily")
+    .select("day_utc, authenticated_count, failed_count")
+    .gte("day_utc", period.start);
+  if (period.end !== null) {
+    dailyQuery = dailyQuery.lt("day_utc", period.end);
+  }
+
   const [dailyResult, freshnessResult, drillResult] = await Promise.all([
-    supabase
-      .from("v_verifications_daily")
-      .select("day_utc, authenticated_count, failed_count")
-      .order("day_utc", { ascending: true })
-      .returns<DailyViewRow[]>(),
+    dailyQuery.order("day_utc", { ascending: true }).returns<DailyViewRow[]>(),
     supabase
       .from("ingested_files")
       .select("uploaded_at")
@@ -181,7 +208,7 @@ async function VerificationsBody({ searchParams }: { searchParams: PageSearchPar
   if (dailyResult.error || freshnessResult.error) {
     return (
       <>
-        <PageHeader uploadedAt={null} />
+        <PageHeader uploadedAt={null} period={null} />
         <ErrorState />
       </>
     );
@@ -199,7 +226,7 @@ async function VerificationsBody({ searchParams }: { searchParams: PageSearchPar
 
   return (
     <>
-      <PageHeader uploadedAt={uploadedAt} />
+      <PageHeader uploadedAt={uploadedAt} period={period} />
       {rows.length === 0 ? <EmptyState /> : <ViewControls dailyRows={rows} />}
       <VerificationDrillSheet
         filter={isVerificationDrill ? drillFilter : null}
