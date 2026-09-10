@@ -9,6 +9,7 @@ import {
   mapPricingSaveError,
   type PricingErrorTone,
 } from "@/lib/pricing/errors";
+import { isValidCalendarDate } from "@/lib/pricing/calendar-date";
 
 /**
  * savePricingTierSet — the pricing admin's only write path (ADMIN-01, REV-02).
@@ -148,16 +149,6 @@ export async function deletePricingTierSet(
   return { success: true };
 }
 
-const RESTATE_DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
-
-/** Strict `YYYY-MM-DD` shape plus a calendar-validity round trip — the same
- * `DATE_RE` + `Date.parse` pairing `lib/dashboard/drill-params.ts` already
- * establishes (CR-02 precedent) — this value originates in a form field and
- * must not reach a query unchecked. */
-function isValidCalendarDate(value: string): boolean {
-  return RESTATE_DATE_RE.test(value) && !Number.isNaN(Date.parse(`${value}T00:00:00Z`));
-}
-
 /**
  * countRestatedDays — the D-18 warning-dialog input: counts the days
  * between `fromDate` and an (optional) inclusive `throughDate`, clamped to
@@ -167,13 +158,17 @@ function isValidCalendarDate(value: string): boolean {
  * pair, bounding the count to the range the NEW set actually displaces
  * rather than counting from `from` all the way to today.
  *
- * `throughDate`, when supplied, is validated with the same
- * `isValidCalendarDate` shape-plus-calendar round trip already applied to
- * `fromDate` (T-05-07-02) — an attacker-supplied end date cannot widen the
- * query unchecked. The effective end is the EARLIER of `throughDate` and
- * today's UTC date; omitting `throughDate` keeps today's UTC date as the
- * effective end exactly as before. When the effective end precedes
- * `fromDate`, this returns zero days without querying.
+ * Both `fromDate` and the optional `throughDate` are validated with
+ * `isValidCalendarDate` (`lib/pricing/calendar-date.ts`) — a genuine
+ * calendar round trip, not merely a shape-plus-`Date.parse` check (WR-01:
+ * `Date.parse` silently rolls an out-of-range day into the next month
+ * instead of rejecting it) — so an attacker-supplied or malformed end date
+ * cannot widen the query unchecked, and a calendar-impossible date is
+ * rejected in the application before it ever reaches the query. The
+ * effective end is the EARLIER of `throughDate` and today's UTC date;
+ * omitting `throughDate` keeps today's UTC date as the effective end exactly
+ * as before. When the effective end precedes `fromDate`, this returns zero
+ * days without querying.
  *
  * Uses the `{ count: "exact", head: true }` exact-count mechanism against
  * `v_revenue_daily_counts` (RESEARCH Pattern 3) — never a blocked PostgREST
