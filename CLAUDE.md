@@ -3,11 +3,11 @@
 
 **Safecypher Reporting**
 
-An internal reporting and reconciliation dashboard for Safecypher's live card-verification deployment (via Thesis / Invex). It ingests six daily reports (currently emailed CSV/XLSX, later a programmatic file drop), stores them in a normalised, de-duplicated database, and visualises the metrics that matter to the business: verification volume, revenue, response time against the SLA, and card-inventory reconciliation. It also actively flags discrepancies — most importantly when the billing report does not match the verification report.
+An internal reporting and reconciliation dashboard for Safecypher's live card-verification deployment (via TSYS / Invex). It ingests six daily reports (currently emailed CSV/XLSX, later a programmatic file drop), stores them in a normalised, de-duplicated database, and visualises the metrics that matter to the business: verification volume, revenue, response time against the SLA, and card-inventory reconciliation. It also actively flags discrepancies — most importantly when the billing report does not match the verification report.
 
 It is used by a small internal Safecypher team (e.g. Mark W, Richard, Andy) and is the tool that gives leadership (Mark) visibility of live-deployment data and revenue as the business scales.
 
-**Core Value:** **Trustworthy revenue reconciliation:** billing must equal verifications, and the dashboard must make any discrepancy immediately visible — "we manage our own destiny" by balancing daily rather than scrambling when Thesis flags a problem. Everything else supports this.
+**Core Value:** **Trustworthy revenue reconciliation:** billing must equal verifications, and the dashboard must make any discrepancy immediately visible — "we manage our own destiny" by balancing daily rather than scrambling when TSYS flags a problem. Everything else supports this.
 
 ### Constraints
 
@@ -36,7 +36,7 @@ It is used by a small internal Safecypher team (e.g. Mark W, Richard, Andy) and 
 | Library | Version | Purpose | When to Use |
 |---------|---------|---------|-------------|
 | **PapaParse** | 5.6.0 | CSV parsing (5 of 6 reports are CSV) | Always for `.csv`. Industry-standard, streaming, header→object mode, robust delimiter/quote handling. Run it **server-side** in a Route Handler/Server Action on the uploaded buffer. |
-| **ExcelJS** | 4.4.0 | XLSX parsing (Thesis "Safecypher Stats" `.xlsx`, multi-tab) | For `.xlsx` only. **Chosen over SheetJS `xlsx`** for security reasons — see "What NOT to Use". Handles multi-worksheet workbooks (read only `APIGEE Calls`, skip `Verify Outcome` per PROJECT scope). |
+| **ExcelJS** | 4.4.0 | XLSX parsing (TSYS "Safecypher Stats" `.xlsx`, multi-tab) | For `.xlsx` only. **Chosen over SheetJS `xlsx`** for security reasons — see "What NOT to Use". Handles multi-worksheet workbooks (read only `APIGEE Calls`, skip `Verify Outcome` per PROJECT scope). |
 | **react-dropzone** | 20.1.0 | Drag-and-drop upload UI | The upload zone for the six reports. Client component; collects the File, then hands the bytes to a Server Action / Route Handler for parsing. Accept-filter to `.csv,.xlsx`. |
 | **Zod** | 4.4.3 | Runtime validation of parsed rows + admin-settings form schema | Validate every parsed row before insert (reject malformed billing rows early), and validate the pricing-tier config. Single source of truth: infer TS types from Zod schemas. |
 | **Recharts** | 3.10.1 | Charting — time-series, bar, composed reconciliation charts | The default React charting lib and what shadcn/ui `chart` components wrap. Composable, SVG, good for daily/weekly/monthly line + bar + reference-line (750ms SLA marker) charts. |
@@ -69,7 +69,7 @@ It is used by a small internal Safecypher team (e.g. Mark W, Richard, Andy) and 
 | `daily-dcvv-report` | no natural ID | Composite/hash `UNIQUE (timestamp, external_reference, duration)`. |
 | `card-inventory-report` | per-day snapshot | `UNIQUE (report_date, external_card_reference)` — one row per card per snapshot day. |
 | `removed-cards-report` | daily | `UNIQUE (removed_at, external_card_reference)`. |
-| Thesis `APIGEE Calls` | per-day/endpoint | `UNIQUE (report_date, endpoint, status_code)` (or per-row hash). |
+| TSYS `APIGEE Calls` | per-day/endpoint | `UNIQUE (report_date, endpoint, status_code)` (or per-row hash). |
 - Use `supabase-js` `.upsert(rows, { onConflict: 'transaction_id', ignoreDuplicates: true })` for the app path, backed by the DB unique constraint (the constraint is the real guarantee; the client option just picks INSERT vs upsert behaviour).
 - Prefer **`GENERATED ALWAYS AS ... STORED` hash columns** over multi-column unique indexes for the no-natural-ID reports — one indexed column, and the hash definition is documented in the migration.
 - Record an `ingestion_batch` row per upload (file name, sha256 of file bytes, uploaded_by, row counts) so you can (i) detect an identical re-upload instantly by file hash and (ii) audit "where did this number come from" — essential for a *trustworthy revenue* tool.
