@@ -525,6 +525,27 @@ export type Database = {
       }
     }
     Views: {
+      v_alignment_daily: {
+        Row: {
+          bit_addict_count: number | null
+          bit_addict_covered: boolean | null
+          coverage_complete: boolean | null
+          day: string | null
+          metric: string | null
+          settled: boolean | null
+          short_side: string | null
+          tsys_count: number | null
+          tsys_covered: boolean | null
+        }
+        Relationships: []
+      }
+      v_apigee_coverage_daily: {
+        Row: {
+          day: string | null
+          source_file_count: number | null
+        }
+        Relationships: []
+      }
       v_apigee_cross_check: {
         Row: {
           apigee_count: number | null
@@ -537,10 +558,24 @@ export type Database = {
         }
         Relationships: []
       }
+      v_billing_coverage_daily: {
+        Row: {
+          day: string | null
+          source_file_count: number | null
+        }
+        Relationships: []
+      }
       v_billing_daily_counts: {
         Row: {
           billing_count: number | null
           day_utc: string | null
+        }
+        Relationships: []
+      }
+      v_inventory_coverage_daily: {
+        Row: {
+          day: string | null
+          snapshot_row_count: number | null
         }
         Relationships: []
       }
@@ -567,12 +602,14 @@ export type Database = {
       v_reconciliation_billing_daily: {
         Row: {
           billing_count: number | null
+          billing_covered: boolean | null
           day_utc: string | null
           delta: number | null
           settled: boolean | null
           short_side: string | null
           status: string | null
           verification_count: number | null
+          verification_covered: boolean | null
         }
         Relationships: []
       }
@@ -581,10 +618,19 @@ export type Database = {
           day: string | null
           delta: number | null
           enrolled_count: number | null
+          removed_cards_covered: boolean | null
           removed_count: number | null
           short_side: string | null
+          snapshot_bracketed: boolean | null
           status: string | null
           unenrolled_count: number | null
+        }
+        Relationships: []
+      }
+      v_removed_cards_coverage_daily: {
+        Row: {
+          day: string | null
+          source_file_count: number | null
         }
         Relationships: []
       }
@@ -665,6 +711,13 @@ export type Database = {
         }
         Relationships: []
       }
+      v_verification_coverage_daily: {
+        Row: {
+          day: string | null
+          source_file_count: number | null
+        }
+        Relationships: []
+      }
       v_verifications_daily: {
         Row: {
           authenticated_count: number | null
@@ -675,6 +728,59 @@ export type Database = {
       }
     }
     Functions: {
+      add_business_days: {
+        Args: { n: number; start_date: string }
+        Returns: string
+      }
+      alignment_daily_for_period: {
+        Args: {
+          p_end: string
+          p_metric: string
+          p_start: string
+          p_tolerance: number
+        }
+        Returns: {
+          bit_addict_count: number
+          bit_addict_covered: boolean
+          coverage_complete: boolean
+          day: string
+          metric: string
+          settled: boolean
+          short_side: string
+          status: string
+          tsys_count: number
+          tsys_covered: boolean
+        }[]
+      }
+      alignment_status: {
+        Args: {
+          p_bit_addict: number
+          p_coverage_complete: boolean
+          p_settled: boolean
+          p_tolerance: number
+          p_tsys: number
+        }
+        Returns: string
+      }
+      alignment_totals_for_period: {
+        Args: {
+          p_end: string
+          p_metric: string
+          p_start: string
+          p_tolerance: number
+        }
+        Returns: {
+          bit_addict_count: number
+          bit_addict_covered_days: number
+          period_coverage_complete: boolean
+          settled: boolean
+          short_side: string
+          status: string
+          total_days: number
+          tsys_count: number
+          tsys_covered_days: number
+        }[]
+      }
       delete_pricing_tier_set: {
         Args: { p_tier_set_id: string }
         Returns: undefined
