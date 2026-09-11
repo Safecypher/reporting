@@ -222,7 +222,7 @@ Plans:
   4. A user can drill from either side of any comparison to the contributing rows and their originating source file.
   5. A day where the two sources genuinely disagree is visibly flagged on the dashboard without the user having to open the reconciliation page.
 
-**Plans**: 6/6 plans executed
+**Plans**: 6/6 plans executed + 4 gap-closure plans (06-07..06-10, from 06-VERIFICATION.md)
 
 Plans:
 **Wave 1**
@@ -245,6 +245,19 @@ Plans:
 **Wave 5** *(blocked on Wave 4 completion)*
 
 - [x] 06-06-PLAN.md — Authoritative live schema gate and demonstration of all five success criteria
+
+**Gap closure — Wave 1** *(from 06-VERIFICATION.md; run with `--gaps-only`)*
+
+- [ ] 06-07-PLAN.md — SQL layer: per-source settling bounds in `v_alignment_daily` and the live-cards RPC, the TSYS-only coverage column, TypeScript mirrors, and divergent-freshness oracle blocks (CR-01, WR-01, CR-02 SQL half)
+- [ ] 06-08-PLAN.md — `alignment_inventory_diff_rows` set-difference RPC and the as-of-on-offset-change trigger, with two new read-only oracles (WR-04 SQL half, WR-02)
+
+**Gap closure — Wave 2** *(blocked on Wave 1 completion)*
+
+- [ ] 06-09-PLAN.md — `[BLOCKING]` apply 0031/0032/0033 + regenerate types + run all four oracles, then consume the separable signals in the card, the day breakdown and the level-2 drill (CR-02, WR-01, WR-04)
+
+**Gap closure — Wave 3** *(blocked on Wave 2 completion)*
+
+- [ ] 06-10-PLAN.md — Settings robustness: the action stops owning the as-of column, a settings-read failure becomes a visible notice, and the human UAT walkthrough (WR-02, WR-03, 11 pending UAT tests)
 
 ### Phase 7: TSYS Tiered Volume & Revenue Forecast
 
