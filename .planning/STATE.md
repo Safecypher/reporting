@@ -4,16 +4,16 @@ milestone: v1.0
 current_phase: 06
 current_phase_name: "Dual-Source Alignment: TSYS vs Bit Addict"
 status: executing
-stopped_at: Completed 06-04-PLAN.md (two-level alignment drill Sheet + full-page day-breakdown route)
-last_updated: "2026-09-11T12:56:37.053Z"
+stopped_at: Completed 06-05-PLAN.md
+last_updated: "2026-09-11T13:15:57.615Z"
 last_activity: 2026-09-11
 last_activity_desc: Phase 06 execution started
-state_head: 57ca3bd17e9eb05f517658884473132f92e54140
+state_head: 55460a8f3a23adc8cb08f2c0b87aa56e08dffcaf
 progress:
   total_phases: 7
   completed_phases: 2
   total_plans: 40
-  completed_plans: 38
+  completed_plans: 39
 milestone_name: milestone
 ---
 
@@ -29,7 +29,7 @@ See: .planning/PROJECT.md (updated 2026-08-18)
 ## Current Position
 
 Phase: 06 (Dual-Source Alignment: TSYS vs Bit Addict) — EXECUTING
-Plan: 5 of 6
+Plan: 6 of 6
 Status: Ready to execute
 Last activity: 2026-09-11 — Phase 06 execution started
 
@@ -75,6 +75,7 @@ Progress: [░░░░░░░░░░] 0%
 | Phase 06 P02 | 35min | 3 tasks | 9 files |
 | Phase 06 P03 | ~40min | 3 tasks | 8 files |
 | Phase 06 P04 | 55min | 3 tasks | 8 files |
+| Phase 06 P05 | ~20min | 3 tasks | 7 files |
 
 ## Accumulated Context
 
@@ -118,6 +119,8 @@ Recent decisions affecting current work:
 - [Phase 06]: [Phase 06] Phase 06 Plan 03: /alignment completed to all four ROADMAP SC1 metrics, reading fetchAlignmentSettings() before any metric fetch — closes the tolerance/baseline-offset carry-forward gap 06-02's SUMMARY flagged (settings still at their 0/0/null defaults live; no observable effect until an admin sets a non-zero value)
 - [Phase 06]: [Phase 06] Phase 06 Plan 04: two-level alignment drill built entirely over already-live 0028/0030 schema, no migration — level 1 (day breakdown) reuses alignment_daily_for_period for flow metrics and re-derives live cards' gap-CHANGE verdict day by day in TS; level 2 (contributing rows) adds the first ingested_files(file_name) FK embed in this codebase, the new source-file provenance capability ROADMAP SC4 requires
 - [Phase 06]: [Phase 06] Phase 06 Plan 04: two real coverage gaps registered in WINDOWS.md rather than claimed as proven — the ingested_files(file_name) embed has not been executed against the live Supabase project (no MCP access this session), and the live-cards day-breakdown derivation has no dedicated Vitest coverage
+- [Phase 06]: [Phase 06] Plan 05: home-page alignment rollup strip is null-guarded (never defaults to a green Aligned badge) — Live cards tile reads fetchCardInventoryRowsUpTo(supabase, null) unscoped by period, matching /cards; Volume/Revenue tiles read the same sources /verifications and /revenue read
+- [Phase 06]: [Phase 06] Plan 05: dashboard home built with four independent TileErrorBoundary regions via Next 16 catchError (first use in this codebase) — app/(dashboard)/error.tsx stays byte-identical as the outer safety net
 
 ### Pending Todos
 
@@ -154,6 +157,6 @@ Items acknowledged and carried forward from previous milestone close:
 
 ## Session Continuity
 
-Last session: 2026-09-11T12:56:36.885Z
-Stopped at: Completed 06-04-PLAN.md (two-level alignment drill Sheet + full-page day-breakdown route)
+Last session: 2026-09-11T13:15:57.396Z
+Stopped at: Completed 06-05-PLAN.md
 Resume file: None
