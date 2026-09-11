@@ -11,6 +11,7 @@ import {
 import { ScopeBadge } from "@/components/dashboard/scope-badge";
 import { PeriodControls } from "@/components/dashboard/period-controls";
 import { PeriodEmptyState } from "@/components/dashboard/period-empty-state";
+import { AlignmentDrillSheet } from "@/components/dashboard/alignment-drill-sheet";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { createClient } from "@/lib/supabase/server";
@@ -26,9 +27,20 @@ import {
   formatLiveCardsStatusMeaningCaption,
 } from "@/lib/dashboard/alignment-status";
 import {
+  ALIGNMENT_DRILL_ENTITY_TO_METRIC,
+  ALIGNMENT_METRIC_TO_DRILL_ENTITY,
+  asAlignmentDrillEntity,
+  fetchAlignmentContributingRows,
+  fetchAlignmentDayBreakdown,
+  type AlignmentContributingRowsResult,
+  type AlignmentDayBreakdownResult,
+} from "@/lib/dashboard/alignment-drill";
+import { parseDrillParams } from "@/lib/dashboard/drill-params";
+import {
   monthOptions as buildMonthOptions,
   yearOptions as buildYearOptions,
   resolvePeriod,
+  serializePeriodParams,
   type ResolvedPeriod,
 } from "@/lib/dashboard/period";
 import { fetchFinancialYearStart } from "@/lib/settings/fy-settings";
@@ -193,6 +205,7 @@ function FlowMetricCard({
         bitAddictCoveredDays: result.data.bit_addict_covered_days,
         totalDays: result.data.total_days,
       }}
+      drillEntity={ALIGNMENT_METRIC_TO_DRILL_ENTITY[metric]}
     />
   );
 }
@@ -235,6 +248,33 @@ async function AlignmentBody({ searchParams }: { searchParams: PageSearchParams 
 
   const settings = await fetchAlignmentSettings(supabase);
 
+  // Two-level alignment drill (D-19/ALIGN-04/ALIGN-07): the whitelisted
+  // entity chooses which metric's Sheet is open; the presence of `date`
+  // chooses level two. `asAlignmentDrillEntity` narrows a generic
+  // `DrillFilter` to "one of ours" — a foreign drill (verification/
+  // revenue-tier/sla-breach/recon-*) never reaches this page's fetchers.
+  const drillFilter = parseDrillParams(params);
+  const alignmentDrillEntity = drillFilter ? asAlignmentDrillEntity(drillFilter.drill) : null;
+  const activeMetric = alignmentDrillEntity
+    ? ALIGNMENT_DRILL_ENTITY_TO_METRIC[alignmentDrillEntity]
+    : null;
+  const activeMetricLabel = activeMetric ? alignmentMetricLabel(activeMetric) : "";
+  const periodQueryString = new URLSearchParams(serializePeriodParams(period)).toString();
+  const fullPageHref = activeMetric
+    ? `/alignment/${activeMetric}?${periodQueryString}`
+    : "/alignment";
+
+  const EMPTY_DAY_BREAKDOWN: AlignmentDayBreakdownResult = {
+    rows: [],
+    hasMoreDays: false,
+    error: null,
+  };
+  const EMPTY_CONTRIBUTING_ROWS: AlignmentContributingRowsResult = {
+    tsysRows: [],
+    bitAddictRows: [],
+    error: null,
+  };
+
   const [
     enrolledResult,
     unenrolledResult,
@@ -244,6 +284,8 @@ async function AlignmentBody({ searchParams }: { searchParams: PageSearchParams 
     bitAddictVerificationDomainProbe,
     bitAddictInventoryDomainProbe,
     freshnessResult,
+    dayBreakdownResult,
+    contributingRowsResult,
   ] = await Promise.all([
     fetchAlignmentTotals(supabase, "enrolled", period, settings.toleranceCount),
     fetchAlignmentTotals(supabase, "unenrolled", period, settings.toleranceCount),
@@ -270,7 +312,35 @@ async function AlignmentBody({ searchParams }: { searchParams: PageSearchParams 
       .limit(1)
       .returns<IngestedFileFreshness[]>()
       .maybeSingle(),
+    activeMetric
+      ? fetchAlignmentDayBreakdown(
+          supabase,
+          activeMetric,
+          period,
+          settings.toleranceCount,
+          settings.baselineOffset,
+        )
+      : Promise.resolve(EMPTY_DAY_BREAKDOWN),
+    activeMetric && drillFilter?.date
+      ? fetchAlignmentContributingRows(supabase, activeMetric, drillFilter.date)
+      : Promise.resolve(EMPTY_CONTRIBUTING_ROWS),
   ]);
+
+  // Mounted in EVERY branch below (error/empty/period-empty/populated) so a
+  // deep-linked drill URL never finds the Sheet missing — D-19's "never
+  // closed and reopened" binding applies regardless of which top-level page
+  // state is showing.
+  const drillSheet = (
+    <AlignmentDrillSheet
+      filter={drillFilter}
+      metric={activeMetric}
+      metricLabel={activeMetricLabel}
+      periodLabel={period.label}
+      dayBreakdown={dayBreakdownResult}
+      contributingRows={contributingRowsResult}
+      fullPageHref={fullPageHref}
+    />
+  );
 
   if (
     tsysDomainProbe.error ||
@@ -282,6 +352,7 @@ async function AlignmentBody({ searchParams }: { searchParams: PageSearchParams 
       <>
         <PageHeader uploadedAt={null} period={null} monthOptions={[]} yearOptions={[]} />
         <ErrorState />
+        {drillSheet}
       </>
     );
   }
@@ -303,6 +374,7 @@ async function AlignmentBody({ searchParams }: { searchParams: PageSearchParams 
           yearOptions={yearOptions}
         />
         <EmptyState />
+        {drillSheet}
       </>
     );
   }
@@ -332,6 +404,7 @@ async function AlignmentBody({ searchParams }: { searchParams: PageSearchParams 
           yearOptions={yearOptions}
         />
         <PeriodEmptyState viewNoun="alignment data" period={period} />
+        {drillSheet}
       </>
     );
   }
@@ -380,10 +453,12 @@ async function AlignmentBody({ searchParams }: { searchParams: PageSearchParams 
                 ? `As of ${formatAsOfDay(liveCardsResult.data.bit_addict_snapshot_day)}.`
                 : undefined
             }
+            drillEntity={ALIGNMENT_METRIC_TO_DRILL_ENTITY["live-cards"]}
           />
         )}
         <FlowMetricCard metric="volume" result={volumeResult} />
       </div>
+      {drillSheet}
     </>
   );
 }

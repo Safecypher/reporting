@@ -3,6 +3,8 @@ import type { ReactNode } from "react";
 import { Card, CardAction, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { StatusBadge } from "@/components/dashboard/status-badge";
+import { DrillableMetric } from "@/components/dashboard/drillable-metric";
+import type { DrillEntity } from "@/lib/dashboard/drill-params";
 import {
   alignmentStatusToLabel,
   alignmentStatusToReconciliationStatus,
@@ -173,12 +175,18 @@ export function PairedMetricCard({
   tsysCaption,
   statusMeaningCaption,
   bitAddictAsOfCaption,
+  drillEntity,
 }: {
   metricLabel: string;
   data: PairedMetricCardData;
   tsysCaption?: string;
   statusMeaningCaption?: string;
   bitAddictAsOfCaption?: string;
+  /** The whitelisted alignment drill entity for this card (D-19/ALIGN-04).
+   * When provided, the badge and the "View day by day" affordance both open
+   * the level-one per-day breakdown Sheet for this metric. Omitting it keeps
+   * the card exactly as before (e.g. a future non-drillable context). */
+  drillEntity?: DrillEntity;
 }) {
   const {
     tsysCount,
@@ -195,15 +203,28 @@ export function PairedMetricCard({
     totalDays,
   );
 
+  const badge = (
+    <StatusBadge
+      status={alignmentStatusToReconciliationStatus(status)}
+      label={alignmentStatusToLabel(status)}
+    />
+  );
+
   return (
     <CardShell
       metricLabel={metricLabel}
       action={
         <div className="flex flex-col items-end gap-1">
-          <StatusBadge
-            status={alignmentStatusToReconciliationStatus(status)}
-            label={alignmentStatusToLabel(status)}
-          />
+          {drillEntity ? (
+            <DrillableMetric
+              filter={{ drill: drillEntity }}
+              aria-label={`View ${metricLabel} day by day`}
+            >
+              {badge}
+            </DrillableMetric>
+          ) : (
+            badge
+          )}
           {statusMeaningCaption ? (
             <p className="max-w-[22ch] text-right text-xs font-light text-[var(--fg-3)]">
               {statusMeaningCaption}
@@ -240,6 +261,11 @@ export function PairedMetricCard({
         <DeltaPhrase tsysCount={tsysCount} bitAddictCount={bitAddictCount} />
       </p>
       <p className="text-xs font-light text-[var(--fg-3)]">{coverageStatement}</p>
+      {drillEntity ? (
+        <DrillableMetric filter={{ drill: drillEntity }} className="text-xs font-medium text-primary">
+          View day by day →
+        </DrillableMetric>
+      ) : null}
     </CardShell>
   );
 }

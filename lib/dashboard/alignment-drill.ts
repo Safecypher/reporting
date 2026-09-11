@@ -1,6 +1,7 @@
 import type { createClient } from "@/lib/supabase/server";
 import { DATA_WINDOW_START, DRILL_ROW_LIMIT } from "@/lib/dashboard/reconciliation-drill";
 import { fetchAlignmentDaily, type AlignmentMetric, type FlowAlignmentMetric } from "@/lib/dashboard/alignment";
+import type { DrillEntity } from "@/lib/dashboard/drill-params";
 import type { ResolvedPeriod } from "@/lib/dashboard/period";
 import {
   computeAlignmentShortSide,
@@ -8,6 +9,37 @@ import {
   type AlignmentShortSide,
   type AlignmentStatus,
 } from "@/lib/dashboard/alignment-status";
+
+/** The four whitelisted alignment `DrillEntity` values (`drill-params.ts`),
+ * one per metric — mirrors how Phase 4 added `recon-billing`/`recon-inventory`
+ * rather than a generic entity plus a separate metric param. */
+export type AlignmentDrillEntity =
+  | "alignment-enrolled"
+  | "alignment-unenrolled"
+  | "alignment-live-cards"
+  | "alignment-volume";
+
+export const ALIGNMENT_DRILL_ENTITY_TO_METRIC: Record<AlignmentDrillEntity, AlignmentMetric> = {
+  "alignment-enrolled": "enrolled",
+  "alignment-unenrolled": "unenrolled",
+  "alignment-live-cards": "live-cards",
+  "alignment-volume": "volume",
+};
+
+export const ALIGNMENT_METRIC_TO_DRILL_ENTITY: Record<AlignmentMetric, AlignmentDrillEntity> = {
+  enrolled: "alignment-enrolled",
+  unenrolled: "alignment-unenrolled",
+  "live-cards": "alignment-live-cards",
+  volume: "alignment-volume",
+};
+
+/** Narrows a generic `DrillEntity` to one of the four alignment entities, or
+ * `null` when it belongs to a different drill (verification/revenue-tier/
+ * sla-breach/recon-*) — the single choke point every alignment surface uses
+ * to decide whether a given `DrillFilter` is "its own" drill. */
+export function asAlignmentDrillEntity(drill: DrillEntity): AlignmentDrillEntity | null {
+  return drill in ALIGNMENT_DRILL_ENTITY_TO_METRIC ? (drill as AlignmentDrillEntity) : null;
+}
 
 /**
  * Two-level alignment drill fetchers (D-19/ALIGN-04/ALIGN-07):
@@ -46,6 +78,10 @@ export interface AlignmentDayBreakdownRow {
   day: string;
   tsysCount: number;
   bitAddictCount: number;
+  /** Per-side coverage (D-10/D-11) — the Coverage cell names which side, if
+   * any, is uncovered rather than only stating a combined boolean. */
+  tsysCovered: boolean;
+  bitAddictCovered: boolean;
   coverageComplete: boolean;
   settled: boolean;
   shortSide: AlignmentShortSide;
@@ -106,6 +142,8 @@ async function fetchFlowDayBreakdown(
     day: row.day,
     tsysCount: row.tsys_count,
     bitAddictCount: row.bit_addict_count,
+    tsysCovered: row.tsys_covered,
+    bitAddictCovered: row.bit_addict_covered,
     coverageComplete: row.coverage_complete,
     settled: row.settled,
     shortSide: row.short_side,
@@ -225,6 +263,8 @@ async function fetchLiveCardsDayBreakdown(
       day: row.day,
       tsysCount: Math.round(tsysCount),
       bitAddictCount,
+      tsysCovered: row.coverage_complete_to_date,
+      bitAddictCovered: row.bit_addict_snapshot_day !== null,
       coverageComplete,
       settled,
       shortSide,
