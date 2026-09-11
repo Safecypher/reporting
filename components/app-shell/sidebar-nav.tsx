@@ -18,6 +18,7 @@ const NAV_ITEMS = [
   { href: "/settings/general", label: "General", icon: "tools" },
   { href: "/settings/pricing", label: "Pricing", icon: "cog" },
   { href: "/reconciliation", label: "Reconciliation", icon: "rotate" },
+  { href: "/alignment", label: "Alignment", icon: "layers" },
 ] as const;
 
 /**
