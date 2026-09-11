@@ -149,8 +149,146 @@ begin
 end;
 $$;
 
+-- =============================================================================
+-- Block E -- the live-cards chain exposes two independent bounds (0031,
+-- WR-01)
+-- =============================================================================
+-- Recompute each side's maximum independently of the view -- directly from
+-- the base tables -- and prove neither is null and neither drifts from the
+-- view's own per-side columns.
+do $$
+declare
+  v_recomputed_tsys_max date;
+  v_recomputed_bit_addict_max date;
+  v_bad text;
+  v_null_count bigint;
+begin
+  select coalesce(max((event_time at time zone 'UTC')::date), '2026-08-13'::date)
+    into v_recomputed_tsys_max
+    from apigee_calls
+   where event_time >= '2026-08-13T00:00:00Z';
+
+  select coalesce(max(report_date), '2026-08-13'::date)
+    into v_recomputed_bit_addict_max
+    from card_inventory
+   where report_date >= '2026-08-13'::date;
+
+  select count(*) into v_null_count
+    from v_alignment_live_cards_daily
+   where tsys_max_day is null
+      or bit_addict_max_day is null;
+
+  if v_null_count > 0 then
+    raise exception
+      'LIVE CARDS TEST FAILED (Block E): % row(s) report a null tsys_max_day or bit_addict_max_day -- both per-side bounds must always be populated',
+      v_null_count;
+  end if;
+
+  select string_agg(format('%s(tsys_max_day=%s)', day::text, tsys_max_day::text), ', ' order by day)
+    into v_bad
+    from v_alignment_live_cards_daily
+   where tsys_max_day is distinct from v_recomputed_tsys_max;
+
+  if v_bad is not null then
+    raise exception
+      'LIVE CARDS TEST FAILED (Block E): row(s) [%] report tsys_max_day distinct from the recomputed apigee_calls maximum (%) -- v_alignment_live_cards_daily is not wired to the recomputed TSYS bound',
+      v_bad, v_recomputed_tsys_max;
+  end if;
+
+  select string_agg(format('%s(bit_addict_max_day=%s)', day::text, bit_addict_max_day::text), ', ' order by day)
+    into v_bad
+    from v_alignment_live_cards_daily
+   where bit_addict_max_day is distinct from v_recomputed_bit_addict_max;
+
+  if v_bad is not null then
+    raise exception
+      'LIVE CARDS TEST FAILED (Block E): row(s) [%] report bit_addict_max_day distinct from the recomputed card_inventory maximum (%) -- v_alignment_live_cards_daily is not wired to the recomputed Bit Addict bound',
+      v_bad, v_recomputed_bit_addict_max;
+  end if;
+
+  raise notice 'LIVE CARDS TEST BLOCK E PASSED: v_alignment_live_cards_daily exposes two independent, non-null per-side bounds -- recomputed TSYS (apigee_calls) maximum: %, recomputed Bit Addict (card_inventory) maximum: %',
+    v_recomputed_tsys_max, v_recomputed_bit_addict_max;
+end;
+$$;
+
+-- =============================================================================
+-- Block F -- the RPC settles per side and returns a separable TSYS coverage
+-- signal (0031, WR-01/CR-02)
+-- =============================================================================
+do $$
+declare
+  v_recomputed_tsys_max date;
+  v_recomputed_bit_addict_max date;
+  v_view_max_day date;
+  v_row record;
+  v_view_row record;
+  v_expected_settled boolean;
+begin
+  select coalesce(max((event_time at time zone 'UTC')::date), '2026-08-13'::date)
+    into v_recomputed_tsys_max
+    from apigee_calls
+   where event_time >= '2026-08-13T00:00:00Z';
+
+  select coalesce(max(report_date), '2026-08-13'::date)
+    into v_recomputed_bit_addict_max
+    from card_inventory
+   where report_date >= '2026-08-13'::date;
+
+  select max(day) into v_view_max_day from v_alignment_live_cards_daily;
+
+  -- All-time, zero-offset, zero-tolerance scope.
+  select *
+    into v_row
+    from alignment_live_cards_for_period('2026-08-13'::date, null, 0::numeric, 0);
+
+  -- (a) settled matches alignment_settled(<the view's own max day>, <the
+  -- recomputed apigee maximum>, <the recomputed card_inventory maximum>).
+  select alignment_settled(v_view_max_day, v_recomputed_tsys_max, v_recomputed_bit_addict_max)
+    into v_expected_settled;
+
+  if v_row.settled is distinct from v_expected_settled then
+    raise exception
+      'LIVE CARDS TEST FAILED (Block F): alignment_live_cards_for_period.settled = %, expected % (alignment_settled(%, %, %)) -- the RPC is not settling per side',
+      v_row.settled, v_expected_settled, v_view_max_day, v_recomputed_tsys_max, v_recomputed_bit_addict_max;
+  end if;
+
+  -- (b) tsys_coverage_complete is populated -- the column exists and is not
+  -- silently null.
+  if v_row.tsys_coverage_complete is null then
+    raise exception
+      'LIVE CARDS TEST FAILED (Block F, CR-02): alignment_live_cards_for_period.tsys_coverage_complete is NULL -- the TSYS-only coverage signal must always be populated';
+  end if;
+
+  -- (c) tsys_coverage_complete matches coverage_complete_to_date on the
+  -- view row whose day equals the same max day -- an unmodified pass-through.
+  select v.coverage_complete_to_date
+    into v_view_row
+    from v_alignment_live_cards_daily v
+   where v.day = v_view_max_day;
+
+  if v_row.tsys_coverage_complete is distinct from v_view_row.coverage_complete_to_date then
+    raise exception
+      'LIVE CARDS TEST FAILED (Block F, CR-02): tsys_coverage_complete (%) does not match v_alignment_live_cards_daily.coverage_complete_to_date (%) at day % -- the TSYS-only signal must be passed through unmodified',
+      v_row.tsys_coverage_complete, v_view_row.coverage_complete_to_date, v_view_max_day;
+  end if;
+
+  -- (d) coverage_complete is derivable from the two separate signals (the
+  -- CR-02 invariant): a caller wanting the TSYS-only figure never has to
+  -- reuse the combined flag for it.
+  if v_row.coverage_complete is distinct from
+     (v_row.tsys_coverage_complete and v_row.bit_addict_snapshot_day is not null) then
+    raise exception
+      'LIVE CARDS TEST FAILED (Block F, CR-02): coverage_complete (%) is not derivable from (tsys_coverage_complete and bit_addict_snapshot_day is not null) -- got tsys_coverage_complete=%, bit_addict_snapshot_day=%',
+      v_row.coverage_complete, v_row.tsys_coverage_complete, v_row.bit_addict_snapshot_day;
+  end if;
+
+  raise notice 'LIVE CARDS TEST BLOCK F PASSED: alignment_live_cards_for_period settles per side and returns a separable, unmodified TSYS coverage signal -- tsys_coverage_complete=%, bit_addict_snapshot_day=%, coverage_complete=%',
+    v_row.tsys_coverage_complete, v_row.bit_addict_snapshot_day, v_row.coverage_complete;
+end;
+$$;
+
 do $$
 begin
-  raise notice 'LIVE CARDS TEST PASSED (read-only, 4 blocks: monotonic coverage guard, cumulative-net running sum, data-window floor, snapshot-day never-future)';
+  raise notice 'LIVE CARDS TEST PASSED (read-only, 6 blocks: monotonic coverage guard, cumulative-net running sum, data-window floor, snapshot-day never-future, per-side bound exposure, RPC per-side settling and separable TSYS coverage)';
 end;
 $$;
