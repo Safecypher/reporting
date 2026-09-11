@@ -85,23 +85,32 @@ export type Database = {
       }
       app_settings: {
         Row: {
+          alignment_tolerance: number
           fy_start_day: number
           fy_start_month: number
           id: number
+          tsys_live_cards_baseline_as_of: string | null
+          tsys_live_cards_baseline_offset: number
           updated_at: string
           updated_by: string | null
         }
         Insert: {
+          alignment_tolerance?: number
           fy_start_day?: number
           fy_start_month?: number
           id?: number
+          tsys_live_cards_baseline_as_of?: string | null
+          tsys_live_cards_baseline_offset?: number
           updated_at?: string
           updated_by?: string | null
         }
         Update: {
+          alignment_tolerance?: number
           fy_start_day?: number
           fy_start_month?: number
           id?: number
+          tsys_live_cards_baseline_as_of?: string | null
+          tsys_live_cards_baseline_offset?: number
           updated_at?: string
           updated_by?: string | null
         }
@@ -112,30 +121,42 @@ export type Database = {
           changed_at: string
           changed_by: string | null
           id: number
+          new_alignment_tolerance: number | null
           new_fy_start_day: number
           new_fy_start_month: number
+          new_tsys_live_cards_baseline_offset: number | null
+          old_alignment_tolerance: number | null
           old_fy_start_day: number | null
           old_fy_start_month: number | null
+          old_tsys_live_cards_baseline_offset: number | null
           summary: string
         }
         Insert: {
           changed_at?: string
           changed_by?: string | null
           id?: never
+          new_alignment_tolerance?: number | null
           new_fy_start_day: number
           new_fy_start_month: number
+          new_tsys_live_cards_baseline_offset?: number | null
+          old_alignment_tolerance?: number | null
           old_fy_start_day?: number | null
           old_fy_start_month?: number | null
+          old_tsys_live_cards_baseline_offset?: number | null
           summary: string
         }
         Update: {
           changed_at?: string
           changed_by?: string | null
           id?: never
+          new_alignment_tolerance?: number | null
           new_fy_start_day?: number
           new_fy_start_month?: number
+          new_tsys_live_cards_baseline_offset?: number | null
+          old_alignment_tolerance?: number | null
           old_fy_start_day?: number | null
           old_fy_start_month?: number | null
+          old_tsys_live_cards_baseline_offset?: number | null
           summary?: string
         }
         Relationships: []
