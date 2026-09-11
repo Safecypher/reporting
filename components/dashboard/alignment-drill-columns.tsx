@@ -1,11 +1,20 @@
 "use client";
 
-import { createColumnHelper } from "@tanstack/react-table";
+import { createColumnHelper, flexRender, getCoreRowModel, useReactTable } from "@tanstack/react-table";
 
 import { StatusBadge } from "@/components/dashboard/status-badge";
 import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
+import {
   alignmentStatusToLabel,
   alignmentStatusToReconciliationStatus,
+  alignmentStatusToRowClassName,
 } from "@/lib/dashboard/alignment-status";
 import type {
   AlignmentBitAddictContributingRow,
@@ -153,6 +162,51 @@ export const alignmentBitAddictContributingColumns = [
     cell: (info) => <span className="font-mono tabular-nums">{info.getValue()}</span>,
   }),
 ];
+
+/**
+ * Plain (non-drillable) rendering of the level-1 day-breakdown column set,
+ * reused by the full-page day-breakdown route (`/alignment/[metric]`, Task
+ * 3) so that route never re-declares its own column definitions — the exact
+ * discipline this module exists to enforce. Per-row status tinting matches
+ * the drill Sheet's level-1 table; this table has no row click handler
+ * (Task 3: "a normal page, not a modal").
+ */
+export function AlignmentDayBreakdownTable({ rows }: { rows: AlignmentDayBreakdownRow[] }) {
+  const table = useReactTable({
+    data: rows,
+    columns: alignmentDayBreakdownColumns,
+    getCoreRowModel: getCoreRowModel(),
+  });
+
+  return (
+    <Table>
+      <TableHeader>
+        {table.getHeaderGroups().map((headerGroup) => (
+          <TableRow key={headerGroup.id}>
+            {headerGroup.headers.map((header) => (
+              <TableHead key={header.id}>
+                {header.isPlaceholder
+                  ? null
+                  : flexRender(header.column.columnDef.header, header.getContext())}
+              </TableHead>
+            ))}
+          </TableRow>
+        ))}
+      </TableHeader>
+      <TableBody>
+        {table.getRowModel().rows.map((row) => (
+          <TableRow key={row.id} className={alignmentStatusToRowClassName(row.original.status)}>
+            {row.getVisibleCells().map((cell) => (
+              <TableCell key={cell.id}>
+                {flexRender(cell.column.columnDef.cell, cell.getContext())}
+              </TableCell>
+            ))}
+          </TableRow>
+        ))}
+      </TableBody>
+    </Table>
+  );
+}
 
 /** Distinct, encounter-ordered file names for the "From {file_name}"
  * caption(s) — a day whose rows span more than one uploaded file shows one

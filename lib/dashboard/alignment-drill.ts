@@ -128,6 +128,7 @@ async function fetchFlowDayBreakdown(
   metric: FlowAlignmentMetric,
   period: Pick<ResolvedPeriod, "start" | "end">,
   tolerance: number,
+  rowCap: number | null,
 ): Promise<AlignmentDayBreakdownResult> {
   const result = await fetchAlignmentDaily(supabase, metric, period, tolerance);
   if (result.error !== null) {
@@ -135,8 +136,8 @@ async function fetchFlowDayBreakdown(
   }
 
   const all = result.data;
-  const hasMoreDays = all.length > ALIGNMENT_DRILL_DAY_CAP;
-  const capped = hasMoreDays ? all.slice(-ALIGNMENT_DRILL_DAY_CAP) : all;
+  const hasMoreDays = rowCap !== null && all.length > rowCap;
+  const capped = hasMoreDays ? all.slice(-rowCap!) : all;
 
   const rows: AlignmentDayBreakdownRow[] = capped.map((row) => ({
     day: row.day,
@@ -176,6 +177,7 @@ async function fetchLiveCardsDayBreakdown(
   period: Pick<ResolvedPeriod, "start" | "end">,
   tolerance: number,
   baselineOffset: number,
+  rowCap: number | null,
 ): Promise<AlignmentDayBreakdownResult> {
   let windowQuery = supabase
     .from("v_alignment_live_cards_daily")
@@ -187,12 +189,16 @@ async function fetchLiveCardsDayBreakdown(
   if (period.end !== null) {
     windowQuery = windowQuery.lt("day", period.end);
   }
+  // Capped (Sheet, level 1): most-recent-first with a limit, then reversed
+  // to ascending. Uncapped (full-page route, Task 3): every day in the
+  // period, fetched already-ascending — no limit, no reversal needed.
+  windowQuery =
+    rowCap !== null
+      ? windowQuery.order("day", { ascending: false }).limit(rowCap)
+      : windowQuery.order("day", { ascending: true });
 
   const [windowResult, boundsResult] = await Promise.all([
-    windowQuery
-      .order("day", { ascending: false })
-      .limit(ALIGNMENT_DRILL_DAY_CAP)
-      .returns<AlignmentLiveCardsDailyViewRow[]>(),
+    windowQuery.returns<AlignmentLiveCardsDailyViewRow[]>(),
     supabase
       .from("v_alignment_live_cards_daily")
       .select("day")
@@ -208,10 +214,10 @@ async function fetchLiveCardsDayBreakdown(
     return { rows: [], hasMoreDays: false, error: error!.message };
   }
 
-  const descRows = windowResult.data ?? [];
-  const ascRows = [...descRows].reverse();
+  const fetchedRows = windowResult.data ?? [];
+  const ascRows = rowCap !== null ? [...fetchedRows].reverse() : fetchedRows;
   const totalInPeriod = windowResult.count ?? ascRows.length;
-  const hasMoreDays = totalInPeriod > ascRows.length;
+  const hasMoreDays = rowCap !== null && totalInPeriod > ascRows.length;
   const maxDay = boundsResult.data?.day ?? null;
 
   if (ascRows.length === 0) {
@@ -294,9 +300,29 @@ export async function fetchAlignmentDayBreakdown(
   baselineOffset = 0,
 ): Promise<AlignmentDayBreakdownResult> {
   if (metric === "live-cards") {
-    return fetchLiveCardsDayBreakdown(supabase, period, tolerance, baselineOffset);
+    return fetchLiveCardsDayBreakdown(supabase, period, tolerance, baselineOffset, ALIGNMENT_DRILL_DAY_CAP);
   }
-  return fetchFlowDayBreakdown(supabase, metric, period, tolerance);
+  return fetchFlowDayBreakdown(supabase, metric, period, tolerance, ALIGNMENT_DRILL_DAY_CAP);
+}
+
+/**
+ * The uncapped counterpart used by the full-page day-breakdown route
+ * (`/alignment/[metric]`, Task 3) — every day in `period`, no row cap,
+ * `hasMoreDays` always `false` (there is nothing further to link out to).
+ * Reuses the exact same per-metric derivation as `fetchAlignmentDayBreakdown`
+ * above; only the row limit differs.
+ */
+export async function fetchAlignmentDayBreakdownUncapped(
+  supabase: Awaited<ReturnType<typeof createClient>>,
+  metric: AlignmentMetric,
+  period: Pick<ResolvedPeriod, "start" | "end">,
+  tolerance: number,
+  baselineOffset = 0,
+): Promise<AlignmentDayBreakdownResult> {
+  if (metric === "live-cards") {
+    return fetchLiveCardsDayBreakdown(supabase, period, tolerance, baselineOffset, null);
+  }
+  return fetchFlowDayBreakdown(supabase, metric, period, tolerance, null);
 }
 
 // ---------------------------------------------------------------------------
