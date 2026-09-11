@@ -4,6 +4,7 @@ import { notFound } from "next/navigation";
 import type { Metadata } from "next";
 
 import { AlignmentDayBreakdownTable } from "@/components/dashboard/alignment-drill-columns";
+import { SettingsFallbackNotice } from "@/components/dashboard/settings-fallback-notice";
 import { ScopeBadge } from "@/components/dashboard/scope-badge";
 import { PeriodControls } from "@/components/dashboard/period-controls";
 import { PeriodEmptyState } from "@/components/dashboard/period-empty-state";
@@ -179,7 +180,7 @@ async function AlignmentMetricBody({
   const yearOptions = buildYearOptions(now);
   const backHref = `/alignment?${new URLSearchParams(serializePeriodParams(period)).toString()}`;
 
-  const settings = await fetchAlignmentSettings(supabase);
+  const { settings, error: settingsError } = await fetchAlignmentSettings(supabase);
 
   const [
     dayBreakdownResult,
@@ -288,6 +289,7 @@ async function AlignmentMetricBody({
         yearOptions={yearOptions}
         backHref={backHref}
       />
+      {settingsError !== null && <SettingsFallbackNotice />}
       <AlignmentDayBreakdownTable rows={dayBreakdownResult.rows} />
     </>
   );

@@ -12,6 +12,7 @@ import { ScopeBadge } from "@/components/dashboard/scope-badge";
 import { PeriodControls } from "@/components/dashboard/period-controls";
 import { PeriodEmptyState } from "@/components/dashboard/period-empty-state";
 import { AlignmentDrillSheet } from "@/components/dashboard/alignment-drill-sheet";
+import { SettingsFallbackNotice } from "@/components/dashboard/settings-fallback-notice";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { createClient } from "@/lib/supabase/server";
@@ -247,7 +248,7 @@ async function AlignmentBody({ searchParams }: { searchParams: PageSearchParams 
   const monthOptions = buildMonthOptions(now);
   const yearOptions = buildYearOptions(now);
 
-  const settings = await fetchAlignmentSettings(supabase);
+  const { settings, error: settingsError } = await fetchAlignmentSettings(supabase);
 
   // Two-level alignment drill (D-19/ALIGN-04/ALIGN-07): the whitelisted
   // entity chooses which metric's Sheet is open; the presence of `date`
@@ -418,6 +419,10 @@ async function AlignmentBody({ searchParams }: { searchParams: PageSearchParams 
         monthOptions={monthOptions}
         yearOptions={yearOptions}
       />
+      {/* WR-03: a settings-read failure is never silent — every card below
+          is computed from DEFAULT_ALIGNMENT_SETTINGS when this is shown, so
+          the notice sits above the grid rather than replacing it (E1). */}
+      {settingsError !== null && <SettingsFallbackNotice />}
       {/* Fixed at exactly four paired KPI cards, grid-cols-1 sm:grid-cols-2
           (D-18, UI-SPEC E1) — no chart, no full-width table, the grid
           collapsing to one column is the page's only reflow. */}

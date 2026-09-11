@@ -10,6 +10,7 @@ import {
   VolumeThisPeriodTile,
 } from "@/components/dashboard/home-kpi-tiles";
 import { TileErrorBoundary } from "@/components/dashboard/tile-error-boundary";
+import { SettingsFallbackNotice } from "@/components/dashboard/settings-fallback-notice";
 import { ScopeBadge } from "@/components/dashboard/scope-badge";
 import { PeriodControls } from "@/components/dashboard/period-controls";
 import { Badge } from "@/components/ui/badge";
@@ -189,7 +190,7 @@ async function HomeBody({ searchParams }: { searchParams: PageSearchParams }) {
   const monthOptions = buildMonthOptions(now);
   const yearOptions = buildYearOptions(now);
 
-  const settings = await fetchAlignmentSettings(supabase);
+  const { settings, error: settingsError } = await fetchAlignmentSettings(supabase);
 
   let verificationsQuery = supabase
     .from("v_verifications_daily")
@@ -294,6 +295,10 @@ async function HomeBody({ searchParams }: { searchParams: PageSearchParams }) {
         monthOptions={monthOptions}
         yearOptions={yearOptions}
       />
+      {/* WR-03: rendered OUTSIDE every TileErrorBoundary below, so a
+          settings-read failure can never blank the strip or any tile
+          (UI-SPEC E6) — it only says the badges beneath it use defaults. */}
+      {settingsError !== null && <SettingsFallbackNotice />}
       <TileErrorBoundary label="Alignment status">
         <AlignmentStrip metrics={alignmentMetrics} periodLabel={period.label} />
       </TileErrorBoundary>

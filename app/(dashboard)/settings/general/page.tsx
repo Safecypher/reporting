@@ -6,6 +6,7 @@ import { createClient } from "@/lib/supabase/server";
 import { FySettingsForm } from "@/components/settings/fy-settings-form";
 import { AlignmentSettingsForm } from "@/components/settings/alignment-settings-form";
 import { AuditLog, type AuditLogEntry } from "@/components/pricing/audit-log";
+import { SettingsFallbackNotice } from "@/components/dashboard/settings-fallback-notice";
 import { DEFAULT_FY_START } from "@/lib/settings/fy-settings";
 import { fetchAlignmentSettings } from "@/lib/settings/alignment-settings";
 
@@ -87,7 +88,7 @@ function LoadingState() {
 async function GeneralBody() {
   const supabase = await createClient();
 
-  const [settingsResult, auditResult, alignmentSettings] = await Promise.all([
+  const [settingsResult, auditResult, alignmentSettingsResult] = await Promise.all([
     supabase
       .from("app_settings")
       .select("fy_start_month, fy_start_day")
@@ -102,9 +103,14 @@ async function GeneralBody() {
     // fetchAlignmentSettings never throws (degrades to
     // DEFAULT_ALIGNMENT_SETTINGS on error/absent row) -- it is not part of
     // the settingsResult/auditResult error branch below, matching the
-    // existing FY-start ErrorState scope unchanged.
+    // existing FY-start ErrorState scope unchanged. Its own `error` field
+    // (WR-03) is instead surfaced as a scoped SettingsFallbackNotice inside
+    // the Dual-source alignment section below -- a form pre-filled from a
+    // failed read is the most dangerous place for that failure to be
+    // invisible, since an admin could "confirm" values they never saw.
     fetchAlignmentSettings(supabase),
   ]);
+  const { settings: alignmentSettings, error: alignmentSettingsError } = alignmentSettingsResult;
 
   if (settingsResult.error || auditResult.error) {
     return (
@@ -146,6 +152,10 @@ async function GeneralBody() {
             judge whether TSYS and Bit Addict agree, on the Alignment page.
           </p>
         </div>
+        {/* WR-03: a form pre-filled from a failed settings read is the
+            most dangerous place for that failure to be invisible — an
+            admin could "confirm" values they never actually saw. */}
+        {alignmentSettingsError !== null && <SettingsFallbackNotice />}
         <AlignmentSettingsForm
           baselineOffset={alignmentSettings.baselineOffset}
           toleranceCount={alignmentSettings.toleranceCount}

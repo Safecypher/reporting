@@ -1,4 +1,7 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import type { createClient } from "@/lib/supabase/server";
+
+import { DEFAULT_ALIGNMENT_SETTINGS, fetchAlignmentSettings } from "../alignment-settings";
 
 /**
  * Task 1 (WR-02): asserts `saveAlignmentSettings`'s `.update()` payload no
@@ -72,5 +75,96 @@ describe("saveAlignmentSettings", () => {
     expect(payload).not.toHaveProperty("tsys_live_cards_baseline_as_of");
     expect(payload.tsys_live_cards_baseline_offset).toBe(0);
     expect(payload.alignment_tolerance).toBe(9);
+  });
+});
+
+/**
+ * Task 2 (WR-03): `fetchAlignmentSettings`'s three exit paths, kept
+ * distinguishable rather than collapsed to two -- an admin who genuinely
+ * configured zero tolerance and a settings read that failed must never
+ * produce the same discriminated result.
+ */
+
+type FakeSupabase = Awaited<ReturnType<typeof createClient>>;
+
+function makeFakeSupabase(result: {
+  data: unknown;
+  error: { message: string } | null;
+}): FakeSupabase {
+  return {
+    from: () => ({
+      select: () => ({
+        eq: () => ({
+          maybeSingle: () => Promise.resolve(result),
+        }),
+      }),
+    }),
+  } as unknown as FakeSupabase;
+}
+
+describe("fetchAlignmentSettings", () => {
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  it("query error -- resolves to the defaults with a non-null error, and logs server-side", async () => {
+    const consoleErrorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+    const supabase = makeFakeSupabase({
+      data: null,
+      error: { message: "connection refused" },
+    });
+
+    const result = await fetchAlignmentSettings(supabase);
+
+    expect(result).toEqual({
+      settings: DEFAULT_ALIGNMENT_SETTINGS,
+      error: "connection refused",
+    });
+    expect(consoleErrorSpy).toHaveBeenCalledTimes(1);
+  });
+
+  it("absent row -- resolves to the defaults with a NULL error (the documented pre-edit default, not a failure)", async () => {
+    const supabase = makeFakeSupabase({ data: null, error: null });
+
+    const result = await fetchAlignmentSettings(supabase);
+
+    expect(result).toEqual({ settings: DEFAULT_ALIGNMENT_SETTINGS, error: null });
+  });
+
+  it("present row -- resolves to that row's three values with a NULL error", async () => {
+    const supabase = makeFakeSupabase({
+      data: {
+        tsys_live_cards_baseline_offset: 12,
+        tsys_live_cards_baseline_as_of: "2026-09-01",
+        alignment_tolerance: 3,
+      },
+      error: null,
+    });
+
+    const result = await fetchAlignmentSettings(supabase);
+
+    expect(result).toEqual({
+      settings: { baselineOffset: 12, baselineAsOf: "2026-09-01", toleranceCount: 3 },
+      error: null,
+    });
+  });
+
+  it("never throws, in any of the three cases", async () => {
+    const errorSupabase = makeFakeSupabase({ data: null, error: { message: "boom" } });
+    const absentSupabase = makeFakeSupabase({ data: null, error: null });
+    const presentSupabase = makeFakeSupabase({
+      data: {
+        tsys_live_cards_baseline_offset: 1,
+        tsys_live_cards_baseline_as_of: null,
+        alignment_tolerance: 1,
+      },
+      error: null,
+    });
+
+    vi.spyOn(console, "error").mockImplementation(() => {});
+
+    await expect(fetchAlignmentSettings(errorSupabase)).resolves.toBeDefined();
+    await expect(fetchAlignmentSettings(absentSupabase)).resolves.toBeDefined();
+    await expect(fetchAlignmentSettings(presentSupabase)).resolves.toBeDefined();
   });
 });
