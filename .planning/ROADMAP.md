@@ -222,7 +222,7 @@ Plans:
   4. A user can drill from either side of any comparison to the contributing rows and their originating source file.
   5. A day where the two sources genuinely disagree is visibly flagged on the dashboard without the user having to open the reconciliation page.
 
-**Plans**: 3/6 plans executed
+**Plans**: 4/6 plans executed
 
 Plans:
 **Wave 1**
@@ -239,7 +239,7 @@ Plans:
 
 **Wave 4** *(blocked on Wave 3 completion)*
 
-- [ ] 06-04-PLAN.md — Two-level drill Sheet with source-file provenance, plus the uncapped `/alignment/[metric]` day-breakdown route
+- [x] 06-04-PLAN.md — Two-level drill Sheet with source-file provenance, plus the uncapped `/alignment/[metric]` day-breakdown route
 - [ ] 06-05-PLAN.md — Real dashboard home at `/`: alignment rollup strip, three headline KPI tiles, per-region error isolation
 
 **Wave 5** *(blocked on Wave 4 completion)*
@@ -279,5 +279,5 @@ Phases execute in numeric order: 1 → 2 → 3 → 4 → 5 → 6 → 7 (Phase 3 
 | 3. Revenue, SLA & Drill-down | 7/7 | Complete   | 2026-08-21 |
 | 4. Reconciliation & Discrepancy Flagging | 4/4 | Complete   | 2026-08-23 |
 | 5. Time Periods & Financial-Year Settings | 8/8 | In Progress|  |
-| 6. Dual-Source Alignment: TSYS vs Bit Addict | 3/6 | In Progress|  |
+| 6. Dual-Source Alignment: TSYS vs Bit Addict | 4/6 | In Progress|  |
 | 7. TSYS Tiered Volume & Revenue Forecast | 0/0 | Not planned | — |
