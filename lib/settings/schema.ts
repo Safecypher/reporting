@@ -1,12 +1,13 @@
 import { getDaysInMonth } from "date-fns";
 import { z } from "zod";
 
-// Single source of truth for financial-year-start validation, imported by
-// BOTH the client form (components/settings/fy-settings-form.tsx) and the
-// server action (app/(dashboard)/settings/general/actions.ts) -- per
-// Next.js Server Actions guidance, client-side validation is UX-only and
-// the server must always re-validate untrusted input against this same
-// schema.
+// Single source of truth for financial-year-start AND dual-source-alignment
+// settings validation, imported by BOTH the relevant client form
+// (components/settings/fy-settings-form.tsx /
+// components/settings/alignment-settings-form.tsx) and the server action
+// (app/(dashboard)/settings/general/actions.ts) -- per Next.js Server
+// Actions guidance, client-side validation is UX-only and the server must
+// always re-validate untrusted input against this same schema.
 //
 // Mirrors lib/pricing/schema.ts's superRefine cross-field shape (05-RESEARCH
 // Pitfall 3): the day-in-month check runs against the NON-LEAP reference
@@ -40,3 +41,27 @@ export const financialYearSettingsSchema = z
 export type FinancialYearSettingsInput = z.infer<
   typeof financialYearSettingsSchema
 >;
+
+// ---------------------------------------------------------------------------
+// Dual-source alignment settings (Phase 6 Plan 2, D-09/D-15/D-16)
+// ---------------------------------------------------------------------------
+// No cross-field superRefine here -- unlike the FY-start pair above, these
+// two fields have no day-in-month equivalent; each is independently
+// validated as a non-negative whole number. Every rejection (missing,
+// non-integer, or negative) surfaces the exact same Copywriting Contract
+// message so the form never needs to branch on error type.
+
+const ALIGNMENT_VALIDATION_MESSAGE = "Enter a whole number of zero or more.";
+
+export const alignmentSettingsSchema = z.object({
+  baselineOffset: z
+    .number({ error: ALIGNMENT_VALIDATION_MESSAGE })
+    .int({ message: ALIGNMENT_VALIDATION_MESSAGE })
+    .min(0, { message: ALIGNMENT_VALIDATION_MESSAGE }),
+  toleranceCount: z
+    .number({ error: ALIGNMENT_VALIDATION_MESSAGE })
+    .int({ message: ALIGNMENT_VALIDATION_MESSAGE })
+    .min(0, { message: ALIGNMENT_VALIDATION_MESSAGE }),
+});
+
+export type AlignmentSettingsInput = z.infer<typeof alignmentSettingsSchema>;

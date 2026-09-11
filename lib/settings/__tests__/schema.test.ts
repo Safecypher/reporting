@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { financialYearSettingsSchema } from "../schema";
+import { alignmentSettingsSchema, financialYearSettingsSchema } from "../schema";
 
 const VALIDATION_MESSAGE =
   "Enter a valid day for the selected month (e.g. day 30 is invalid for February).";
@@ -91,5 +91,107 @@ describe("financialYearSettingsSchema", () => {
         fyStartDay: 6.5,
       }).success,
     ).toBe(false);
+  });
+});
+
+const ALIGNMENT_VALIDATION_MESSAGE = "Enter a whole number of zero or more.";
+
+describe("alignmentSettingsSchema", () => {
+  it("accepts the zero default for both fields", () => {
+    const result = alignmentSettingsSchema.safeParse({
+      baselineOffset: 0,
+      toleranceCount: 0,
+    });
+    expect(result.success).toBe(true);
+  });
+
+  it("accepts a positive whole-number pair", () => {
+    const result = alignmentSettingsSchema.safeParse({
+      baselineOffset: 12500,
+      toleranceCount: 3,
+    });
+    expect(result.success).toBe(true);
+  });
+
+  it("rejects a negative baselineOffset", () => {
+    const result = alignmentSettingsSchema.safeParse({
+      baselineOffset: -1,
+      toleranceCount: 0,
+    });
+    expect(result.success).toBe(false);
+    if (!result.success) {
+      const issue = result.error.issues.find(
+        (i) => i.path.join(".") === "baselineOffset",
+      );
+      expect(issue?.message).toBe(ALIGNMENT_VALIDATION_MESSAGE);
+    }
+  });
+
+  it("rejects a negative toleranceCount", () => {
+    const result = alignmentSettingsSchema.safeParse({
+      baselineOffset: 0,
+      toleranceCount: -3,
+    });
+    expect(result.success).toBe(false);
+    if (!result.success) {
+      const issue = result.error.issues.find(
+        (i) => i.path.join(".") === "toleranceCount",
+      );
+      expect(issue?.message).toBe(ALIGNMENT_VALIDATION_MESSAGE);
+    }
+  });
+
+  it("rejects a non-integer baselineOffset", () => {
+    const result = alignmentSettingsSchema.safeParse({
+      baselineOffset: 12.5,
+      toleranceCount: 0,
+    });
+    expect(result.success).toBe(false);
+    if (!result.success) {
+      const issue = result.error.issues.find(
+        (i) => i.path.join(".") === "baselineOffset",
+      );
+      expect(issue?.message).toBe(ALIGNMENT_VALIDATION_MESSAGE);
+    }
+  });
+
+  it("rejects a non-integer toleranceCount", () => {
+    const result = alignmentSettingsSchema.safeParse({
+      baselineOffset: 0,
+      toleranceCount: 2.5,
+    });
+    expect(result.success).toBe(false);
+    if (!result.success) {
+      const issue = result.error.issues.find(
+        (i) => i.path.join(".") === "toleranceCount",
+      );
+      expect(issue?.message).toBe(ALIGNMENT_VALIDATION_MESSAGE);
+    }
+  });
+
+  it("rejects a missing baselineOffset", () => {
+    const result = alignmentSettingsSchema.safeParse({
+      toleranceCount: 0,
+    });
+    expect(result.success).toBe(false);
+    if (!result.success) {
+      const issue = result.error.issues.find(
+        (i) => i.path.join(".") === "baselineOffset",
+      );
+      expect(issue?.message).toBe(ALIGNMENT_VALIDATION_MESSAGE);
+    }
+  });
+
+  it("rejects a missing toleranceCount", () => {
+    const result = alignmentSettingsSchema.safeParse({
+      baselineOffset: 0,
+    });
+    expect(result.success).toBe(false);
+    if (!result.success) {
+      const issue = result.error.issues.find(
+        (i) => i.path.join(".") === "toleranceCount",
+      );
+      expect(issue?.message).toBe(ALIGNMENT_VALIDATION_MESSAGE);
+    }
   });
 });
