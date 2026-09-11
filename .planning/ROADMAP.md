@@ -225,12 +225,25 @@ Plans:
 **Plans**: 6 plans
 
 Plans:
+**Wave 1**
 
 - [ ] 06-01-PLAN.md — Tracer: transaction-volume TSYS-vs-Bit-Addict comparison end to end (coverage view, business-day window, inverted truth table, `/alignment` page)
+
+**Wave 2** *(blocked on Wave 1 completion)*
+
 - [ ] 06-02-PLAN.md — Baseline-offset and tolerance settings on `/settings/general`, audited and applied without a redeploy
+
+**Wave 3** *(blocked on Wave 2 completion)*
+
 - [ ] 06-03-PLAN.md — Cumulative TSYS live-cards derivation with its whole-window coverage guard, completing `/alignment` to four paired cards
+
+**Wave 4** *(blocked on Wave 3 completion)*
+
 - [ ] 06-04-PLAN.md — Two-level drill Sheet with source-file provenance, plus the uncapped `/alignment/[metric]` day-breakdown route
 - [ ] 06-05-PLAN.md — Real dashboard home at `/`: alignment rollup strip, three headline KPI tiles, per-region error isolation
+
+**Wave 5** *(blocked on Wave 4 completion)*
+
 - [ ] 06-06-PLAN.md — Authoritative live schema gate and demonstration of all five success criteria
 
 ### Phase 7: TSYS Tiered Volume & Revenue Forecast
