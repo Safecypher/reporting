@@ -1,10 +1,10 @@
 ---
 schema_version: 1
-open_count: 2
+open_count: 4
 waived_count: 0
 fixed_count: 1
-total_count: 3
-last_updated: 2026-09-11T12:57:49.650Z
+total_count: 5
+last_updated: 2026-09-11T13:22:47.191Z
 ---
 
 # Broken Windows Ledger
@@ -18,6 +18,8 @@ last_updated: 2026-09-11T12:57:49.650Z
 | 1 | 05 | unrun-verify | components/pricing/pricing-tier-form.tsx |  | 375px-viewport readability backstop (must_haves D11) and general on-screen appearance of the create/edit mode statement + inline supersede notice (D1/D4) not visually verified in 05-07 — logic is unit-tested, rendering is not; flagged for end-of-phase UAT (05-UAT.md) | open |  | 2026-09-10T17:26:11.979Z |  |
 | 2 | 06 | unrun-verify | lib/dashboard/alignment-drill.ts |  | ingested_files(file_name) PostgREST FK embed on apigee_calls/card_inventory/removed_cards/verifications contributing-row selects has not been executed against the live Supabase project this session (RESEARCH.md Assumption A5) — no mcp__supabase__* tool was reachable from this executor | fixed |  | 2026-09-11T12:54:20.569Z | 2026-09-11T12:57:49.650Z |
 | 3 | 06 | unrun-verify | lib/dashboard/alignment-drill.ts |  | Live-cards day-breakdown gap-change/settled derivation (fetchLiveCardsDayBreakdown, addBusinessDaysLocal) has no dedicated Vitest coverage — mirrors 0030's SQL by hand, unlike alignment-status.ts's tested truth table | open |  | 2026-09-11T12:54:20.651Z |  |
+| 4 | 06 | unrun-verify | supabase/tests/tsys_msa_tier_test.sql |  | Blocks B and C (revenue-window boundary cases) are destructive if not run inside a true begin/rollback transaction — the Supabase MCP execute_sql path commits each statement separately, so running them as instructed would have permanently deleted every verification row and pricing tier set from live production. Only Block A (MSA tier boundaries) was executed and passed; B/C's revenue-window behaviour remains unverified against live data since Phase 5. The identical destructive-if-not-transactional pattern exists in supabase/tests/revenue_boundary_test.sql. Recommend converting both files to the fixture-free invariant style reconciliation_no_source_data_test.sql already uses. | open |  | 2026-09-11T13:22:47.100Z |  |
+| 5 | 06 | unrun-verify | lib/dashboard/alignment.ts |  | 06-06 acceptance criterion 'No narrow cast remains around any alignment RPC call site' is NOT met: three (data ?? []) as unknown as <Row>[] casts remain at lines 123, 145 and 209. Root cause: lib/supabase/server.ts's createServerClient(...) has no Database type parameter, so every supabase.rpc() result is untyped; typing it surfaces a separate real conflict (5 errors) because Supabase's generator emits p_end: string instead of string \| null even though every alignment SQL function legitimately accepts NULL p_end for the open-ended all-time scope. The obvious fix (createServerClient<Database>) was tried and reverted. Casts are currently load-bearing, not sloppiness, but the criterion is unmet. lib/supabase/server.ts and lib/dashboard/alignment.ts are both out of 06-06's files_modified scope. Recommend follow-up: type the server client and widen the nullable p_end call sites, or adopt the .returns<T>() idiom the revenue page already uses. | open |  | 2026-09-11T13:22:47.191Z |  |
 
 ````json
 [
@@ -55,6 +57,30 @@ last_updated: 2026-09-11T12:57:49.650Z
     "status": "open",
     "reason": "",
     "recorded_at": "2026-09-11T12:54:20.651Z",
+    "resolved_at": null
+  },
+  {
+    "id": 4,
+    "kind": "unrun-verify",
+    "phase": "06",
+    "file": "supabase/tests/tsys_msa_tier_test.sql",
+    "line": null,
+    "description": "Blocks B and C (revenue-window boundary cases) are destructive if not run inside a true begin/rollback transaction — the Supabase MCP execute_sql path commits each statement separately, so running them as instructed would have permanently deleted every verification row and pricing tier set from live production. Only Block A (MSA tier boundaries) was executed and passed; B/C's revenue-window behaviour remains unverified against live data since Phase 5. The identical destructive-if-not-transactional pattern exists in supabase/tests/revenue_boundary_test.sql. Recommend converting both files to the fixture-free invariant style reconciliation_no_source_data_test.sql already uses.",
+    "status": "open",
+    "reason": "",
+    "recorded_at": "2026-09-11T13:22:47.100Z",
+    "resolved_at": null
+  },
+  {
+    "id": 5,
+    "kind": "unrun-verify",
+    "phase": "06",
+    "file": "lib/dashboard/alignment.ts",
+    "line": null,
+    "description": "06-06 acceptance criterion 'No narrow cast remains around any alignment RPC call site' is NOT met: three (data ?? []) as unknown as <Row>[] casts remain at lines 123, 145 and 209. Root cause: lib/supabase/server.ts's createServerClient(...) has no Database type parameter, so every supabase.rpc() result is untyped; typing it surfaces a separate real conflict (5 errors) because Supabase's generator emits p_end: string instead of string | null even though every alignment SQL function legitimately accepts NULL p_end for the open-ended all-time scope. The obvious fix (createServerClient<Database>) was tried and reverted. Casts are currently load-bearing, not sloppiness, but the criterion is unmet. lib/supabase/server.ts and lib/dashboard/alignment.ts are both out of 06-06's files_modified scope. Recommend follow-up: type the server client and widen the nullable p_end call sites, or adopt the .returns<T>() idiom the revenue page already uses.",
+    "status": "open",
+    "reason": "",
+    "recorded_at": "2026-09-11T13:22:47.191Z",
     "resolved_at": null
   }
 ]

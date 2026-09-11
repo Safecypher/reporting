@@ -3,17 +3,17 @@ gsd_state_version: "1.0"
 milestone: v1.0
 current_phase: 06
 current_phase_name: "Dual-Source Alignment: TSYS vs Bit Addict"
-status: executing
-stopped_at: Completed 06-05-PLAN.md
-last_updated: "2026-09-11T13:15:57.615Z"
+status: verifying
+stopped_at: Completed 06-06-PLAN.md (Task 1 recorded; Task 2 deferred to human UAT — see 06-UAT.md)
+last_updated: "2026-09-11T13:27:08.349Z"
 last_activity: 2026-09-11
 last_activity_desc: Phase 06 execution started
-state_head: 55460a8f3a23adc8cb08f2c0b87aa56e08dffcaf
+state_head: 3e77405b386a470aeb19d55818bcc719862e48f5
 progress:
   total_phases: 7
   completed_phases: 2
   total_plans: 40
-  completed_plans: 39
+  completed_plans: 40
 milestone_name: milestone
 ---
 
@@ -30,7 +30,7 @@ See: .planning/PROJECT.md (updated 2026-08-18)
 
 Phase: 06 (Dual-Source Alignment: TSYS vs Bit Addict) — EXECUTING
 Plan: 6 of 6
-Status: Ready to execute
+Status: Phase complete — ready for verification
 Last activity: 2026-09-11 — Phase 06 execution started
 
 Progress: [░░░░░░░░░░] 0%
@@ -76,6 +76,7 @@ Progress: [░░░░░░░░░░] 0%
 | Phase 06 P03 | ~40min | 3 tasks | 8 files |
 | Phase 06 P04 | 55min | 3 tasks | 8 files |
 | Phase 06 P05 | ~20min | 3 tasks | 7 files |
+| Phase 06 P06 | ~15min | 1 tasks | 2 files |
 
 ## Accumulated Context
 
@@ -121,6 +122,7 @@ Recent decisions affecting current work:
 - [Phase 06]: [Phase 06] Phase 06 Plan 04: two real coverage gaps registered in WINDOWS.md rather than claimed as proven — the ingested_files(file_name) embed has not been executed against the live Supabase project (no MCP access this session), and the live-cards day-breakdown derivation has no dedicated Vitest coverage
 - [Phase 06]: [Phase 06] Plan 05: home-page alignment rollup strip is null-guarded (never defaults to a green Aligned badge) — Live cards tile reads fetchCardInventoryRowsUpTo(supabase, null) unscoped by period, matching /cards; Volume/Revenue tiles read the same sources /verifications and /revenue read
 - [Phase 06]: [Phase 06] Plan 05: dashboard home built with four independent TileErrorBoundary regions via Next 16 catchError (first use in this codebase) — app/(dashboard)/error.tsx stays byte-identical as the outer safety net
+- [Phase 06]: Phase 06 Plan 06: live schema gate (Task 1) confirmed all Phase 6 migrations, security posture and the unregressed Phase 4 reconciliation chain, but recorded two honest gaps rather than glossing over them -- tsys_msa_tier_test.sql Blocks B/C were not re-run (destructive without a working transaction over the MCP execute_sql path) and three narrow casts remain in lib/dashboard/alignment.ts (root-caused, load-bearing). Task 2's live browser demonstration was deferred to human UAT via 06-UAT.md; ALIGN-01..07 deliberately left Pending in REQUIREMENTS.md despite the shared-ID gate reporting them ready, since only Task 1's infrastructure evidence exists and each requirement demands a user-facing demonstration.
 
 ### Pending Todos
 
@@ -135,6 +137,7 @@ Carried from research (resolve during phase planning):
 - [Phase 2] De-dup composite key for verification/dCVV is a business decision — confirm with Joachim whether two same-second verifications of one card are possible; retain raw staging so the key is re-tunable.
 - [Phase 2] Source timezone per report type must be established (not guessed) before finalising UTC normalisation — confirm with Joachim/Chris; store raw timestamp strings.
 - [Phase 4] 6am/8am billing/others delivery offset — design reconciliation to tolerate the offset regardless of Joachim's alignment effort; event-timestamp + settling window.
+- [Phase 06] Phase 6 is NOT fully verified: 06-06 Task 2 (live browser demonstration of the five ROADMAP success criteria and ALIGN-01..07) was deferred to human UAT -- see .planning/phases/06-dual-source-alignment-tsys-vs-bit-addict/06-UAT.md (11 pending tests). Run /gsd-verify-work 6 before considering Phase 6 complete.
 
 ### Quick Tasks Completed
 
@@ -157,6 +160,6 @@ Items acknowledged and carried forward from previous milestone close:
 
 ## Session Continuity
 
-Last session: 2026-09-11T13:15:57.396Z
-Stopped at: Completed 06-05-PLAN.md
+Last session: 2026-09-11T13:27:08.152Z
+Stopped at: Completed 06-06-PLAN.md (Task 1 recorded; Task 2 deferred to human UAT — see 06-UAT.md)
 Resume file: None
