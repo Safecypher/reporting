@@ -100,10 +100,19 @@ export async function saveFinancialYearSettings(
  *   of the whole object, so a submit where one field is valid and the
  *   other is not rejects the whole submit and persists neither value
  *   (T-06-14).
- * - `tsys_live_cards_baseline_as_of` is stamped to today's UTC date
- *   alongside the offset every time this action runs -- it is not an
- *   independently-editable field, only ever a byproduct of saving the
- *   offset (mirroring the D-08 caption's "as of" basis).
+ * - The baseline's "as of" date column is deliberately NOT part of this
+ *   action's write payload (WR-02). That column is owned by the
+ *   `trg_app_settings_baseline_as_of` BEFORE UPDATE trigger (0033): the
+ *   database sets it to `current_date` if and only if
+ *   `tsys_live_cards_baseline_offset` actually changes value in the same
+ *   UPDATE, and otherwise carries the prior value forward unchanged. A
+ *   fetch-then-compare equivalent inside this action was rejected because a
+ *   read-then-write cannot be made atomic against a concurrent save -- two
+ *   overlapping requests could each read the same "unchanged" offset, then
+ *   both write, and whichever wins the race would silently decide the
+ *   as-of date. Putting the rule in a BEFORE UPDATE trigger makes it
+ *   atomic and takes the column out of this action's write path entirely,
+ *   so a tolerance-only edit can never move it.
  */
 export async function saveAlignmentSettings(
   input: unknown,
@@ -122,13 +131,10 @@ export async function saveAlignmentSettings(
     return { error: "Unauthorized" };
   }
 
-  const todayUtc = new Date().toISOString().slice(0, 10);
-
   const { error } = await supabase
     .from("app_settings")
     .update({
       tsys_live_cards_baseline_offset: parsed.data.baselineOffset,
-      tsys_live_cards_baseline_as_of: todayUtc,
       alignment_tolerance: parsed.data.toleranceCount,
       updated_by: user.id,
       updated_at: new Date().toISOString(),
