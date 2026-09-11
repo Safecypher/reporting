@@ -2,18 +2,18 @@
 gsd_state_version: "1.0"
 milestone: v1.0
 current_phase: 06
-current_phase_name: dual-source-alignment-tsys-vs-bit-addict
+current_phase_name: "Dual-Source Alignment: TSYS vs Bit Addict"
 status: executing
-stopped_at: Completed 06-06-PLAN.md (Task 1 recorded; Task 2 deferred to human UAT — see 06-UAT.md)
-last_updated: "2026-09-11T15:43:32.732Z"
+stopped_at: Completed 06-07-PLAN.md (migration 0031 written, not yet applied live; both SQL oracles extended, not yet run live — see 06-09)
+last_updated: "2026-09-11T15:55:45.895Z"
 last_activity: 2026-09-11
 last_activity_desc: Quick task 260911-m2b — corrected counterparty name Thesis to TSYS in CLAUDE.md and apigee-stats.ts
-state_head: 2a86b8771c7fbba17b90c601bb44703686086f53
+state_head: d89b2e915296cd78e4f2ac3ac9f5e9fd98fcf759
 progress:
   total_phases: 7
   completed_phases: 2
   total_plans: 44
-  completed_plans: 40
+  completed_plans: 41
 milestone_name: milestone
 ---
 
@@ -28,8 +28,8 @@ See: .planning/PROJECT.md (updated 2026-08-18)
 
 ## Current Position
 
-Phase: 06 (dual-source-alignment-tsys-vs-bit-addict) — READY TO EXECUTE
-Plan: 6 of 6
+Phase: 06 (Dual-Source Alignment: TSYS vs Bit Addict) — EXECUTING
+Plan: 2 of 10
 Status: Ready to execute
 Last activity: 2026-09-11 — Phase 06 execution started
 
@@ -77,6 +77,7 @@ Progress: [░░░░░░░░░░] 0%
 | Phase 06 P04 | 55min | 3 tasks | 8 files |
 | Phase 06 P05 | ~20min | 3 tasks | 7 files |
 | Phase 06 P06 | ~15min | 1 tasks | 2 files |
+| Phase 06 P07 | 20min | 3 tasks | 5 files |
 
 ## Accumulated Context
 
@@ -123,6 +124,8 @@ Recent decisions affecting current work:
 - [Phase 06]: [Phase 06] Plan 05: home-page alignment rollup strip is null-guarded (never defaults to a green Aligned badge) — Live cards tile reads fetchCardInventoryRowsUpTo(supabase, null) unscoped by period, matching /cards; Volume/Revenue tiles read the same sources /verifications and /revenue read
 - [Phase 06]: [Phase 06] Plan 05: dashboard home built with four independent TileErrorBoundary regions via Next 16 catchError (first use in this codebase) — app/(dashboard)/error.tsx stays byte-identical as the outer safety net
 - [Phase 06]: Phase 06 Plan 06: live schema gate (Task 1) confirmed all Phase 6 migrations, security posture and the unregressed Phase 4 reconciliation chain, but recorded two honest gaps rather than glossing over them -- tsys_msa_tier_test.sql Blocks B/C were not re-run (destructive without a working transaction over the MCP execute_sql path) and three narrow casts remain in lib/dashboard/alignment.ts (root-caused, load-bearing). Task 2's live browser demonstration was deferred to human UAT via 06-UAT.md; ALIGN-01..07 deliberately left Pending in REQUIREMENTS.md despite the shared-ID gate reporting them ready, since only Task 1's infrastructure evidence exists and each requirement demands a user-facing demonstration.
+- [Phase 06]: [Phase 06] Phase 06 Plan 07: closed CR-01/WR-01/CR-02's SQL half — alignment_settled/alignment_counterpart_max_day replace the shared/merged Bit Addict freshness bound with per-metric independent settling bounds; alignment_live_cards_for_period now returns tsys_coverage_complete as its own separable column. Migration 0031 is forward-only and written but NOT YET applied to the live database (no Supabase MCP access this session) — plan 06-09 must apply it and re-run both extended SQL oracles live before CR-01/WR-01/CR-02 can be considered actually fixed in production.
+- [Phase 06]: [Phase 06] Plan 07: alignmentCounterpartMaxDay's metric parameter uses a new local AlignmentFlowMetric type in alignment-status.ts rather than importing FlowAlignmentMetric from lib/dashboard/alignment.ts, to avoid a circular type dependency (alignment.ts already imports types from alignment-status.ts).
 
 ### Pending Todos
 
@@ -161,6 +164,6 @@ Items acknowledged and carried forward from previous milestone close:
 
 ## Session Continuity
 
-Last session: 2026-09-11T14:55:45.000Z
-Stopped at: Completed quick task 260911-m2b (Thesis to TSYS correction in CLAUDE.md + apigee-stats.ts). Phase 06 still requires /gsd-verify-work 6 (06-06 Task 2 deferred to human UAT — see 06-UAT.md)
+Last session: 2026-09-11T15:55:36.263Z
+Stopped at: Completed 06-07-PLAN.md (migration 0031 written, not yet applied live; both SQL oracles extended, not yet run live — see 06-09)
 Resume file: None
