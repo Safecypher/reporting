@@ -15,6 +15,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
+import { Skeleton } from "@/components/ui/skeleton";
 import { cn } from "@/lib/utils";
 import type { DrillFilter } from "@/lib/dashboard/drill-params";
 import {
@@ -77,6 +78,18 @@ interface AlignmentDrillSheetProps {
    * carrying the same period query params the Sheet itself is scoped to
    * (RESEARCH.md "Full-page day-breakdown route"). */
   fullPageHref: string;
+  /**
+   * True while the level's own data is still resolving (UI-SPEC E3/E4:
+   * "renders a skeleton ... while ... load"). This page currently resolves
+   * every drill fetch in the SAME Server Component `Promise.all` as the rest
+   * of the page (mirroring `ReconciliationDrillSheet`'s own precedent, whose
+   * `DrillSheet.loading` prop is likewise never set `true` by any existing
+   * caller) — so this defaults to `false` and is not wired to a live pending
+   * state from `app/(dashboard)/alignment/page.tsx` today. The prop exists so
+   * a future caller (e.g. one that splits the Sheet into its own streamed
+   * Suspense boundary) can wire it without changing this component.
+   */
+  loading?: boolean;
 }
 
 function SourceFileCaption({ fileName }: { fileName: string }) {
@@ -100,18 +113,31 @@ function LevelOneBody({
   dayBreakdown,
   fullPageHref,
   onOpenDay,
+  loading,
 }: {
   metric: AlignmentMetric | null;
   metricLabel: string;
   dayBreakdown: DayBreakdownResult;
   fullPageHref: string;
   onOpenDay: (day: string) => void;
+  loading: boolean;
 }) {
   const table = useReactTable({
     data: dayBreakdown.rows,
     columns: alignmentDayBreakdownColumns,
     getCoreRowModel: getCoreRowModel(),
   });
+
+  if (loading) {
+    return (
+      <div className="flex flex-col gap-2">
+        <Skeleton className="h-8 w-full" />
+        <Skeleton className="h-8 w-full" />
+        <Skeleton className="h-8 w-full" />
+        <Skeleton className="h-8 w-full" />
+      </div>
+    );
+  }
 
   if (dayBreakdown.error !== null) {
     return (
@@ -190,10 +216,12 @@ function LevelTwoBody({
   metricLabel,
   contributingRows,
   onBack,
+  loading,
 }: {
   metricLabel: string;
   contributingRows: ContributingRowsResult;
   onBack: () => void;
+  loading: boolean;
 }) {
   const tsysTable = useReactTable({
     data: contributingRows.tsysRows,
@@ -222,7 +250,20 @@ function LevelTwoBody({
         ← Back to day breakdown
       </Button>
 
-      {contributingRows.error !== null ? (
+      {loading ? (
+        <div className="flex flex-col gap-6">
+          <div className="flex flex-col gap-2">
+            <Skeleton className="h-4 w-32" />
+            <Skeleton className="h-8 w-full" />
+            <Skeleton className="h-8 w-full" />
+          </div>
+          <div className="flex flex-col gap-2">
+            <Skeleton className="h-4 w-32" />
+            <Skeleton className="h-8 w-full" />
+            <Skeleton className="h-8 w-full" />
+          </div>
+        </div>
+      ) : contributingRows.error !== null ? (
         <p className="py-8 text-center text-sm font-light text-muted-foreground">
           {metricLabel} contributing rows could not be loaded. Use the back affordance above and
           try again.
@@ -324,6 +365,7 @@ export function AlignmentDrillSheet({
   dayBreakdown,
   contributingRows,
   fullPageHref,
+  loading = false,
 }: AlignmentDrillSheetProps) {
   const { openDrill, closeDrill } = useDrill();
   const isLevelTwo = filter?.date !== undefined;
@@ -364,6 +406,7 @@ export function AlignmentDrillSheet({
               metricLabel={metricLabel}
               contributingRows={contributingRows}
               onBack={() => openDrill({ drill: filter!.drill })}
+              loading={loading}
             />
           ) : (
             <LevelOneBody
@@ -371,6 +414,7 @@ export function AlignmentDrillSheet({
               metricLabel={metricLabel}
               dayBreakdown={dayBreakdown}
               fullPageHref={fullPageHref}
+              loading={loading}
               onOpenDay={(day) => openDrill({ drill: filter!.drill, date: day })}
             />
           )}
