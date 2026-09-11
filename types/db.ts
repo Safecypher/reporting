@@ -560,6 +560,18 @@ export type Database = {
         }
         Relationships: []
       }
+      v_alignment_live_cards_daily: {
+        Row: {
+          bit_addict_live_cards: number | null
+          bit_addict_snapshot_day: string | null
+          coverage_complete_to_date: boolean | null
+          day: string | null
+          enrol_count: number | null
+          tsys_cumulative_net: number | null
+          unenrol_count: number | null
+        }
+        Relationships: []
+      }
       v_apigee_coverage_daily: {
         Row: {
           day: string | null
@@ -771,6 +783,26 @@ export type Database = {
           status: string
           tsys_count: number
           tsys_covered: boolean
+        }[]
+      }
+      alignment_live_cards_for_period: {
+        Args: {
+          p_baseline_offset: number
+          p_end: string
+          p_start: string
+          p_tolerance: number
+        }
+        Returns: {
+          bit_addict_live_cards: number
+          bit_addict_snapshot_day: string
+          coverage_complete: boolean
+          gap_at_period_end: number
+          gap_at_period_start: number
+          gap_change: number
+          settled: boolean
+          short_side: string
+          status: string
+          tsys_live_cards: number
         }[]
       }
       alignment_status: {
