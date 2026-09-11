@@ -35,7 +35,7 @@ export const ApigeeRowSchema = z.object({
 export type ApigeeRow = z.infer<typeof ApigeeRowSchema>;
 
 /**
- * Load the Thesis "Safecypher Stats" workbook with ExcelJS and read only the
+ * Load the TSYS "Safecypher Stats" workbook with ExcelJS and read only the
  * "APIGEE Calls" sheet, by name (never index — sheet order is not a
  * classification guarantee, and "Verify Outcome" must never be touched, D-08).
  *
@@ -53,12 +53,12 @@ export async function parseApigeeStats(bytes: Uint8Array): Promise<RawApigeeRow[
     // T-02-A1: a crafted/corrupt/zip-bomb XLSX must become a clean rejection,
     // never an unguarded crash.
     const reason = err instanceof Error ? err.message : "unreadable XLSX file";
-    throw new Error(`could not load Thesis workbook: ${reason}`);
+    throw new Error(`could not load TSYS workbook: ${reason}`);
   }
 
   const sheet = workbook.getWorksheet(APIGEE_SHEET_NAME);
   if (!sheet) {
-    throw new Error(`Thesis workbook is missing the "${APIGEE_SHEET_NAME}" sheet`);
+    throw new Error(`TSYS workbook is missing the "${APIGEE_SHEET_NAME}" sheet`);
   }
 
   const rows: RawApigeeRow[] = [];
