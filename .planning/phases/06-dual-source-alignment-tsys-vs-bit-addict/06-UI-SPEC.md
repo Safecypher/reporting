@@ -108,6 +108,30 @@ phase; the table below lists only the ones this phase's new surfaces actually to
 5. **(Live cards only) the permanent derivation caption and the status-meaning caption** — both
    `--fg-3`, at the very bottom of the card, always rendered (never a hover/tooltip reveal).
 
+**Figure-pair responsive behaviour (binding — resolves the class of defect G-05-OBS1 surfaced at
+sub-768px):** the TSYS/Bit Addict figure pair is its own two-column `grid` (or `flex`) **internal
+to the card**, independent of the outer page grid's `grid-cols-1 sm:grid-cols-2`, and it **stays
+side by side at every supported viewport width, including 375px** (the narrowest width exercised
+in Phase 5 UAT) — it never stacks to vertical. Below `sm` (640px) the outer grid already resolves
+to one card per row, so each card owns the full content width minus page padding; two tabular-nums
+figures at the current data volume (low hundreds/thousands, PROJECT.md) comfortably fit side by
+side at that width without truncation or wrap. Stacking the pair vertically is explicitly rejected
+as an alternative: it would push the delta/coverage/caption block further down the card and make
+the two figures read as sequential rather than paired, undermining the side-by-side comparison
+this whole card exists to show.
+
+**Durable fallback as volume grows (binding, not just an observation about today's numbers):**
+each figure's container reserves a **minimum width of 8ch** at the brand mono digit width —
+enough for a comma-grouped 9-digit value (`999,999,999`) with no truncation or wrap. This
+comfortably covers `Transaction volume`, the metric most likely to scale — the TSYS MSA tier
+table already anticipates 25,000,000+ monthly transactions. Two such 8ch columns plus their gap
+fit well within a 375px card's usable content width, so the side-by-side guarantee does not
+quietly break as the product scales past today's low hundreds/thousands. **No `k`/`M` abbreviation
+convention exists anywhere else in this app** — every other numeric surface renders full
+comma-grouped digits (`.toLocaleString()` in the existing drill sheets; `Intl.NumberFormat` for
+currency per 03-UI-SPEC.md) — so this phase does not invent one either: figures always render as
+full tabular-nums digits, and the reserved column width is the mechanism keeping that true at scale.
+
 ---
 
 ## Spacing Scale
@@ -136,21 +160,45 @@ weights — 500 (labels/headings) and 700 (numeric emphasis)** — matching the 
 a dense, information-carrying surface. Brand mono (`--font-mono`) remains the separate family used
 for all counts/deltas and does not count against that ceiling.
 
+**On the caption/secondary-text rows below (coverage statement, the two live-cards captions,
+level-2 drill table text fields): these render at Poppins 300 (Light), not 400.** This was
+checked against the real design system and code, not asserted from memory: `design-system/
+colors_and_type.css` sets `html, body { font-weight: var(--fw-light) }` (300) as the page-wide
+default and defines `.caption` as size/colour only (`font-size: var(--fs-micro); color: var(--fg-3)`)
+— it inherits weight from that default rather than setting its own. The already-shipped
+`ReconciliationDrillSheet` and generic `DrillSheet` confirm this in practice: every caption and
+empty-state line in both (`components/dashboard/reconciliation-drill-sheet.tsx` lines 219/224/
+237/276/317/356; `components/dashboard/drill-sheet.tsx` lines 105/119) is styled `font-light`
+(300); neither file applies `font-normal` (400) anywhere. 01-UI-SPEC.md's own "Body small |
+Poppins 400 ... (400 not 300 for legibility at 14px)" row describes a narrower, already-superseded
+intent that the shipped code never actually adopted for these surfaces. So Phase 6's captions
+inherit the real, pre-existing 300-weight convention — exactly the same move 05-UI-SPEC.md made
+for its reused `EmptyState` text, which it explicitly did not count against that phase's own
+2-weight footprint. Phase 6's own new-styling footprint therefore stays at 2 weights (500 + 700);
+inherited 300 is pre-existing brand typography, not a third weight this phase introduces.
+
+**Exactly four sizes this phase (12 / 14 / 20 / 48px), matching Phase 4's four-size discipline for
+a dense card+table surface.** The previous draft's "side label" and "home rollup sentence" rows
+each introduced a fifth/sixth size (11px, 16px) beyond the four already required by every other
+row below; both are folded into an existing size rather than added as new tiers. 11px in particular
+was never a brand token — `design-system/colors_and_type.css` has no value between `--fs-micro`
+(12px) and `--fs-small` (14px) — so it is dropped entirely, not merely rounded.
+
 | Role | Family / Weight | Size | Line height | Usage |
 |------|-----------------|------|-------------|-------|
 | Card metric label (eyebrow) | Poppins 500, uppercase, 0.12em tracking | 12px (`--fs-micro`) | 1.25 | "Enrolled cards" / "Unenrolled cards" / "Live cards" / "Transaction volume" — identical treatment to every existing KPI card's `CardTitle` |
-| Side label | Poppins 500, `--fg-3`, uppercase, 0.08em tracking | 11px | 1.25 | "TSYS" / "Bit Addict" — small labels directly above each figure; deliberately smaller than the eyebrow so the metric name, not the source name, is the card's title |
+| Side label | Poppins 500, `--fg-3`, uppercase, 0.08em tracking | 12px (`--fs-micro`) | 1.25 | "TSYS" / "Bit Addict" — small labels directly above each figure; shares the eyebrow's type size (no fifth size) but stays visually distinct from it via the quieter `--fg-3` ink (vs. the eyebrow's `--fg-1`) and the tighter 0.08em tracking (vs. the eyebrow's 0.12em) — size is not the differentiator, ink and tracking are |
 | Paired figure value | Poppins 700, brand mono for the digits, tabular-nums | 20px | 1.25 | Both TSYS and Bit Addict figures — reuses the exact "secondary numeric" treatment 04-UI-SPEC.md established for the Card-Inventory summary strip, **not** the 48px `.metric` hero treatment (this page has no single hero number per card — see Design Aesthetic) |
 | Delta / which-side-short phrase | Poppins 500, `--fg-2` | 14px (`--fs-small`) | 1.5 | "TSYS is short by 47 (3.8%)" — de-emphasised via ink and size, mirroring 04-UI-SPEC.md's delta-phrase rule exactly |
-| Coverage statement | Poppins 400, `--fg-3` | 12px (`--fs-micro`) | 1.4 | "Coverage — TSYS 28 of 31 days · Bit Addict 31 of 31 days." |
-| Live-cards derivation caption / status-meaning caption | Poppins 400, `--fg-3` | 12px | 1.4 | Both are always-visible captions, never a tooltip reveal (D-08 binding) |
-| Status badge label | Poppins 500 | 12px | 1.25 | "Aligned" / "Needs review" / "Mismatch" — same treatment as the existing `StatusBadge`, unchanged |
-| Level-1 drill table cells (day/figures/delta/coverage) | Brand mono, tabular-nums | 14px | 1.5 | Same "all counts are tabular" rule as every prior phase's dense table |
-| Level-2 drill table cells (raw rows) | Brand mono for identifiers/timestamps, Poppins 400 for text fields | 14px | 1.5 | Unchanged from the existing `ReconciliationDrillSheet` column conventions |
-| Home alignment-strip rollup sentence | Poppins 500 | 16px (`--fs-body`, medium weight) | 1.5 | "All four metrics are aligned for August 2026." |
-| Home KPI tile label | Poppins 500, uppercase, 0.12em tracking | 12px | 1.25 | "Live cards" / "Volume this period" / "Revenue this period" |
-| Home KPI tile value | Poppins 700 (`.metric`, downscaled) | 48px | 1.0 | Identical treatment to every existing headline KPI card (`kpi-cards.tsx`) — **no accent-teal underline on any of the three tiles** (see Color — none is more important than the others) |
-| `/settings/general` new field labels | Poppins 500, 14px | — | Same as the existing FY-start field labels |
+| Coverage statement | Poppins 300 (Light — inherited body/caption weight, not a phase-6 addition), `--fg-3` | 12px (`--fs-micro`) | 1.4 | "Coverage — TSYS 28 of 31 days · Bit Addict 31 of 31 days." (D-12: this statement must remain fully legible — it carries the coverage fact that forces `needs_review` regardless of variance size, so it stays at the standard `--fs-micro` caption size used throughout the app, never smaller) |
+| Live-cards derivation caption / status-meaning caption | Poppins 300 (Light — inherited body/caption weight, not a phase-6 addition), `--fg-3` | 12px (`--fs-micro`) | 1.4 | Both are always-visible, permanent, inline captions, never a tooltip reveal (D-08 binding) — 12px is the same size every other caption in the app already uses at reading distance; it is not being shrunk to make room elsewhere |
+| Status badge label | Poppins 500 | 12px (`--fs-micro`) | 1.25 | "Aligned" / "Needs review" / "Mismatch" — same treatment as the existing `StatusBadge`, unchanged |
+| Level-1 drill table cells (day/figures/delta/coverage) | Brand mono, tabular-nums | 14px (`--fs-small`) | 1.5 | Same "all counts are tabular" rule as every prior phase's dense table |
+| Level-2 drill table cells (raw rows) | Brand mono for identifiers/timestamps, Poppins 300 (Light) for text fields — the ambient inherited weight, no override | 14px (`--fs-small`) | 1.5 | Unchanged from the existing `ReconciliationDrillSheet` column conventions — its `TableCell` never applies `font-normal`; plain text fields render at the inherited page-default 300, same as this phase's other captions |
+| Home alignment-strip rollup sentence | Poppins 500 | 14px (`--fs-small`) | 1.5 | "All four metrics are aligned for August 2026." — dropped from an earlier 16px draft to hold the four-size ceiling; the sentence is a supporting summary line beside the rollup badge, not a heading, so `--fs-small` (already used for the delta/which-side-short phrase elsewhere in this phase) is the correct tier, not a new one |
+| Home KPI tile label | Poppins 500, uppercase, 0.12em tracking | 12px (`--fs-micro`) | 1.25 | "Live cards" / "Volume this period" / "Revenue this period" |
+| Home KPI tile value | Poppins 700 (`.metric`, downscaled) | 48px (`--fs-h1`) | 1.0 | Identical treatment to every existing headline KPI card (`kpi-cards.tsx`) — **no accent-teal underline on any of the three tiles** (see Color — none is more important than the others) |
+| `/settings/general` new field labels | Poppins 500 | 14px (`--fs-small`) | — | Same as the existing FY-start field labels |
 
 ---
 
@@ -332,14 +380,143 @@ No third-party registries declared this phase. Registry vetting gate: not applic
 
 ---
 
+## UI Considerations
+
+State-coverage axis, produced by the post-verification UI-consideration probe (2026-09-11).
+57 applicable considerations across 8 surfaces; all 57 resolved. Shape-rooted STATE coverage
+only — empty-state and error-state COPY lives in `## Copywriting Contract` above and is
+referenced here rather than restated.
+
+Four considerations were not answerable from the spec as approved and were resolved by the user
+during the probe (marked **[probe decision]**). Two carry consequences the planner must act on —
+see "Planner consequences" at the end of this section.
+
+### E1 — `/alignment` page
+
+- The `/alignment` page renders a loading state using `skeleton` placeholders in the shape of the four paired KPI cards, not a spinner.
+- The `/alignment` page renders `PeriodEmptyState` when the active period contains no comparison rows for any metric, and the domain-empty state (`No data yet` + `Upload report` link) when nothing has ever been ingested — the two are distinct states, never merged.
+- The `/alignment` page renders an error state naming the failed surface with a retry path, per `## Copywriting Contract`.
+- The populated `/alignment` page shows exactly four paired KPI cards in a `grid-cols-1 sm:grid-cols-2` grid, with `PeriodControls`, `ScopeBadge`, `FreshnessBadge` and the data-window caption in their unchanged positions.
+- Partial data on `/alignment` — one metric computable and another not — renders the computable cards normally and gives each uncomputable card its own state; the page never suppresses a whole card row because one metric is missing.
+- `/alignment` has no full-width table and no chart, so page-level overflow is limited to the card grid reflowing from two columns to one below `sm`; the page body never scrolls horizontally.
+- Zero/one/many on `/alignment` is fixed at exactly four cards in every state — the count never varies, so no singular/plural page copy is reachable.
+
+### E2 — Paired KPI card
+
+- A paired KPI card renders a `skeleton` in its own shape while its metric is loading, independently of the other three cards.
+- A paired KPI card with no data for the active period shows the period-empty treatment in place of its figures, never a zero figure — a zero and an absence must not look alike.
+- A paired KPI card whose metric fails to load shows an error state scoped to that card, leaving the other three readable.
+- { statement: "The populated paired KPI card stacks its content in the bound order — status badge, then the TSYS and Bit Addict figures side by side with their labels above each, then the delta/which-side-short phrase, then the coverage statement, then (live cards only) the derivation and status-meaning captions — with the visual hierarchy carried by ink and size per the Typography table, not four equally-loud elements.", verification: backstop }
+- Partial data in a paired KPI card is the D-12 case: incomplete coverage forces `needs_review` regardless of variance size, and the coverage line's `Incomplete coverage — treated as needs review.` clause and the badge must always agree — a card can never show `Aligned` while its own coverage statement admits a gap.
+- The figure pair reserves a minimum 8ch per figure column and stays side by side at every supported width down to 375px, never stacking vertically; digits are comma-grouped `tabular-nums` with no truncation and no abbreviation convention.
+- The zero case in a paired KPI card is D-14: when the Bit Addict figure is zero the percentage renders as an em dash carrying an accessible label stating the reason, never a tooltip-only explanation and never a fabricated 100% or infinity.
+
+### E3 — Alignment drill Sheet, level 1 (per-day breakdown)
+
+- Level 1 of the alignment drill renders a `skeleton` table body while its per-day rows load, inside the already-open Sheet.
+- Level 1 shows `No days recorded for this period.` when the active period contains no day rows for that metric.
+- Level 1 renders an error state inside the Sheet when its query fails; the Sheet stays open and closable rather than collapsing.
+- The populated level-1 table shows one row per day with columns Day, TSYS, Bit Addict, Delta, Coverage, Status, using the compact `StatusBadge` per row and the existing row-tinting convention generalised to the three alignment statuses.
+- A level-1 day row for which one source is uncovered shows the coverage cell's uncovered treatment and a `needs_review` status rather than rendering the missing side as zero.
+- **[probe decision]** Level 1 caps the rows it renders in the Sheet at a bounded most-recent window and offers an explicit link to a full-page day-breakdown view for periods exceeding it; the cap is stated in the UI rather than silently truncating. *(User chose "cap and link out" over in-Sheet scrolling or pagination.)*
+- { statement: "Level-1 copy reads correctly at one day and at many days, and the bounded-window notice is not shown when every day in the period is already rendered.", verification: backstop }
+
+### E4 — Alignment drill Sheet, level 2 (contributing rows)
+
+- Level 2 renders `skeleton` rows in both sub-tables while the day's contributing rows load, within the same continuously-open Sheet.
+- Level 2 shows `No {TSYS/Bit Addict} rows for this day.` per sub-table when that side has no contributing rows — each side's emptiness is stated independently.
+- Level 2 renders an error state inside the Sheet without closing it or losing the level-1 breadcrumb back-affordance.
+- The populated level 2 shows two labelled sub-tables (`TSYS rows` / `Bit Addict rows`), each captioned `From {file_name}` once per distinct source file, with the `← Back to day breakdown` affordance at the top of the body.
+- A day whose rows span more than one uploaded file shows a `From {file_name}` caption per distinct file rather than naming only the first.
+- Level-2 sub-tables scroll within the Sheet body; the Sheet itself never scrolls horizontally.
+- Level 2 reads correctly when one side has a single contributing row and the other has many — neither sub-table's presence depends on the other being non-empty.
+- **[probe decision]** A long source-file name in the `From {file_name}` caption truncates to a single line with an ellipsis, with the complete filename bound into the element's accessible name (`title` plus `aria-label`) so it reaches the accessibility tree and keyboard focus unconditionally, not hover alone. *(User chose truncate-with-reveal; the accessible-name binding is what keeps this consistent with D-08's rejection of hover-only disclosure — the provenance is never reachable *only* by pointer.)*
+
+### E5 — Home page alignment status strip
+
+- The alignment strip renders a `skeleton` in its own shape while the four metric statuses load.
+- Before any comparison can be computed for the period, the strip renders the explicit neutral "not yet available" state with the neutral badge — it must never default to a green `Aligned` badge because there is nothing to disagree about yet.
+- The strip renders an error state scoped to itself; a failure here does not blank the headline KPI tiles below it.
+- The populated strip shows the worst-status-wins rollup badge beside the one-line rollup sentence **and** the row of four per-metric mini-badges — the badge is never shown alone.
+- When some of the four metrics are computable and others are not, the rollup reflects the computable ones and the uncomputable metrics' mini-badges show their own not-available treatment rather than being omitted from the row of four.
+- The rollup sentence's comma-separated metric-name list wraps rather than truncating — the named metrics are the substance of the sentence.
+- **[probe decision]** The rollup sentence keeps its single `{n} of 4 metrics need review` form at every value of n, including the slightly ungrammatical n=1 reading. *(User explicitly accepted this; do not "fix" it to a singular variant without asking.)*
+
+### E6 — Home page headline KPI tiles
+
+- Each headline KPI tile renders its own `skeleton` while loading, independently of the other two and of the alignment strip.
+- A tile with no data for its scope shows an explicit no-data treatment rather than a zero figure.
+- **[probe decision]** Each tile and the alignment strip own their own error state — a failed read in one region renders an error in that region while the others still render. The home page has no all-or-nothing page-level failure for a single-source problem. *(User chose per-region error boundaries; a missing figure must be visibly missing, never silently absent.)*
+- The populated tile shows its 48px value and 12px label with a `View {page} →` link affordance, and no accent-teal underline on any of the three — none is more important than the others.
+- Partial availability across the three tiles is the normal case during first ingestion and must render as three independently-stated tiles, not a single combined state.
+- A large figure in a tile renders in full with comma grouping; the tile grows rather than truncating the number.
+- `Live cards` is unscoped by period (stock metric) while `Volume this period` and `Revenue this period` follow the home page's active period selection — a tile must never appear period-scoped when it is not.
+
+### E7 — `/settings/general` "Dual-source alignment" section
+
+- The two new fields render with their current persisted values on load; an unsaved-but-loaded form is the populated state, and a pending save disables the save button and shows its submitting state.
+- An unset baseline offset or tolerance renders its documented default (tolerance `0`) rather than an empty input, so the effective value is never ambiguous.
+- A rejected submit shows the same banner-error pattern as the FY-start form, and field-level validation (`Enter a whole number of zero or more.`) shows inline before submit where possible.
+- A submit that partially fails — one field valid, the other not — rejects the whole submit and preserves both entered values rather than persisting one and discarding the other.
+- The always-visible inline scope-impact notice wraps to multiple lines rather than truncating; it states that changing these values restates past and future verdicts and is recorded in the log below.
+
+### E8 — Sidebar navigation entries
+
+- The two new nav entries (`Home` with `#eye`, inserted first; `Alignment` with `#layers`) render from the existing sprite with no loading state of their own — they are static chrome.
+- The nav never renders an empty state; both entries are unconditionally present for every authenticated user (no RBAC, L-04).
+- A failure elsewhere in the app never removes a nav entry — navigation remains operable on an errored page.
+- Each entry has default, hover, focus-visible (brand `--focus-ring`) and active/current-route states.
+- The active-route treatment resolves to exactly one entry at a time; `/` must highlight `Home` and not also highlight a second entry.
+- { statement: "Both new entries are reachable and operable below 768px via the existing mobile top-bar sidebar trigger — the defect class Phase 5 UAT found as G-05-OBS1 must not reappear on the two new routes.", verification: backstop }
+- The nav list reads correctly as it grows to eight entries without introducing its own scroll at supported viewport heights.
+- The entry labels `Home` and `Alignment` are short by design and are not subject to truncation.
+
+### Planner consequences
+
+Two probe decisions add work beyond the spec as approved:
+
+1. **A full-page day-breakdown view is now in scope** (E3). The "cap and link out" choice means the level-1 drill needs a link target that does not yet exist. The planner must define that route, its columns (the level-1 column set is the obvious basis), its own 4-state treatment and period scoping, and the bounded window size the Sheet caps at. This was not in `06-CONTEXT.md`'s D-19, which assumed all per-day detail lived in the Sheet.
+2. **The home page needs per-region error isolation** (E6), not a single page-level error boundary — React error boundaries or `Suspense` boundaries per tile and per strip. The page-level error copy already in `## Copywriting Contract` remains correct for a total failure, but is no longer the only error path.
+
+---
+
 ## Checker Sign-Off
 
-- [ ] Dimension 1 Copywriting: PASS
-- [ ] Dimension 2 Visuals: PASS
-- [ ] Dimension 3 Color: PASS
-- [ ] Dimension 4 Typography: PASS
-- [ ] Dimension 5 Spacing: PASS
-- [ ] Dimension 6 Registry Safety: PASS
-- [ ] Dimension 7 Inventory Provenance: PASS
+- [x] Dimension 1 Copywriting: PASS
+- [x] Dimension 2 Visuals: PASS
+- [x] Dimension 3 Color: PASS
+- [x] Dimension 4 Typography: PASS
+- [x] Dimension 5 Spacing: PASS
+- [x] Dimension 6 Registry Safety: PASS
+- [x] Dimension 7 Inventory Provenance: PASS
 
-**Approval:** pending
+**Approval:** APPROVED by gsd-ui-checker, 2026-09-11 (round 3). 7/7 dimensions pass, no
+outstanding recommendations. The round-2 font-weight finding was resolved by correcting the
+table's labelling rather than by either route the checker suggested; the checker verified the
+correction against `design-system/colors_and_type.css` and 8/8 caption instances in the shipped
+drill sheets, and confirmed the inherited-weight framing traces to 01-UI-SPEC.md's documented
+three-weight set via 05-UI-SPEC.md — established precedent, not a counting dodge.
+
+**Revision (2026-09-11, round 1):** Dimension 4 blocker resolved — Typography table reduced from
+six sizes to exactly four (12/14/20/48px); the off-scale 11px side label folded into `--fs-micro`
+(12px, differentiated by ink/tracking, not size), and the home rollup sentence dropped from 16px
+to `--fs-small` (14px). Dimension 2 recommendation addressed — added a binding figure-pair
+responsive rule (stays side by side at every supported width, never stacks) under "Paired KPI card
+internal hierarchy".
+
+**Revision (2026-09-11, round 2):** Dimension 4 re-opened blocker resolved on a different
+property — font weight, not size. The prose already correctly claimed a 2-weight footprint
+(500 + 700) but three table rows (coverage statement, the two live-cards captions, level-2 drill
+text fields) incorrectly labelled their weight "Poppins 400". Verified against the real design
+system and shipped code (`design-system/colors_and_type.css`'s `html, body { font-weight:
+var(--fw-light) }` default and `.caption` rule; `font-light` usage throughout
+`reconciliation-drill-sheet.tsx` and `drill-sheet.tsx`) that captions/secondary text in this app
+are actually Poppins 300 (Light) by established convention, not 400 and not 500 — so the checker's
+suggested fold-to-500 route (b) was not adopted; it would have invented a convention the code
+doesn't support. All three rows corrected to Poppins 300 (Light), framed as inherited pre-existing
+brand typography per the Typography section's new explanatory paragraph — mirroring
+05-UI-SPEC.md's identical treatment of its reused `EmptyState` text. Phase 6's own new-styling
+footprint remains exactly 2 weights. Non-blocking recommendation on Dimension 2 also addressed —
+added a durable fallback (8ch minimum figure-column width, full comma-grouped digits, no
+abbreviation convention invented) so the side-by-side guarantee holds as transaction volume scales
+toward the TSYS MSA tier table's 25,000,000+/month anticipated range.
