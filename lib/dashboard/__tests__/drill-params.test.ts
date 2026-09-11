@@ -94,6 +94,42 @@ describe("parseDrillParams", () => {
     const result = parseDrillParams({ drill: ["verification", "sla-breach"] });
     expect(result).toEqual({ drill: "verification" });
   });
+
+  it("accepts each of the four new alignment drill entities (Phase 6, ALIGN-04/ALIGN-07)", () => {
+    expect(parseDrillParams({ drill: "alignment-enrolled" })).toEqual({
+      drill: "alignment-enrolled",
+    });
+    expect(parseDrillParams({ drill: "alignment-unenrolled" })).toEqual({
+      drill: "alignment-unenrolled",
+    });
+    expect(parseDrillParams({ drill: "alignment-live-cards" })).toEqual({
+      drill: "alignment-live-cards",
+    });
+    expect(parseDrillParams({ drill: "alignment-volume" })).toEqual({
+      drill: "alignment-volume",
+    });
+  });
+
+  it("parses drill=alignment-volume&date=2026-08-14 into a typed filter (level-two day)", () => {
+    const result = parseDrillParams({ drill: "alignment-volume", date: "2026-08-14" });
+    expect(result).toEqual({ drill: "alignment-volume", date: "2026-08-14" });
+  });
+
+  it("still rejects a calendar-invalid date (month 13) for a new alignment entity", () => {
+    const result = parseDrillParams({ drill: "alignment-live-cards", date: "2026-13-99" });
+    expect(result).toEqual({ drill: "alignment-live-cards" });
+    expect(result).not.toHaveProperty("date");
+  });
+
+  it("drops unknown filter keys for a new alignment entity — only whitelisted keys survive", () => {
+    const result = parseDrillParams({
+      drill: "alignment-enrolled",
+      date: "2026-08-14",
+      injected: "'; DROP TABLE apigee_calls; --",
+    });
+    expect(result).toEqual({ drill: "alignment-enrolled", date: "2026-08-14" });
+    expect(result).not.toHaveProperty("injected");
+  });
 });
 
 describe("serializeDrillParams", () => {
@@ -131,5 +167,22 @@ describe("serializeDrillParams", () => {
       tierOrder: "1",
     });
     expect(parseDrillParams(serialized)).toEqual(filter);
+  });
+
+  it("round-trips each of the four new alignment drill entities, with and without a level-two date", () => {
+    const entities = [
+      "alignment-enrolled",
+      "alignment-unenrolled",
+      "alignment-live-cards",
+      "alignment-volume",
+    ] as const;
+
+    for (const drill of entities) {
+      const levelOne: DrillFilter = { drill };
+      expect(parseDrillParams(serializeDrillParams(levelOne))).toEqual(levelOne);
+
+      const levelTwo: DrillFilter = { drill, date: "2026-08-14" };
+      expect(parseDrillParams(serializeDrillParams(levelTwo))).toEqual(levelTwo);
+    }
   });
 });

@@ -15,7 +15,11 @@ export type DrillEntity =
   | "revenue-tier"
   | "sla-breach"
   | "recon-billing"
-  | "recon-inventory";
+  | "recon-inventory"
+  | "alignment-enrolled"
+  | "alignment-unenrolled"
+  | "alignment-live-cards"
+  | "alignment-volume";
 
 export interface DrillFilter {
   drill: DrillEntity;
@@ -30,6 +34,10 @@ const DRILL_ENTITIES: readonly DrillEntity[] = [
   "sla-breach",
   "recon-billing",
   "recon-inventory",
+  "alignment-enrolled",
+  "alignment-unenrolled",
+  "alignment-live-cards",
+  "alignment-volume",
 ];
 
 type RawSearchParams = Record<string, string | string[] | undefined>;
