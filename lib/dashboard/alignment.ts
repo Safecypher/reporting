@@ -1,6 +1,7 @@
 import type { createClient } from "@/lib/supabase/server";
 import type { ResolvedPeriod } from "@/lib/dashboard/period";
 import type { AlignmentShortSide, AlignmentStatus } from "@/lib/dashboard/alignment-status";
+import { DRILL_ROW_LIMIT } from "@/lib/dashboard/reconciliation-drill";
 
 /**
  * Server-side period-scoped fetchers for the `alignment_totals_for_period` /
@@ -213,4 +214,53 @@ export async function fetchAlignmentLiveCards(
 
   const rows = (data ?? []) as unknown as AlignmentLiveCardsRow[];
   return { data: rows[0] ?? EMPTY_LIVE_CARDS, error: null };
+}
+
+/**
+ * The two directions `alignment_inventory_diff_rows`
+ * (supabase/migrations/0032_alignment_inventory_diff_rows.sql) accepts.
+ * Typed as a union of exactly these two literals so no other value is
+ * expressible at the call site (T-06G-15) — the function's own internal
+ * `CASE` whitelist (returning zero rows for anything else) is the second
+ * layer, not the first.
+ */
+export type AlignmentInventoryDiffDirection = "enrolled" | "unenrolled";
+
+export interface AlignmentInventoryDiffRow {
+  external_card_reference: string;
+  report_date: string;
+  created_at: string;
+  file_name: string;
+}
+
+export type AlignmentInventoryDiffRowsResult =
+  | { data: AlignmentInventoryDiffRow[]; error: null }
+  | { data: null; error: string };
+
+/**
+ * The real day-over-day card_inventory set difference behind
+ * `v_inventory_daily_diff.enrolled_count`/`unenrolled_count` (WR-04,
+ * ALIGN-04) — replaces the level-2 drill's prior raw `card_inventory`
+ * whole-snapshot read (`enrolled`) and independently-sourced `removed_cards`
+ * read (`unenrolled`). `.limit(DRILL_ROW_LIMIT)` preserves the same level-2
+ * row cap every other contributing-rows fetch already applies.
+ */
+export async function fetchAlignmentInventoryDiffRows(
+  supabase: Awaited<ReturnType<typeof createClient>>,
+  day: string,
+  direction: AlignmentInventoryDiffDirection,
+): Promise<AlignmentInventoryDiffRowsResult> {
+  // Same untyped-RPC convention as every other fetcher in this file: `as
+  // unknown` first, never a narrowing cast straight to the row type.
+  const { data, error } = await supabase
+    .rpc("alignment_inventory_diff_rows", { p_day: day, p_direction: direction })
+    .limit(DRILL_ROW_LIMIT);
+
+  if (error) {
+    console.error("fetchAlignmentInventoryDiffRows: RPC failed", { day, direction, error });
+    return { data: null, error: error.message };
+  }
+
+  const rows = (data ?? []) as unknown as AlignmentInventoryDiffRow[];
+  return { data: rows, error: null };
 }

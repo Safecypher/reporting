@@ -1,6 +1,11 @@
 import type { createClient } from "@/lib/supabase/server";
 import { DATA_WINDOW_START, DRILL_ROW_LIMIT } from "@/lib/dashboard/reconciliation-drill";
-import { fetchAlignmentDaily, type AlignmentMetric, type FlowAlignmentMetric } from "@/lib/dashboard/alignment";
+import {
+  fetchAlignmentDaily,
+  fetchAlignmentInventoryDiffRows,
+  type AlignmentMetric,
+  type FlowAlignmentMetric,
+} from "@/lib/dashboard/alignment";
 import type { DrillEntity } from "@/lib/dashboard/drill-params";
 import type { ResolvedPeriod } from "@/lib/dashboard/period";
 import {
@@ -370,35 +375,116 @@ interface CardInventoryContributingRawRow {
   ingested_files: { file_name: string } | null;
 }
 
-interface RemovedCardContributingRawRow {
-  removed_at: string;
-  external_card_reference: string;
-  ingested_files: { file_name: string } | null;
-}
-
 interface VerificationContributingRawRow {
   created_at: string;
   external_card_reference: string;
   ingested_files: { file_name: string } | null;
 }
 
+/** One side's resolved contributing rows plus its own error, so the two
+ * sides (fetched in parallel below) can be combined uniformly regardless of
+ * whether they came from a direct table query or the set-difference RPC. */
+interface BitAddictContributingSideResult {
+  rows: AlignmentBitAddictContributingRow[];
+  error: string | null;
+}
+
+/**
+ * The Bit Addict side of `fetchAlignmentContributingRows`, below. `enrolled`
+ * and `unenrolled` call `fetchAlignmentInventoryDiffRows` (0032, WR-04) so
+ * the drill returns exactly the day-over-day set difference the aggregate
+ * figure counts — never the raw table read. `live-cards`'s figure IS the
+ * whole snapshot's distinct card count (a stock metric, L-02, not a
+ * day-over-day flow), so the full `report_date` snapshot from `card_inventory`
+ * remains the correct contributing rowset for it — left unchanged
+ * deliberately; do not "fix" this into a set difference by analogy with
+ * enrolled/unenrolled. `volume` reads `verifications`, unchanged.
+ */
+async function fetchBitAddictContributingRows(
+  supabase: Awaited<ReturnType<typeof createClient>>,
+  metric: AlignmentMetric,
+  day: string,
+  dayStart: string,
+  dayEnd: string,
+): Promise<BitAddictContributingSideResult> {
+  if (metric === "enrolled" || metric === "unenrolled") {
+    const result = await fetchAlignmentInventoryDiffRows(supabase, day, metric);
+    if (result.error !== null) {
+      return { rows: [], error: result.error };
+    }
+    return {
+      rows: result.data.map((row) => ({
+        eventTime: row.created_at,
+        externalCardReference: row.external_card_reference,
+        fileName: row.file_name,
+      })),
+      error: null,
+    };
+  }
+
+  if (metric === "live-cards") {
+    const { data, error } = await supabase
+      .from("card_inventory")
+      .select("created_at, external_card_reference, ingested_files(file_name)")
+      .eq("report_date", day)
+      .order("external_card_reference", { ascending: true })
+      .limit(DRILL_ROW_LIMIT)
+      .returns<CardInventoryContributingRawRow[]>();
+
+    if (error) {
+      return { rows: [], error: error.message };
+    }
+    return {
+      rows: (data ?? []).map((row) => ({
+        eventTime: row.created_at,
+        externalCardReference: row.external_card_reference,
+        fileName: row.ingested_files?.file_name ?? null,
+      })),
+      error: null,
+    };
+  }
+
+  const { data, error } = await supabase
+    .from("verifications")
+    .select("created_at, external_card_reference, ingested_files(file_name)")
+    .gte("created_at", dayStart)
+    .lt("created_at", dayEnd)
+    .order("created_at", { ascending: false })
+    .limit(DRILL_ROW_LIMIT)
+    .returns<VerificationContributingRawRow[]>();
+
+  if (error) {
+    return { rows: [], error: error.message };
+  }
+  return {
+    rows: (data ?? []).map((row) => ({
+      eventTime: row.created_at,
+      externalCardReference: row.external_card_reference,
+      fileName: row.ingested_files?.file_name ?? null,
+    })),
+    error: null,
+  };
+}
+
 /**
  * Server-fetches the two sides' rows contributing to one UTC day's
  * alignment comparison for `metric` — TSYS rows from `apigee_calls` filtered
- * to the metric's `endpoint_category`, and Bit Addict rows from whichever
- * table matches the metric (`card_inventory` for enrolled/live-cards,
- * `removed_cards` for unenrolled, `verifications` for volume). `day` must
+ * to the metric's `endpoint_category`, and Bit Addict rows sourced per
+ * `fetchBitAddictContributingRows` above: the set difference
+ * `alignment_inventory_diff_rows` RPC for `enrolled`/`unenrolled` (0032,
+ * WR-04 — the day-over-day rows the aggregate actually counts, never a
+ * whole-snapshot read or the independently-sourced removed-cards log),
+ * `card_inventory`'s full snapshot for `live-cards` (a stock metric, L-02,
+ * unchanged), and `verifications` for `volume` (unchanged). `day` must
  * already be a validated `YYYY-MM-DD` string (from `parseDrillParams`) —
  * this function only ever builds `.gte()`/`.lt()`/`.eq()` day-range filters
- * from it, never a string-interpolated query fragment (T-06-25).
+ * or passes it as a whitelisted RPC argument, never a string-interpolated
+ * query fragment (T-06-25/T-06G-15).
  *
- * Each select embeds `ingested_files(file_name)` through the existing
- * `source_file_id` foreign key (PostgREST resource embedding) so every row
- * carries its originating file NAME — the new capability this plan adds.
- * The two sides are fetched in PARALLEL and returned EXPLICITLY SEPARATED
- * (Pitfall 5) — never merged into one flat list. A day whose rows span more
- * than one uploaded file is handled by the caller grouping by distinct
- * `fileName` (RESEARCH.md "Two-level drill + source-file caption").
+ * Each select (or the RPC) carries its originating file NAME, so the caller
+ * can still render one `From {file_name}` caption per distinct file. The two
+ * sides are fetched in PARALLEL and returned EXPLICITLY SEPARATED (Pitfall
+ * 5) — never merged into one flat list.
  */
 export async function fetchAlignmentContributingRows(
   supabase: Awaited<ReturnType<typeof createClient>>,
@@ -421,34 +507,10 @@ export async function fetchAlignmentContributingRows(
     .limit(DRILL_ROW_LIMIT)
     .returns<ApigeeContributingRawRow[]>();
 
-  const bitAddictQuery =
-    metric === "enrolled" || metric === "live-cards"
-      ? supabase
-          .from("card_inventory")
-          .select("created_at, external_card_reference, ingested_files(file_name)")
-          .eq("report_date", day)
-          .order("external_card_reference", { ascending: true })
-          .limit(DRILL_ROW_LIMIT)
-          .returns<CardInventoryContributingRawRow[]>()
-      : metric === "unenrolled"
-        ? supabase
-            .from("removed_cards")
-            .select("removed_at, external_card_reference, ingested_files(file_name)")
-            .gte("removed_at", dayStart)
-            .lt("removed_at", dayEnd)
-            .order("removed_at", { ascending: false })
-            .limit(DRILL_ROW_LIMIT)
-            .returns<RemovedCardContributingRawRow[]>()
-        : supabase
-            .from("verifications")
-            .select("created_at, external_card_reference, ingested_files(file_name)")
-            .gte("created_at", dayStart)
-            .lt("created_at", dayEnd)
-            .order("created_at", { ascending: false })
-            .limit(DRILL_ROW_LIMIT)
-            .returns<VerificationContributingRawRow[]>();
-
-  const [tsysResult, bitAddictResult] = await Promise.all([tsysQuery, bitAddictQuery]);
+  const [tsysResult, bitAddictResult] = await Promise.all([
+    tsysQuery,
+    fetchBitAddictContributingRows(supabase, metric, day, dayStart, dayEnd),
+  ]);
 
   if (tsysResult.error || bitAddictResult.error) {
     console.error("fetchAlignmentContributingRows: query failed", {
@@ -460,7 +522,7 @@ export async function fetchAlignmentContributingRows(
     return {
       tsysRows: [],
       bitAddictRows: [],
-      error: (tsysResult.error ?? bitAddictResult.error)!.message,
+      error: (tsysResult.error?.message ?? bitAddictResult.error)!,
     };
   }
 
@@ -471,22 +533,5 @@ export async function fetchAlignmentContributingRows(
     fileName: row.ingested_files?.file_name ?? null,
   }));
 
-  const bitAddictRows: AlignmentBitAddictContributingRow[] = (bitAddictResult.data ?? []).map(
-    (row: CardInventoryContributingRawRow | RemovedCardContributingRawRow | VerificationContributingRawRow) => {
-      if ("removed_at" in row) {
-        return {
-          eventTime: row.removed_at,
-          externalCardReference: row.external_card_reference,
-          fileName: row.ingested_files?.file_name ?? null,
-        };
-      }
-      return {
-        eventTime: row.created_at,
-        externalCardReference: row.external_card_reference,
-        fileName: row.ingested_files?.file_name ?? null,
-      };
-    },
-  );
-
-  return { tsysRows, bitAddictRows, error: null };
+  return { tsysRows, bitAddictRows: bitAddictResult.rows, error: null };
 }

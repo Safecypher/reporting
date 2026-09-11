@@ -92,6 +92,20 @@ interface AlignmentDrillSheetProps {
   loading?: boolean;
 }
 
+/**
+ * The level-2 Bit Addict basis caption (WR-04/ALIGN-04, UI-SPEC E4/SC4):
+ * names what the sub-table's rows actually are for the two metrics where the
+ * rowset is a derived day-over-day set difference rather than a raw table
+ * read. Omitted for `live-cards`/`volume`, whose Bit Addict rows are a plain
+ * snapshot/day read and need no such explanation.
+ */
+const BIT_ADDICT_BASIS_CAPTION: Partial<Record<AlignmentMetric, string>> = {
+  enrolled:
+    "These are the cards in this day's inventory snapshot that were not in the previous day's.",
+  unenrolled:
+    "These are the cards in the previous day's snapshot that are no longer in this day's.",
+};
+
 function SourceFileCaption({ fileName }: { fileName: string }) {
   const label = `From ${fileName}`;
   return (
@@ -213,11 +227,13 @@ function LevelOneBody({
 /** Level two: the day's two labelled contributing-row sub-tables, each
  * captioned with its originating source file(s) (UI-SPEC E4/D-19/SC4). */
 function LevelTwoBody({
+  metric,
   metricLabel,
   contributingRows,
   onBack,
   loading,
 }: {
+  metric: AlignmentMetric | null;
   metricLabel: string;
   contributingRows: ContributingRowsResult;
   onBack: () => void;
@@ -313,6 +329,11 @@ function LevelTwoBody({
 
           <div className="flex flex-col gap-2">
             <h3 className="text-sm font-medium text-foreground">Bit Addict rows</h3>
+            {metric !== null && BIT_ADDICT_BASIS_CAPTION[metric] && (
+              <p className="text-xs font-light text-muted-foreground">
+                {BIT_ADDICT_BASIS_CAPTION[metric]}
+              </p>
+            )}
             {bitAddictFileNames.map((fileName) => (
               <SourceFileCaption key={fileName} fileName={fileName} />
             ))}
@@ -403,6 +424,7 @@ export function AlignmentDrillSheet({
         <div className="flex-1 overflow-y-auto px-4 pb-4">
           {metric === null ? null : isLevelTwo ? (
             <LevelTwoBody
+              metric={metric}
               metricLabel={metricLabel}
               contributingRows={contributingRows}
               onBack={() => openDrill({ drill: filter!.drill })}
