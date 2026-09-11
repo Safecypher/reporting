@@ -550,6 +550,7 @@ export type Database = {
         Row: {
           bit_addict_count: number | null
           bit_addict_covered: boolean | null
+          counterpart_max_day: string | null
           coverage_complete: boolean | null
           day: string | null
           metric: string | null
@@ -557,17 +558,20 @@ export type Database = {
           short_side: string | null
           tsys_count: number | null
           tsys_covered: boolean | null
+          tsys_max_day: string | null
         }
         Relationships: []
       }
       v_alignment_live_cards_daily: {
         Row: {
           bit_addict_live_cards: number | null
+          bit_addict_max_day: string | null
           bit_addict_snapshot_day: string | null
           coverage_complete_to_date: boolean | null
           day: string | null
           enrol_count: number | null
           tsys_cumulative_net: number | null
+          tsys_max_day: string | null
           unenrol_count: number | null
         }
         Relationships: []
@@ -765,6 +769,14 @@ export type Database = {
         Args: { n: number; start_date: string }
         Returns: string
       }
+      alignment_counterpart_max_day: {
+        Args: {
+          p_max_inventory_day: string
+          p_max_verification_day: string
+          p_metric: string
+        }
+        Returns: string
+      }
       alignment_daily_for_period: {
         Args: {
           p_end: string
@@ -785,6 +797,15 @@ export type Database = {
           tsys_covered: boolean
         }[]
       }
+      alignment_inventory_diff_rows: {
+        Args: { p_day: string; p_direction: string }
+        Returns: {
+          created_at: string
+          external_card_reference: string
+          file_name: string
+          report_date: string
+        }[]
+      }
       alignment_live_cards_for_period: {
         Args: {
           p_baseline_offset: number
@@ -802,8 +823,17 @@ export type Database = {
           settled: boolean
           short_side: string
           status: string
+          tsys_coverage_complete: boolean
           tsys_live_cards: number
         }[]
+      }
+      alignment_settled: {
+        Args: {
+          p_day: string
+          p_max_counterpart_day: string
+          p_max_tsys_day: string
+        }
+        Returns: boolean
       }
       alignment_status: {
         Args: {
