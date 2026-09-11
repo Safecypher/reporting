@@ -4,6 +4,7 @@ import {
   addBusinessDaysUtc,
   alignmentCounterpartMaxDay,
   computeAlignmentSettled,
+  computeLiveCardsCoverageFigures,
 } from "../alignment-status";
 
 /**
@@ -72,5 +73,38 @@ describe("addBusinessDaysUtc", () => {
 
   it("a Saturday start plus one business day lands on the following Monday", () => {
     expect(addBusinessDaysUtc("2026-08-15", 1)).toBe("2026-08-17");
+  });
+});
+
+/**
+ * CR-02/ALIGN-02 live-cards coverage-figure cases: the TSYS-only running
+ * guard and the Bit Addict snapshot presence are two independent signals,
+ * and the RPC's combined `coverage_complete` must never stand in for either
+ * side's own figure — the misattribution the card's original code (using
+ * `coverage_complete` for `tsysCoveredDays`) committed.
+ */
+describe("computeLiveCardsCoverageFigures", () => {
+  it("reports TSYS covered and Bit Addict uncovered when TSYS is complete but Bit Addict has no snapshot (the CR-02 case)", () => {
+    expect(computeLiveCardsCoverageFigures(true, null)).toEqual({
+      tsysCoveredDays: 1,
+      bitAddictCoveredDays: 0,
+      totalDays: 1,
+    });
+  });
+
+  it("reports TSYS uncovered and Bit Addict covered when TSYS is incomplete but Bit Addict has a snapshot", () => {
+    expect(computeLiveCardsCoverageFigures(false, "2026-09-08")).toEqual({
+      tsysCoveredDays: 0,
+      bitAddictCoveredDays: 1,
+      totalDays: 1,
+    });
+  });
+
+  it("reports both sides covered when both signals are true", () => {
+    expect(computeLiveCardsCoverageFigures(true, "2026-09-08")).toEqual({
+      tsysCoveredDays: 1,
+      bitAddictCoveredDays: 1,
+      totalDays: 1,
+    });
   });
 });

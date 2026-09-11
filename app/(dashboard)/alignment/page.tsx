@@ -23,6 +23,7 @@ import {
   type FlowAlignmentMetric,
 } from "@/lib/dashboard/alignment";
 import {
+  computeLiveCardsCoverageFigures,
   formatLiveCardsDerivationCaption,
   formatLiveCardsStatusMeaningCaption,
 } from "@/lib/dashboard/alignment-status";
@@ -434,14 +435,20 @@ async function AlignmentBody({ searchParams }: { searchParams: PageSearchParams 
               tsysCount: Math.round(liveCardsResult.data.tsys_live_cards),
               bitAddictCount: liveCardsResult.data.bit_addict_live_cards,
               status: liveCardsResult.data.status,
-              // Live cards' coverage is a whole-window boolean guard (Task
-              // 1's running bool_and, RESEARCH Pitfall 2), not a per-day
-              // count like the flow metrics — expressed here as a 1-of-1 /
-              // 0-of-1 pair so the shared coverage-statement formatter still
+              // CR-02: the TSYS-only running coverage guard
+              // (tsys_coverage_complete) and the Bit Addict snapshot
+              // presence are two independent signals. The RPC's combined
+              // coverage_complete is the AND of both and can never serve as
+              // either side's own figure — using it for tsysCoveredDays
+              // would report TSYS as uncovered whenever Bit Addict is the
+              // side actually missing data. computeLiveCardsCoverageFigures
+              // expresses the whole-window boolean pair as a 1-of-1/0-of-1
+              // day count so the shared coverage-statement formatter still
               // renders the D-12 "incomplete coverage" clause correctly.
-              tsysCoveredDays: liveCardsResult.data.coverage_complete ? 1 : 0,
-              bitAddictCoveredDays: liveCardsResult.data.bit_addict_snapshot_day !== null ? 1 : 0,
-              totalDays: 1,
+              ...computeLiveCardsCoverageFigures(
+                liveCardsResult.data.tsys_coverage_complete,
+                liveCardsResult.data.bit_addict_snapshot_day,
+              ),
             }}
             tsysCaption={formatLiveCardsDerivationCaption(
               settings.baselineOffset,

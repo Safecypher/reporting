@@ -4,6 +4,7 @@ import { fetchAlignmentDaily, type AlignmentMetric, type FlowAlignmentMetric } f
 import type { DrillEntity } from "@/lib/dashboard/drill-params";
 import type { ResolvedPeriod } from "@/lib/dashboard/period";
 import {
+  computeAlignmentSettled,
   computeAlignmentShortSide,
   computeAlignmentStatus,
   type AlignmentShortSide,
@@ -98,31 +99,6 @@ export interface AlignmentDayBreakdownResult {
   error: string | null;
 }
 
-/**
- * Mirrors `alignment_status`'s (0027/0028) `add_business_days(date, int)` BY
- * HAND — the same discipline `lib/dashboard/alignment-status.ts` already
- * applies to the SQL truth table itself (0019's documented convention: if
- * either side changes, re-check the other). `add_business_days` IS exposed
- * as an authenticated RPC (0027's grant), but calling it once per rendered
- * day (up to `ALIGNMENT_DRILL_DAY_CAP`) would cost that many additional
- * round trips for a value this cheap to compute locally. Pure string/date
- * arithmetic only — no network/DOM/clock access.
- */
-function addBusinessDaysLocal(day: string, n: number): string {
-  let cursor = new Date(`${day}T00:00:00Z`);
-  let remaining = n;
-  while (remaining > 0) {
-    cursor = new Date(cursor.getTime() + 24 * 60 * 60 * 1000);
-    // getUTCDay(): 0=Sunday...6=Saturday. isodow-equivalent weekday check:
-    // Saturday (6) and Sunday (0) do not consume a business day.
-    const dow = cursor.getUTCDay();
-    if (dow !== 0 && dow !== 6) {
-      remaining -= 1;
-    }
-  }
-  return cursor.toISOString().slice(0, 10);
-}
-
 async function fetchFlowDayBreakdown(
   supabase: Awaited<ReturnType<typeof createClient>>,
   metric: FlowAlignmentMetric,
@@ -162,6 +138,15 @@ interface AlignmentLiveCardsDailyViewRow {
   coverage_complete_to_date: boolean;
 }
 
+/** The bounds row's two independent per-side maxima (0031) — both constant
+ * across every row of `v_alignment_live_cards_daily`, so one row still
+ * answers the question. */
+interface AlignmentLiveCardsBoundsRow {
+  day: string;
+  tsys_max_day: string | null;
+  bit_addict_max_day: string | null;
+}
+
 /**
  * Live cards (D-06/D-07) is a cumulative running total, not a per-day flow
  * count, so its day breakdown is built directly over `v_alignment_live_cards_daily`
@@ -171,6 +156,14 @@ interface AlignmentLiveCardsDailyViewRow {
  * `computeAlignmentStatus` are the gap immediately BEFORE this day and the
  * gap AT this day, never the raw TSYS/Bit-Addict levels — a permanent
  * pre-window offset must never read as a mismatch on its own, day after day.
+ *
+ * Settling now also mirrors `alignment_live_cards_for_period`'s (0031)
+ * per-side settling: the bounds query selects `tsys_max_day` and
+ * `bit_addict_max_day` independently (rather than one combined `day`
+ * maximum), and each row's `settled` is decided by `computeAlignmentSettled`
+ * — the exported hand-mirror of SQL `alignment_settled` — so a cadence
+ * divergence between the two sources can never let the fresher one alone
+ * settle a day whose true counterpart hasn't caught up (CR-01/WR-01).
  */
 async function fetchLiveCardsDayBreakdown(
   supabase: Awaited<ReturnType<typeof createClient>>,
@@ -201,10 +194,10 @@ async function fetchLiveCardsDayBreakdown(
     windowQuery.returns<AlignmentLiveCardsDailyViewRow[]>(),
     supabase
       .from("v_alignment_live_cards_daily")
-      .select("day")
+      .select("day, tsys_max_day, bit_addict_max_day")
       .order("day", { ascending: false })
       .limit(1)
-      .returns<{ day: string }[]>()
+      .returns<AlignmentLiveCardsBoundsRow[]>()
       .maybeSingle(),
   ]);
 
@@ -218,7 +211,8 @@ async function fetchLiveCardsDayBreakdown(
   const ascRows = rowCap !== null ? [...fetchedRows].reverse() : fetchedRows;
   const totalInPeriod = windowResult.count ?? ascRows.length;
   const hasMoreDays = rowCap !== null && totalInPeriod > ascRows.length;
-  const maxDay = boundsResult.data?.day ?? null;
+  const tsysMaxDay = boundsResult.data?.tsys_max_day ?? null;
+  const bitAddictMaxDay = boundsResult.data?.bit_addict_max_day ?? null;
 
   if (ascRows.length === 0) {
     return { rows: [], hasMoreDays: false, error: null };
@@ -255,7 +249,7 @@ async function fetchLiveCardsDayBreakdown(
     const bitAddictCount = row.bit_addict_live_cards;
     const gap = tsysCount - bitAddictCount;
     const coverageComplete = row.coverage_complete_to_date && row.bit_addict_snapshot_day !== null;
-    const settled = maxDay !== null && maxDay >= addBusinessDaysLocal(row.day, 3);
+    const settled = computeAlignmentSettled(row.day, tsysMaxDay, bitAddictMaxDay);
     const status = computeAlignmentStatus(
       Math.round(previousGap),
       Math.round(gap),

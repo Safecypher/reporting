@@ -142,6 +142,30 @@ export function alignmentCounterpartMaxDay(
   return metric === "volume" ? maxVerificationDay : maxInventoryDay;
 }
 
+/**
+ * Live-cards paired coverage figures (CR-02, ALIGN-02). The live-cards card's
+ * coverage is a whole-window boolean pair, not a per-day count like the flow
+ * metrics — this expresses it as a 1-of-1/0-of-1 pair so the shared
+ * `formatCoverageStatement`/`PairedMetricCard` machinery still renders
+ * correctly. `tsysCoveredDays` MUST read the TSYS-only running guard
+ * (`tsysCoverageComplete`), never the RPC's combined `coverage_complete` —
+ * that combined flag is the AND of both sides and can never serve as either
+ * side's own figure on its own (the exact misattribution CR-02 fixes: a card
+ * with a fully-covered TSYS side and no Bit Addict snapshot must read "TSYS 1
+ * of 1", never "TSYS 0 of 1"). `bitAddictCoveredDays` is derived from its own
+ * independent signal, snapshot presence.
+ */
+export function computeLiveCardsCoverageFigures(
+  tsysCoverageComplete: boolean,
+  bitAddictSnapshotDay: string | null,
+): { tsysCoveredDays: number; bitAddictCoveredDays: number; totalDays: number } {
+  return {
+    tsysCoveredDays: tsysCoverageComplete ? 1 : 0,
+    bitAddictCoveredDays: bitAddictSnapshotDay !== null ? 1 : 0,
+    totalDays: 1,
+  };
+}
+
 /** Which side is short (lower count) when the two disagree, else null. */
 export function computeAlignmentShortSide(
   tsysCount: number,

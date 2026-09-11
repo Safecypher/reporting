@@ -164,6 +164,10 @@ export interface AlignmentLiveCardsRow {
   settled: boolean;
   short_side: AlignmentShortSide;
   status: AlignmentStatus;
+  /** The TSYS-only running coverage guard, separable from the combined
+   * `coverage_complete` (CR-02, ALIGN-02, migration 0031). Use this — never
+   * `coverage_complete` — as the TSYS side's own coverage figure. */
+  tsys_coverage_complete: boolean;
 }
 
 /** A period with no observed live-cards data at all — the RPC still returns
@@ -182,6 +186,7 @@ const EMPTY_LIVE_CARDS: AlignmentLiveCardsRow = {
   settled: false,
   short_side: null,
   status: "needs_review",
+  tsys_coverage_complete: false,
 };
 
 export type AlignmentLiveCardsResult =
