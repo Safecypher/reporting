@@ -4,11 +4,11 @@ milestone: v1.0
 current_phase: 06
 current_phase_name: "Dual-Source Alignment: TSYS vs Bit Addict"
 status: executing
-stopped_at: "Halted mid-plan: Phase 06-01 Task 1 complete, Task 2 blocked on missing Supabase MCP tool access"
-last_updated: "2026-09-11T11:34:19.137Z"
+stopped_at: Completed 06-01-PLAN.md (Tasks 2/3 resumed and verified live)
+last_updated: "2026-09-11T11:53:36.846Z"
 last_activity: 2026-09-11
 last_activity_desc: Phase 06 execution started
-state_head: 3c0b12e42eef4ae610cf40545b6bbfad3cd8b9cc
+state_head: 1eab98a20f405833a146cb49919def131dac8fdc
 progress:
   total_phases: 7
   completed_phases: 2
@@ -29,8 +29,8 @@ See: .planning/PROJECT.md (updated 2026-08-18)
 ## Current Position
 
 Phase: 06 (Dual-Source Alignment: TSYS vs Bit Addict) — EXECUTING
-Plan: 1 of 6
-Status: Executing Phase 06
+Plan: 2 of 6
+Status: Ready to execute
 Last activity: 2026-09-11 — Phase 06 execution started
 
 Progress: [░░░░░░░░░░] 0%
@@ -71,6 +71,7 @@ Progress: [░░░░░░░░░░] 0%
 | Phase 05 P07 | 68min | 3 tasks | 7 files |
 | Phase 05 P08 | 1h 20m | 3 tasks | 3 files |
 | Phase 05 P09 | ~30min | 3 tasks | 6 files |
+| Phase 06 P01 | unspecified (spans halt/resume) | 3 tasks | 12 files |
 
 ## Accumulated Context
 
@@ -107,6 +108,7 @@ Recent decisions affecting current work:
 - [Phase 05]: [Phase 05] G-05-CR01/CR-01 closed (plan 05-09): resolveEditImpact now detects a genuine pricing-authority displacement in BOTH crossing directions — the code review's own one-line filter sketch (`effectiveFrom <= proposed && effectiveFrom > current`) is empty for every backdate and was not used as written; the actual predicate nulls out a candidate only when the edited set already governed the proposed day before the move (`proposed >= current` AND `candidate <= current`)
 - [Phase 05]: [Phase 05] Deleted a passing test (`lib/pricing/__tests__/restate-scope.test.ts`, "never returns null and never returns a non-null supersedes for an edit") because its title enshrined a universal ("an edit never displaces") that plan 05-09 proves false — its fixture happened not to trigger the new displacement logic, so it would still pass, but leaving it would invite a future reader to "restore the invariant" and reintroduce the CR-01 blocker
 - [Phase 05]: [Phase 05] The Task 1/Task 2 `<human-check>` scripts in plan 05-09 (visual confirmation of the edit-supersede dialog's copy/tone and the live inline notice) were deferred to the phase's end-of-phase UAT pass rather than triggering a mid-flight tracer-feedback checkpoint — consistent with `workflow.human_verify_mode: end-of-phase` (the project default, not overridden in config.json) and the plan's own `<verification>` section, which explicitly states these are human-checks deferred to phase UAT because this repo has no jsdom/React Testing Library
+- [Phase 06]: Phase 6 Plan 01 complete: alignment tracer proven live, including an unplanned 0022 prerequisite fix — 0028 depends on v_verification_coverage_daily from 0022, which was committed in Phase 5 but never applied live; applying it first fixed /reconciliation's no_source_data handling in production as a side effect
 
 ### Pending Todos
 
@@ -120,9 +122,7 @@ Carried from research (resolve during phase planning):
 
 - [Phase 2] De-dup composite key for verification/dCVV is a business decision — confirm with Joachim whether two same-second verifications of one card are possible; retain raw staging so the key is re-tunable.
 - [Phase 2] Source timezone per report type must be established (not guessed) before finalising UTC normalisation — confirm with Joachim/Chris; store raw timestamp strings.
-- [Phase 3] MSA pricing tiers not yet received (Richard) — use configurable placeholder tiers; validate bracket contiguity/ordering.
 - [Phase 4] 6am/8am billing/others delivery offset — design reconciliation to tolerate the offset regardless of Joachim's alignment effort; event-timestamp + settling window.
-- [Phase 6, Plan 01] Task 2 (apply migrations 0027/0028 live + regenerate types/db.ts) blocked: no Supabase MCP tool available in this executor session (project-scoped .mcp.json server not inherited by spawned executor) and no CLI/DATABASE_URL fallback exists in this project. Resume Plan 06-01 from an environment where Supabase MCP tools are callable (e.g. the orchestrating session) to run Task 2 then Task 3.
 
 ### Quick Tasks Completed
 
@@ -145,6 +145,6 @@ Items acknowledged and carried forward from previous milestone close:
 
 ## Session Continuity
 
-Last session: 2026-09-11T11:34:18.984Z
-Stopped at: Halted mid-plan: Phase 06-01 Task 1 complete, Task 2 blocked on missing Supabase MCP tool access
-Resume file: .planning/phases/06-dual-source-alignment-tsys-vs-bit-addict/06-01-SUMMARY.md
+Last session: 2026-09-11T11:52:56.312Z
+Stopped at: Completed 06-01-PLAN.md (Tasks 2/3 resumed and verified live)
+Resume file: None
