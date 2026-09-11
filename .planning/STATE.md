@@ -4,16 +4,16 @@ milestone: v1.0
 current_phase: 06
 current_phase_name: "Dual-Source Alignment: TSYS vs Bit Addict"
 status: executing
-stopped_at: Completed 06-07-PLAN.md (migration 0031 written, not yet applied live; both SQL oracles extended, not yet run live — see 06-09)
-last_updated: "2026-09-11T15:55:45.895Z"
+stopped_at: Completed 06-08-PLAN.md (migrations 0032/0033 written, not yet applied live; both new SQL oracles written, not yet run live -- see 06-09)
+last_updated: "2026-09-11T16:05:13.861Z"
 last_activity: 2026-09-11
 last_activity_desc: Quick task 260911-m2b — corrected counterparty name Thesis to TSYS in CLAUDE.md and apigee-stats.ts
-state_head: d89b2e915296cd78e4f2ac3ac9f5e9fd98fcf759
+state_head: 8931a368a79338e34b4f461502cbe618eba34571
 progress:
   total_phases: 7
   completed_phases: 2
   total_plans: 44
-  completed_plans: 41
+  completed_plans: 42
 milestone_name: milestone
 ---
 
@@ -29,7 +29,7 @@ See: .planning/PROJECT.md (updated 2026-08-18)
 ## Current Position
 
 Phase: 06 (Dual-Source Alignment: TSYS vs Bit Addict) — EXECUTING
-Plan: 2 of 10
+Plan: 3 of 10
 Status: Ready to execute
 Last activity: 2026-09-11 — Phase 06 execution started
 
@@ -78,6 +78,7 @@ Progress: [░░░░░░░░░░] 0%
 | Phase 06 P05 | ~20min | 3 tasks | 7 files |
 | Phase 06 P06 | ~15min | 1 tasks | 2 files |
 | Phase 06 P07 | 20min | 3 tasks | 5 files |
+| Phase 06 P08 | 25min | 2 tasks | 4 files |
 
 ## Accumulated Context
 
@@ -126,6 +127,9 @@ Recent decisions affecting current work:
 - [Phase 06]: Phase 06 Plan 06: live schema gate (Task 1) confirmed all Phase 6 migrations, security posture and the unregressed Phase 4 reconciliation chain, but recorded two honest gaps rather than glossing over them -- tsys_msa_tier_test.sql Blocks B/C were not re-run (destructive without a working transaction over the MCP execute_sql path) and three narrow casts remain in lib/dashboard/alignment.ts (root-caused, load-bearing). Task 2's live browser demonstration was deferred to human UAT via 06-UAT.md; ALIGN-01..07 deliberately left Pending in REQUIREMENTS.md despite the shared-ID gate reporting them ready, since only Task 1's infrastructure evidence exists and each requirement demands a user-facing demonstration.
 - [Phase 06]: [Phase 06] Phase 06 Plan 07: closed CR-01/WR-01/CR-02's SQL half — alignment_settled/alignment_counterpart_max_day replace the shared/merged Bit Addict freshness bound with per-metric independent settling bounds; alignment_live_cards_for_period now returns tsys_coverage_complete as its own separable column. Migration 0031 is forward-only and written but NOT YET applied to the live database (no Supabase MCP access this session) — plan 06-09 must apply it and re-run both extended SQL oracles live before CR-01/WR-01/CR-02 can be considered actually fixed in production.
 - [Phase 06]: [Phase 06] Plan 07: alignmentCounterpartMaxDay's metric parameter uses a new local AlignmentFlowMetric type in alignment-status.ts rather than importing FlowAlignmentMetric from lib/dashboard/alignment.ts, to avoid a circular type dependency (alignment.ts already imports types from alignment-status.ts).
+- [Phase 06]: [Phase 06] Plan 08: alignment_inventory_diff_rows(date, text) mirrors 0019's correlated NOT EXISTS day-pair set difference (never a full outer join) and enforces the D-07 both-days-must-exist pairing guard so an unpaired day returns zero rows instead of a whole snapshot -- closes WR-04/ALIGN-04's wrong-rowset drill defect
+- [Phase 06]: [Phase 06] Plan 08: fn_app_settings_baseline_as_of() is a security invoker BEFORE UPDATE trigger (not a Server Action fetch-then-compare) that owns tsys_live_cards_baseline_as_of atomically -- moves it to current_date only when the offset itself changes -- because a read-then-write cannot be made atomic against a concurrent settings save; closes WR-02/ALIGN-06
+- [Phase 06]: [Phase 06] Plan 08: both new migrations (0032, 0033) and both new oracles are written and grep-verified but NOT applied/run live this session (no Supabase MCP access) -- plan 06-09 applies 0031/0032/0033 together and re-runs all three oracles live before WR-04/WR-02/CR-01/CR-02/WR-01 can be considered actually fixed in production
 
 ### Pending Todos
 
@@ -164,6 +168,6 @@ Items acknowledged and carried forward from previous milestone close:
 
 ## Session Continuity
 
-Last session: 2026-09-11T15:55:36.263Z
-Stopped at: Completed 06-07-PLAN.md (migration 0031 written, not yet applied live; both SQL oracles extended, not yet run live — see 06-09)
+Last session: 2026-09-11T16:05:13.664Z
+Stopped at: Completed 06-08-PLAN.md (migrations 0032/0033 written, not yet applied live; both new SQL oracles written, not yet run live -- see 06-09)
 Resume file: None
