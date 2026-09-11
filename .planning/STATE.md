@@ -4,16 +4,16 @@ milestone: v1.0
 current_phase: 06
 current_phase_name: "Dual-Source Alignment: TSYS vs Bit Addict"
 status: executing
-stopped_at: Completed 06-08-PLAN.md (migrations 0032/0033 written, not yet applied live; both new SQL oracles written, not yet run live -- see 06-09)
-last_updated: "2026-09-11T16:05:13.861Z"
+stopped_at: Completed 06-09-PLAN.md (Tasks 2-3; Task 1 orchestrator-performed)
+last_updated: "2026-09-11T16:32:55.716Z"
 last_activity: 2026-09-11
 last_activity_desc: Quick task 260911-m2b — corrected counterparty name Thesis to TSYS in CLAUDE.md and apigee-stats.ts
-state_head: 8931a368a79338e34b4f461502cbe618eba34571
+state_head: 0c180cfdc3cd38bd166be7e03e7754b3cd6a20f6
 progress:
   total_phases: 7
   completed_phases: 2
   total_plans: 44
-  completed_plans: 42
+  completed_plans: 43
 milestone_name: milestone
 ---
 
@@ -29,7 +29,7 @@ See: .planning/PROJECT.md (updated 2026-08-18)
 ## Current Position
 
 Phase: 06 (Dual-Source Alignment: TSYS vs Bit Addict) — EXECUTING
-Plan: 3 of 10
+Plan: 4 of 10
 Status: Ready to execute
 Last activity: 2026-09-11 — Phase 06 execution started
 
@@ -79,6 +79,7 @@ Progress: [░░░░░░░░░░] 0%
 | Phase 06 P06 | ~15min | 1 tasks | 2 files |
 | Phase 06 P07 | 20min | 3 tasks | 5 files |
 | Phase 06 P08 | 25min | 2 tasks | 4 files |
+| Phase 06 P09 | ~35min | 3 tasks | 7 files |
 
 ## Accumulated Context
 
@@ -130,6 +131,9 @@ Recent decisions affecting current work:
 - [Phase 06]: [Phase 06] Plan 08: alignment_inventory_diff_rows(date, text) mirrors 0019's correlated NOT EXISTS day-pair set difference (never a full outer join) and enforces the D-07 both-days-must-exist pairing guard so an unpaired day returns zero rows instead of a whole snapshot -- closes WR-04/ALIGN-04's wrong-rowset drill defect
 - [Phase 06]: [Phase 06] Plan 08: fn_app_settings_baseline_as_of() is a security invoker BEFORE UPDATE trigger (not a Server Action fetch-then-compare) that owns tsys_live_cards_baseline_as_of atomically -- moves it to current_date only when the offset itself changes -- because a read-then-write cannot be made atomic against a concurrent settings save; closes WR-02/ALIGN-06
 - [Phase 06]: [Phase 06] Plan 08: both new migrations (0032, 0033) and both new oracles are written and grep-verified but NOT applied/run live this session (no Supabase MCP access) -- plan 06-09 applies 0031/0032/0033 together and re-runs all three oracles live before WR-04/WR-02/CR-01/CR-02/WR-01 can be considered actually fixed in production
+- [Phase 06]: [Phase 06] Plan 09: Task 1 (live migration push) performed by orchestrator (no executor MCP access); consumed via SUMMARY fold-in from 06-09-TASK1-RECORD.md rather than re-derived
+- [Phase 06]: [Phase 06] Plan 09: CR-02's fix expressed as exported pure helper computeLiveCardsCoverageFigures (alignment-status.ts) so the three coverage-figure cases are unit-testable without a Supabase client
+- [Phase 06]: [Phase 06] Plan 09: fetchAlignmentContributingRows's Bit Addict branch factored into fetchBitAddictContributingRows so the alignment_inventory_diff_rows RPC (enrolled/unenrolled) and the unchanged table reads (live-cards/volume) combine in one Promise.all via a uniform {rows, error} shape
 
 ### Pending Todos
 
@@ -168,6 +172,6 @@ Items acknowledged and carried forward from previous milestone close:
 
 ## Session Continuity
 
-Last session: 2026-09-11T16:05:13.664Z
-Stopped at: Completed 06-08-PLAN.md (migrations 0032/0033 written, not yet applied live; both new SQL oracles written, not yet run live -- see 06-09)
+Last session: 2026-09-11T16:32:55.544Z
+Stopped at: Completed 06-09-PLAN.md (Tasks 2-3; Task 1 orchestrator-performed)
 Resume file: None
