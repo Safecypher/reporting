@@ -4,16 +4,16 @@ milestone: v1.0
 current_phase: 06
 current_phase_name: "Dual-Source Alignment: TSYS vs Bit Addict"
 status: executing
-stopped_at: Completed 06-01-PLAN.md (Tasks 2/3 resumed and verified live)
-last_updated: "2026-09-11T11:53:36.846Z"
+stopped_at: Completed 06-02-PLAN.md (Task 3 applied live by orchestrator)
+last_updated: "2026-09-11T12:09:07.269Z"
 last_activity: 2026-09-11
 last_activity_desc: Phase 06 execution started
-state_head: 1eab98a20f405833a146cb49919def131dac8fdc
+state_head: 0ed8627699e3eda889c7ce000cf89f4e9fbc5626
 progress:
   total_phases: 7
   completed_phases: 2
   total_plans: 40
-  completed_plans: 35
+  completed_plans: 36
 milestone_name: milestone
 ---
 
@@ -29,7 +29,7 @@ See: .planning/PROJECT.md (updated 2026-08-18)
 ## Current Position
 
 Phase: 06 (Dual-Source Alignment: TSYS vs Bit Addict) — EXECUTING
-Plan: 2 of 6
+Plan: 3 of 6
 Status: Ready to execute
 Last activity: 2026-09-11 — Phase 06 execution started
 
@@ -72,6 +72,7 @@ Progress: [░░░░░░░░░░] 0%
 | Phase 05 P08 | 1h 20m | 3 tasks | 3 files |
 | Phase 05 P09 | ~30min | 3 tasks | 6 files |
 | Phase 06 P01 | unspecified (spans halt/resume) | 3 tasks | 12 files |
+| Phase 06 P02 | 35min | 3 tasks | 9 files |
 
 ## Accumulated Context
 
@@ -109,6 +110,8 @@ Recent decisions affecting current work:
 - [Phase 05]: [Phase 05] Deleted a passing test (`lib/pricing/__tests__/restate-scope.test.ts`, "never returns null and never returns a non-null supersedes for an edit") because its title enshrined a universal ("an edit never displaces") that plan 05-09 proves false — its fixture happened not to trigger the new displacement logic, so it would still pass, but leaving it would invite a future reader to "restore the invariant" and reintroduce the CR-01 blocker
 - [Phase 05]: [Phase 05] The Task 1/Task 2 `<human-check>` scripts in plan 05-09 (visual confirmation of the edit-supersede dialog's copy/tone and the live inline notice) were deferred to the phase's end-of-phase UAT pass rather than triggering a mid-flight tracer-feedback checkpoint — consistent with `workflow.human_verify_mode: end-of-phase` (the project default, not overridden in config.json) and the plan's own `<verification>` section, which explicitly states these are human-checks deferred to phase UAT because this repo has no jsdom/React Testing Library
 - [Phase 06]: Phase 6 Plan 01 complete: alignment tracer proven live, including an unplanned 0022 prerequisite fix — 0028 depends on v_verification_coverage_daily from 0022, which was committed in Phase 5 but never applied live; applying it first fixed /reconciliation's no_source_data handling in production as a side effect
+- [Phase 06]: Phase 06 Plan 02: fn_app_settings_audit() widened to a field-aware summary (FY start / TSYS baseline offset / alignment tolerance) — live-proven inside a rolled-back transaction that a FY-only edit still produces byte-identical pre-0029 summary shape (Phase 5 FY-01 regression guard holds)
+- [Phase 06]: Phase 06 Plan 02: tsys_live_cards_baseline_offset and alignment_tolerance remain live at their documented defaults (0/0) — no team value set yet; not wired into lib/dashboard/alignment.ts's fetchers (out of this plan's files_modified), so a later 06-03/06-04/06-05 plan must call fetchAlignmentSettings() and pass toleranceCount/baselineOffset into the alignment RPC calls for the setting to take effect
 
 ### Pending Todos
 
@@ -145,6 +148,6 @@ Items acknowledged and carried forward from previous milestone close:
 
 ## Session Continuity
 
-Last session: 2026-09-11T11:52:56.312Z
-Stopped at: Completed 06-01-PLAN.md (Tasks 2/3 resumed and verified live)
+Last session: 2026-09-11T12:09:06.734Z
+Stopped at: Completed 06-02-PLAN.md (Task 3 applied live by orchestrator)
 Resume file: None
