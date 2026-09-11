@@ -38,3 +38,32 @@ export function friendlyFinancialYearErrorMessage(rawMessage: string): string {
   }
   return FY_SETTINGS_GENERIC_ERROR;
 }
+
+/**
+ * Dual-source alignment settings error mapping (Phase 6 Plan 2, D-09/D-15).
+ * Zod (`alignmentSettingsSchema`) already rejects any negative or
+ * non-integer value before this ever reaches Postgres, so the two CHECK
+ * constraints below are a defence-in-depth backstop (a direct PostgREST
+ * update bypassing the form), not an expected user-facing path -- but the
+ * same "never echo the raw constraint name" discipline (WR-01) applies.
+ */
+
+export const ALIGNMENT_SETTINGS_GENERIC_ERROR =
+  "Could not save alignment settings — please check the values and try again.";
+
+/**
+ * Every currently-known failure mode (either CHECK constraint, or any other
+ * Postgres/PostgREST error) maps to the single generic message above --
+ * unlike the FY mapper there is no distinct constraint-specific copy to
+ * choose between yet, since Zod already produces field-level messages for
+ * the only two validation rules these columns enforce. `rawMessage` is
+ * accepted (and logged by the caller, never here) to keep this function's
+ * shape consistent with `friendlyFinancialYearErrorMessage` should a
+ * distinct case need distinguishing later.
+ */
+export function friendlyAlignmentSettingsErrorMessage(
+  rawMessage: string,
+): string {
+  void rawMessage;
+  return ALIGNMENT_SETTINGS_GENERIC_ERROR;
+}

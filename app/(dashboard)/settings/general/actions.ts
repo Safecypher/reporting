@@ -3,8 +3,14 @@
 import { revalidatePath } from "next/cache";
 
 import { createClient } from "@/lib/supabase/server";
-import { financialYearSettingsSchema } from "@/lib/settings/schema";
-import { friendlyFinancialYearErrorMessage } from "@/lib/settings/errors";
+import {
+  alignmentSettingsSchema,
+  financialYearSettingsSchema,
+} from "@/lib/settings/schema";
+import {
+  friendlyAlignmentSettingsErrorMessage,
+  friendlyFinancialYearErrorMessage,
+} from "@/lib/settings/errors";
 
 /**
  * saveFinancialYearSettings — the FY-start admin editor's only write path
@@ -73,6 +79,75 @@ export async function saveFinancialYearSettings(
   revalidatePath("/sla");
   revalidatePath("/cards");
   revalidatePath("/reconciliation");
+
+  return { success: true };
+}
+
+/**
+ * saveAlignmentSettings — the Dual-source alignment section's only write
+ * path (ALIGN-06, D-09/D-15/D-16). Mirrors `saveFinancialYearSettings`
+ * above object-for-object:
+ * - Re-validates `input` with the SAME Zod schema (`alignmentSettingsSchema`)
+ *   the client form uses -- client-side react-hook-form validation is UX
+ *   only, this action is an untrusted entry point and must never trust its
+ *   caller (ASVS V5).
+ * - Uses the SESSION-SCOPED `lib/supabase/server.ts` client (never a
+ *   service-role/secret-key client) so `auth.uid()` is present on the
+ *   session and reaches `app_settings`'s AFTER UPDATE trigger
+ *   (`trg_app_settings_audit`), attributing the audit row to the acting
+ *   user (T-06-13).
+ * - Both fields are written in ONE `.update()` after a single `safeParse`
+ *   of the whole object, so a submit where one field is valid and the
+ *   other is not rejects the whole submit and persists neither value
+ *   (T-06-14).
+ * - `tsys_live_cards_baseline_as_of` is stamped to today's UTC date
+ *   alongside the offset every time this action runs -- it is not an
+ *   independently-editable field, only ever a byproduct of saving the
+ *   offset (mirroring the D-08 caption's "as of" basis).
+ */
+export async function saveAlignmentSettings(
+  input: unknown,
+): Promise<{ success: true } | { error: string | Record<string, unknown> }> {
+  const parsed = alignmentSettingsSchema.safeParse(input);
+  if (!parsed.success) {
+    return { error: parsed.error.flatten() };
+  }
+
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  if (!user) {
+    return { error: "Unauthorized" };
+  }
+
+  const todayUtc = new Date().toISOString().slice(0, 10);
+
+  const { error } = await supabase
+    .from("app_settings")
+    .update({
+      tsys_live_cards_baseline_offset: parsed.data.baselineOffset,
+      tsys_live_cards_baseline_as_of: todayUtc,
+      alignment_tolerance: parsed.data.toleranceCount,
+      updated_by: user.id,
+      updated_at: new Date().toISOString(),
+    })
+    .eq("id", 1);
+
+  if (error) {
+    // WR-01: log the raw, detailed error server-side only; the client only
+    // ever sees the mapped, friendly message.
+    console.error("saveAlignmentSettings: app_settings update failed", error);
+    return { error: friendlyAlignmentSettingsErrorMessage(error.message) };
+  }
+
+  // Both new values change which days read as aligned/needs_review/mismatch
+  // on both alignment surfaces (D-05's home strip and /alignment itself) --
+  // leaving them stale is a correctness bug, not a refresh annoyance.
+  revalidatePath("/settings/general");
+  revalidatePath("/alignment");
+  revalidatePath("/");
 
   return { success: true };
 }

@@ -4,8 +4,10 @@ import type { Metadata } from "next";
 import { Skeleton } from "@/components/ui/skeleton";
 import { createClient } from "@/lib/supabase/server";
 import { FySettingsForm } from "@/components/settings/fy-settings-form";
+import { AlignmentSettingsForm } from "@/components/settings/alignment-settings-form";
 import { AuditLog, type AuditLogEntry } from "@/components/pricing/audit-log";
 import { DEFAULT_FY_START } from "@/lib/settings/fy-settings";
+import { fetchAlignmentSettings } from "@/lib/settings/alignment-settings";
 
 export const metadata: Metadata = {
   title: "General settings — Safecypher Reporting",
@@ -85,7 +87,7 @@ function LoadingState() {
 async function GeneralBody() {
   const supabase = await createClient();
 
-  const [settingsResult, auditResult] = await Promise.all([
+  const [settingsResult, auditResult, alignmentSettings] = await Promise.all([
     supabase
       .from("app_settings")
       .select("fy_start_month, fy_start_day")
@@ -97,6 +99,11 @@ async function GeneralBody() {
       .order("changed_at", { ascending: false })
       .limit(50) // AUDIT_ROW_CAP — the E5 overflow backstop
       .returns<AppSettingsAuditRow[]>(),
+    // fetchAlignmentSettings never throws (degrades to
+    // DEFAULT_ALIGNMENT_SETTINGS on error/absent row) -- it is not part of
+    // the settingsResult/auditResult error branch below, matching the
+    // existing FY-start ErrorState scope unchanged.
+    fetchAlignmentSettings(supabase),
   ]);
 
   if (settingsResult.error || auditResult.error) {
@@ -129,6 +136,21 @@ async function GeneralBody() {
     <>
       <PageHeader />
       <FySettingsForm fyStartMonth={settings.month} fyStartDay={settings.day} />
+      <div className="flex flex-col gap-4">
+        <div className="flex flex-col gap-1">
+          <h2 className="text-lg font-medium text-foreground">
+            Dual-source alignment
+          </h2>
+          <p className="max-w-2xl text-sm font-light text-muted-foreground">
+            Set the TSYS live-cards baseline offset and the tolerance used to
+            judge whether TSYS and Bit Addict agree, on the Alignment page.
+          </p>
+        </div>
+        <AlignmentSettingsForm
+          baselineOffset={alignmentSettings.baselineOffset}
+          toleranceCount={alignmentSettings.toleranceCount}
+        />
+      </div>
       <div className="flex flex-col gap-2">
         <AuditLog
           entries={entries}
