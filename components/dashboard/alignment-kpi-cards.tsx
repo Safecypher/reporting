@@ -14,10 +14,13 @@ import {
 
 /**
  * The paired-figure KPI card (D-18, UI-SPEC "Paired KPI card internal
- * hierarchy"). No function-bearing props/column defs, so this stays a
- * Server Component like every other KPI card in the app — the shared
- * `StatusBadge` it renders is a `'use client'` leaf, which a Server
- * Component may still import and render directly.
+ * hierarchy") backing all four ROADMAP SC1 metrics — `Enrolled cards`,
+ * `Unenrolled cards`, `Live cards`, `Transaction volume` (Copywriting
+ * Contract labels, sourced verbatim from
+ * `lib/dashboard/alignment.ts`'s `alignmentMetricLabel`). No function-bearing
+ * props/column defs, so this stays a Server Component like every other KPI
+ * card in the app — the shared `StatusBadge` it renders is a `'use client'`
+ * leaf, which a Server Component may still import and render directly.
  *
  * Internal hierarchy, top to bottom (binding, UI-SPEC): status badge in the
  * card header's top-right, the only coloured element on the card face; the

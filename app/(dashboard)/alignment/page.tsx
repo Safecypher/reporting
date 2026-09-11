@@ -18,6 +18,8 @@ import {
   alignmentMetricLabel,
   fetchAlignmentLiveCards,
   fetchAlignmentTotals,
+  type AlignmentTotalsResult,
+  type FlowAlignmentMetric,
 } from "@/lib/dashboard/alignment";
 import {
   formatLiveCardsDerivationCaption,
@@ -138,9 +140,13 @@ function LoadingState() {
         <Skeleton className="h-8 w-40" />
         <Skeleton className="h-6 w-56" />
       </div>
+      {/* Fixed at exactly four card-shaped skeletons, matching the populated
+          grid below — the card count never varies (UI-SPEC E1). */}
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-        <PairedMetricCardSkeleton metricLabel={alignmentMetricLabel("volume")} />
+        <PairedMetricCardSkeleton metricLabel={alignmentMetricLabel("enrolled")} />
+        <PairedMetricCardSkeleton metricLabel={alignmentMetricLabel("unenrolled")} />
         <PairedMetricCardSkeleton metricLabel={alignmentMetricLabel("live-cards")} />
+        <PairedMetricCardSkeleton metricLabel={alignmentMetricLabel("volume")} />
       </div>
     </div>
   );
@@ -152,24 +158,69 @@ function formatAsOfDay(day: string): string {
   return new Date(`${day}T00:00:00Z`).toLocaleDateString("en-GB", { dateStyle: "medium" });
 }
 
+/**
+ * Renders one of the three flow-metric cards (Enrolled/Unenrolled/Volume,
+ * all backed by `alignment_totals_for_period`) in its own independent
+ * state — a single metric's error or period-emptiness never suppresses the
+ * other cards in the grid (UI-SPEC E1/E2, Task 2 acceptance criterion: "no
+ * single early return collapses all four cards on one metric's failure").
+ */
+function FlowMetricCard({
+  metric,
+  result,
+}: {
+  metric: FlowAlignmentMetric;
+  result: AlignmentTotalsResult;
+}) {
+  const metricLabel = alignmentMetricLabel(metric);
+
+  if (result.error !== null) {
+    return <PairedMetricCardError metricLabel={metricLabel} />;
+  }
+
+  if (result.data.total_days === 0) {
+    return <PairedMetricCardPeriodEmpty metricLabel={metricLabel} />;
+  }
+
+  return (
+    <PairedMetricCard
+      metricLabel={metricLabel}
+      data={{
+        tsysCount: result.data.tsys_count,
+        bitAddictCount: result.data.bit_addict_count,
+        status: result.data.status,
+        tsysCoveredDays: result.data.tsys_covered_days,
+        bitAddictCoveredDays: result.data.bit_addict_covered_days,
+        totalDays: result.data.total_days,
+      }}
+    />
+  );
+}
+
 type PageSearchParams = Promise<{ [key: string]: string | string[] | undefined }>;
 
 /**
  * Async Server Component mirroring `app/(dashboard)/cards/page.tsx`'s
- * period-scoped 4-state shape. Transaction volume and Live cards are wired
- * this task (Plan 06-03 Task 1) — Task 2 adds the remaining two card-flow
- * metrics (Enrolled/Unenrolled cards) to the same grid.
+ * period-scoped 4-state shape, completed to all four ROADMAP SC1 metrics
+ * (Enrolled cards, Unenrolled cards, Live cards, Transaction volume) laid
+ * out two-by-two on desktop, one per row below `sm` (D-18, UI-SPEC Visual
+ * Hierarchy). The three flow metrics (enrolled/unenrolled/volume) reuse the
+ * same `alignment_totals_for_period` RPC via `FlowMetricCard` above — no new
+ * SQL; live cards is its own cumulative RPC (Task 1).
  *
  * `fetchAlignmentSettings()` is read BEFORE any metric fetch (D-15/D-16,
  * D-06/D-09) — the live tolerance and baseline offset flow into every
  * metric RPC call below, closing the gap 06-02's SUMMARY flagged
  * (`lib/dashboard/alignment.ts`/this page were not in that plan's
  * `files_modified`, so the settings it built were not yet consumed anywhere
- * until now).
+ * until Plan 06-03).
  *
- * The domain-existence probe (unscoped, "has TSYS or Bit Addict volume data
- * ever been ingested") is distinct from the period-scoped totals fetch, so
- * domain-empty and period-empty stay two separate states (UI-SPEC E1).
+ * The domain-existence probe (unscoped, "has TSYS or Bit Addict alignment
+ * data ever been ingested at all, across any of the four metrics") is
+ * distinct from the period-scoped totals fetch, so domain-empty and
+ * period-empty stay two separate states (UI-SPEC E1). Each of the four
+ * fetches is independent — no single early return on one metric's error or
+ * emptiness ever suppresses the other three (Task 2 acceptance criterion).
  */
 async function AlignmentBody({ searchParams }: { searchParams: PageSearchParams }) {
   const supabase = await createClient();
@@ -184,30 +235,49 @@ async function AlignmentBody({ searchParams }: { searchParams: PageSearchParams 
 
   const settings = await fetchAlignmentSettings(supabase);
 
-  const [totalsResult, liveCardsResult, tsysDomainProbe, bitAddictDomainProbe, freshnessResult] =
-    await Promise.all([
-      fetchAlignmentTotals(supabase, "volume", period, settings.toleranceCount),
-      fetchAlignmentLiveCards(supabase, period, settings.baselineOffset, settings.toleranceCount),
-      supabase
-        .from("apigee_calls")
-        .select("event_time", { count: "exact", head: true })
-        .eq("endpoint_category", "verify")
-        .limit(1),
-      supabase
-        .from("verifications")
-        .select("created_at", { count: "exact", head: true })
-        .limit(1),
-      supabase
-        .from("ingested_files")
-        .select("uploaded_at")
-        .eq("status", "done")
-        .order("uploaded_at", { ascending: false })
-        .limit(1)
-        .returns<IngestedFileFreshness[]>()
-        .maybeSingle(),
-    ]);
+  const [
+    enrolledResult,
+    unenrolledResult,
+    volumeResult,
+    liveCardsResult,
+    tsysDomainProbe,
+    bitAddictVerificationDomainProbe,
+    bitAddictInventoryDomainProbe,
+    freshnessResult,
+  ] = await Promise.all([
+    fetchAlignmentTotals(supabase, "enrolled", period, settings.toleranceCount),
+    fetchAlignmentTotals(supabase, "unenrolled", period, settings.toleranceCount),
+    fetchAlignmentTotals(supabase, "volume", period, settings.toleranceCount),
+    fetchAlignmentLiveCards(supabase, period, settings.baselineOffset, settings.toleranceCount),
+    supabase
+      .from("apigee_calls")
+      .select("event_time", { count: "exact", head: true })
+      .not("endpoint_category", "is", null)
+      .limit(1),
+    supabase
+      .from("verifications")
+      .select("created_at", { count: "exact", head: true })
+      .limit(1),
+    supabase
+      .from("card_inventory")
+      .select("report_date", { count: "exact", head: true })
+      .limit(1),
+    supabase
+      .from("ingested_files")
+      .select("uploaded_at")
+      .eq("status", "done")
+      .order("uploaded_at", { ascending: false })
+      .limit(1)
+      .returns<IngestedFileFreshness[]>()
+      .maybeSingle(),
+  ]);
 
-  if (tsysDomainProbe.error || bitAddictDomainProbe.error || freshnessResult.error) {
+  if (
+    tsysDomainProbe.error ||
+    bitAddictVerificationDomainProbe.error ||
+    bitAddictInventoryDomainProbe.error ||
+    freshnessResult.error
+  ) {
     return (
       <>
         <PageHeader uploadedAt={null} period={null} monthOptions={[]} yearOptions={[]} />
@@ -219,7 +289,9 @@ async function AlignmentBody({ searchParams }: { searchParams: PageSearchParams 
   const uploadedAt = freshnessResult.data?.uploaded_at ?? null;
 
   const hasAlignmentDataEver =
-    (tsysDomainProbe.count ?? 0) > 0 || (bitAddictDomainProbe.count ?? 0) > 0;
+    (tsysDomainProbe.count ?? 0) > 0 ||
+    (bitAddictVerificationDomainProbe.count ?? 0) > 0 ||
+    (bitAddictInventoryDomainProbe.count ?? 0) > 0;
 
   if (!hasAlignmentDataEver) {
     return (
@@ -235,17 +307,22 @@ async function AlignmentBody({ searchParams }: { searchParams: PageSearchParams 
     );
   }
 
-  // Period-empty only when NEITHER card has any comparison data for the
-  // active period — live cards is a stock metric (L-02) so its own
+  // Whole-page period-empty only when EVERY metric has no comparison data
+  // for the active period — live cards is a stock metric (L-02) so its own
   // "nothing to show" signal is a null carried-forward snapshot day, not a
   // day count. Each card still renders its OWN period-empty/error treatment
-  // below (UI-SPEC E1/E2) — this whole-page check only covers the case
-  // where every metric is empty at once.
-  const volumeEmpty = totalsResult.error === null && totalsResult.data.total_days === 0;
+  // below (UI-SPEC E1/E2, via FlowMetricCard for the three flow metrics);
+  // this whole-page check only covers the case where all four are empty at
+  // once, matching /cards' and /reconciliation's precedent for the
+  // domain-empty-vs-period-empty split.
+  const enrolledEmpty = enrolledResult.error === null && enrolledResult.data.total_days === 0;
+  const unenrolledEmpty =
+    unenrolledResult.error === null && unenrolledResult.data.total_days === 0;
+  const volumeEmpty = volumeResult.error === null && volumeResult.data.total_days === 0;
   const liveCardsEmpty =
     liveCardsResult.error === null && liveCardsResult.data.bit_addict_snapshot_day === null;
 
-  if (volumeEmpty && liveCardsEmpty) {
+  if (enrolledEmpty && unenrolledEmpty && volumeEmpty && liveCardsEmpty) {
     return (
       <>
         <PageHeader
@@ -267,24 +344,12 @@ async function AlignmentBody({ searchParams }: { searchParams: PageSearchParams 
         monthOptions={monthOptions}
         yearOptions={yearOptions}
       />
+      {/* Fixed at exactly four paired KPI cards, grid-cols-1 sm:grid-cols-2
+          (D-18, UI-SPEC E1) — no chart, no full-width table, the grid
+          collapsing to one column is the page's only reflow. */}
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-        {totalsResult.error !== null ? (
-          <PairedMetricCardError metricLabel={alignmentMetricLabel("volume")} />
-        ) : totalsResult.data.total_days === 0 ? (
-          <PairedMetricCardPeriodEmpty metricLabel={alignmentMetricLabel("volume")} />
-        ) : (
-          <PairedMetricCard
-            metricLabel={alignmentMetricLabel("volume")}
-            data={{
-              tsysCount: totalsResult.data.tsys_count,
-              bitAddictCount: totalsResult.data.bit_addict_count,
-              status: totalsResult.data.status,
-              tsysCoveredDays: totalsResult.data.tsys_covered_days,
-              bitAddictCoveredDays: totalsResult.data.bit_addict_covered_days,
-              totalDays: totalsResult.data.total_days,
-            }}
-          />
-        )}
+        <FlowMetricCard metric="enrolled" result={enrolledResult} />
+        <FlowMetricCard metric="unenrolled" result={unenrolledResult} />
         {liveCardsResult.error !== null ? (
           <PairedMetricCardError metricLabel={alignmentMetricLabel("live-cards")} />
         ) : liveCardsResult.data.bit_addict_snapshot_day === null ? (
@@ -317,6 +382,7 @@ async function AlignmentBody({ searchParams }: { searchParams: PageSearchParams 
             }
           />
         )}
+        <FlowMetricCard metric="volume" result={volumeResult} />
       </div>
     </>
   );
