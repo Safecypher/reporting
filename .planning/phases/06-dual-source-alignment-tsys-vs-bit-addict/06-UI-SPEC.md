@@ -383,7 +383,7 @@ No third-party registries declared this phase. Registry vetting gate: not applic
 ## UI Considerations
 
 State-coverage axis, produced by the post-verification UI-consideration probe (2026-09-11).
-57 applicable considerations across 8 surfaces; all 57 resolved. Shape-rooted STATE coverage
+57 applicable considerations across 8 surfaces; all 57 resolved, enumerated below as 58 bullets (E6 carries one extra truth beyond its 8 probe categories). Shape-rooted STATE coverage
 only — empty-state and error-state COPY lives in `## Copywriting Contract` above and is
 referenced here rather than restated.
 
@@ -451,6 +451,8 @@ see "Planner consequences" at the end of this section.
 - Partial availability across the three tiles is the normal case during first ingestion and must render as three independently-stated tiles, not a single combined state.
 - A large figure in a tile renders in full with comma grouping; the tile grows rather than truncating the number.
 - `Live cards` is unscoped by period (stock metric) while `Volume this period` and `Revenue this period` follow the home page's active period selection — a tile must never appear period-scoped when it is not.
+- The tile row is fixed at exactly three tiles in every state — the count never varies, so no singular/plural tile-row copy is reachable; a tile with no value still occupies its slot rather than collapsing the row to two.
+- A long formatted value (a revenue figure carrying a currency symbol and comma grouping at full width) and the `View {page} →` link label both stay on their own lines without truncation at 375px; the tile grows in height rather than eliding either.
 
 ### E7 — `/settings/general` "Dual-source alignment" section
 
