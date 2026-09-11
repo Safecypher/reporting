@@ -56,6 +56,92 @@ export function computeAlignmentStatus(
   return settled ? "mismatch" : "needs_review";
 }
 
+/**
+ * Steps `day` forward `n` BUSINESS days (Mon-Fri only, Sat/Sun skipped -- no
+ * holiday calendar, none is in scope). Hand-mirrors
+ * `add_business_days(date, int)` (`supabase/migrations/0027_alignment_coverage_and_business_days.sql`)
+ * BY HAND -- if either changes, re-check the other (the 0019 convention).
+ * Pure UTC date arithmetic only -- no clock or network access. Lifted
+ * verbatim from `addBusinessDaysLocal` in `lib/dashboard/alignment-drill.ts`
+ * (0031) -- that private copy is intentionally left in place; a later plan
+ * swaps its call site over to this exported version.
+ */
+export function addBusinessDaysUtc(day: string, n: number): string {
+  let cursor = new Date(`${day}T00:00:00Z`);
+  let remaining = n;
+  while (remaining > 0) {
+    cursor = new Date(cursor.getTime() + 24 * 60 * 60 * 1000);
+    // getUTCDay(): 0=Sunday...6=Saturday. isodow-equivalent weekday check:
+    // Saturday (6) and Sunday (0) do not consume a business day.
+    const dow = cursor.getUTCDay();
+    if (dow !== 0 && dow !== 6) {
+      remaining -= 1;
+    }
+  }
+  return cursor.toISOString().slice(0, 10);
+}
+
+/** The data-window cutoff every alignment view floors an empty maximum to
+ * (`'2026-08-13'::date` in SQL). A source with no rows at all has no
+ * maximum -- coalescing to this floor is what makes an absent source read
+ * unsettled rather than NULL (ALIGN-03 empty edge). */
+const ALIGNMENT_DATA_WINDOW_START = "2026-08-13";
+
+/**
+ * The three flow metrics `v_alignment_daily`/`alignment_counterpart_max_day`
+ * operate over. Mirrors `FlowAlignmentMetric`
+ * (`lib/dashboard/alignment.ts` -- `Exclude<AlignmentMetric, "live-cards">`)
+ * literal-for-literal; kept as an independent local type here (rather than
+ * imported) so this file stays a leaf module with no dependency back on
+ * `alignment.ts`, which already imports FROM this file.
+ */
+export type AlignmentFlowMetric = "enrolled" | "unenrolled" | "volume";
+
+/**
+ * Per-source settling predicate (CR-01/WR-01, ALIGN-03). Hand-mirrors SQL
+ * `alignment_settled(date, date, date)`
+ * (`supabase/migrations/0031_alignment_per_source_settling.sql`) -- if
+ * either changes, re-check the other. A day is settled only once BOTH the
+ * supplied TSYS maximum and the supplied counterpart maximum have
+ * independently advanced `addBusinessDaysUtc(day, 3)` past `day`.
+ *
+ * Empty-source rule: a `null` maximum (a source with no rows at all) is
+ * coalesced to the data-window cutoff before comparing -- an absent source
+ * therefore reads unsettled, never `null`/`undefined` (ALIGN-03 empty edge).
+ * Adjacency rule: the comparison is `>=` (inclusive) -- a maximum landing
+ * EXACTLY on the threshold settles (ALIGN-03 adjacency edge), matching the
+ * SQL function and the `>=` the reconciliation chain (0021) already uses.
+ */
+export function computeAlignmentSettled(
+  day: string,
+  maxTsysDay: string | null,
+  maxCounterpartDay: string | null,
+): boolean {
+  const threshold = addBusinessDaysUtc(day, 3);
+  const effectiveTsysDay = maxTsysDay ?? ALIGNMENT_DATA_WINDOW_START;
+  const effectiveCounterpartDay = maxCounterpartDay ?? ALIGNMENT_DATA_WINDOW_START;
+  return effectiveTsysDay >= threshold && effectiveCounterpartDay >= threshold;
+}
+
+/**
+ * Selects the ONE Bit Addict source maximum that actually corresponds to
+ * `metric` (CR-01 fix). Hand-mirrors SQL `alignment_counterpart_max_day(text, date, date)`
+ * (`supabase/migrations/0031_alignment_per_source_settling.sql`) -- if
+ * either changes, re-check the other. `'volume'` compares against
+ * verifications (`maxVerificationDay`); `'enrolled'`/`'unenrolled'` compare
+ * against `v_inventory_daily_diff`/`card_inventory` (`maxInventoryDay`).
+ * Each flow metric is settled by its OWN counterpart source's cadence
+ * alone -- a cadence divergence in the OTHER Bit Addict source can never
+ * change that metric's verdict.
+ */
+export function alignmentCounterpartMaxDay(
+  metric: AlignmentFlowMetric,
+  maxInventoryDay: string,
+  maxVerificationDay: string,
+): string {
+  return metric === "volume" ? maxVerificationDay : maxInventoryDay;
+}
+
 /** Which side is short (lower count) when the two disagree, else null. */
 export function computeAlignmentShortSide(
   tsysCount: number,
