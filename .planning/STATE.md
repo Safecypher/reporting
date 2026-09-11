@@ -5,9 +5,9 @@ current_phase: 06
 current_phase_name: "Dual-Source Alignment: TSYS vs Bit Addict"
 status: verifying
 stopped_at: Completed 06-06-PLAN.md (Task 1 recorded; Task 2 deferred to human UAT — see 06-UAT.md)
-last_updated: "2026-09-11T13:27:08.349Z"
+last_updated: "2026-09-11T14:55:45.000Z"
 last_activity: 2026-09-11
-last_activity_desc: Phase 06 execution started
+last_activity_desc: Quick task 260911-m2b — corrected counterparty name Thesis to TSYS in CLAUDE.md and apigee-stats.ts
 state_head: 3e77405b386a470aeb19d55818bcc719862e48f5
 progress:
   total_phases: 7
@@ -149,6 +149,7 @@ Carried from research (resolve during phase planning):
 | 260902-ksy | Fix auth redirect host on Netlify — added `lib/site-url.ts` `getSiteOrigin()` (precedence: `NEXT_PUBLIC_SITE_URL` env → `x-forwarded-host`/`-proto` → `request.url`; trailing-slash stripped, malformed env falls through). `/auth/confirm` redirects no longer use `request.url`, which reported the deploy-unique Netlify host and stranded the session cookie, bouncing valid invites to /login with the token spent | 2026-09-02 | ec095ec | [260902-ksy-fix-auth-redirect-host-on-netlify-canoni](./quick/260902-ksy-fix-auth-redirect-host-on-netlify-canoni/) |
 | 260908-m1c | Reconciliation views distinguish "no source data" from "mismatch" — 4 coverage views derive per-file spans from ingested row timestamps (never filenames); `v_reconciliation_billing_daily` + `v_reconciliation_inventory_daily` gain a `no_source_data` status with NULL delta/short_side; UI renders it neutral as "No report received". Fixes 2,399 billed txns on 2026-08-20 + 2026-09-03 falsely shown as billing discrepancies. Acceptance test is fixture-free and strictly read-only (6 invariants, no writes, no txn wrapper) so it is safe to run via MCP/SQL-editor/psql alike | 2026-09-08 | 56b9e3e | [260908-m1c-reconciliation-distinguish-no-source-dat](./quick/260908-m1c-reconciliation-distinguish-no-source-dat/) |
 | 260908-r3x | Card inventory page at `/cards` — KPI cards, enrolment-over-time (time-scaled axis with unconnected points, so the 9 sporadic snapshots over 27 days read honestly rather than as daily continuity), removals chart (full linear scale + Invex-incident callout; log axis rejected as misleading for a leadership audience), and a sortable latest-snapshot card table. No migration — shapes in TS over live schema, so it works without the held 0022. Lint baseline 7→8 (suppression removed for sibling consistency) | 2026-09-08 | 5d26ae0 | [260908-r3x-card-inventory-page-current-enrolled-car](./quick/260908-r3x-card-inventory-page-current-enrolled-car/) |
+| 260911-m2b | Corrected counterparty name "Thesis" → "TSYS" in the two highest-value locations: `CLAUDE.md` (four occurrences) and `lib/ingestion/parsers/apigee-stats.ts` (two user-visible error strings + one doc-comment). ~140 remaining prose occurrences deliberately left for a later sweep. `RECON_CHAIN_UNTOUCHED` gate, `npx tsc --noEmit`, and `npm test` (339/339) all confirmed unaffected | 2026-09-11 | a11159c | [260911-m2b-correct-counterparty-name-thesis-to-tsys](./quick/260911-m2b-correct-counterparty-name-thesis-to-tsys/) |
 
 ## Deferred Items
 
@@ -160,6 +161,6 @@ Items acknowledged and carried forward from previous milestone close:
 
 ## Session Continuity
 
-Last session: 2026-09-11T13:27:08.152Z
-Stopped at: Completed 06-06-PLAN.md (Task 1 recorded; Task 2 deferred to human UAT — see 06-UAT.md)
+Last session: 2026-09-11T14:55:45.000Z
+Stopped at: Completed quick task 260911-m2b (Thesis to TSYS correction in CLAUDE.md + apigee-stats.ts). Phase 06 still requires /gsd-verify-work 6 (06-06 Task 2 deferred to human UAT — see 06-UAT.md)
 Resume file: None
