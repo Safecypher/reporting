@@ -213,7 +213,7 @@ Plans:
 **Goal**: Show every card and volume metric for both upstream sources side by side — TSYS (the TSYS/APIGEE report, `apigee_calls`) versus Bit Addict (the other five reports) — so the team can see at a glance whether the two agree, and be told plainly when they do not. Elevates Phase 4's amber-only `v_apigee_cross_check` into a first-class comparison with variance and status.
 **Mode:** mvp
 **Depends on**: Phase 5 (period scoping), Phase 4 (`v_apigee_cross_check`, `v_inventory_daily_diff`, `v_inventory_live_count`, StatusBadge, drill-down)
-**Requirements**: TBD (derive during planning)
+**Requirements**: ALIGN-01, ALIGN-02, ALIGN-03, ALIGN-04, ALIGN-05, ALIGN-06, ALIGN-07
 **Success Criteria** (what must be TRUE):
 
   1. Enrolled cards, unenrolled cards, calculated live cards, and transaction volume each show a TSYS figure and a Bit Addict figure side by side for the selected period, with the variance (absolute and %) and which side is short.
@@ -222,11 +222,16 @@ Plans:
   4. A user can drill from either side of any comparison to the contributing rows and their originating source file.
   5. A day where the two sources genuinely disagree is visibly flagged on the dashboard without the user having to open the reconciliation page.
 
-**Plans**: 0 plans
+**Plans**: 6 plans
 
 Plans:
 
-- [ ] TBD (run /gsd-plan-phase 6 to break down)
+- [ ] 06-01-PLAN.md — Tracer: transaction-volume TSYS-vs-Bit-Addict comparison end to end (coverage view, business-day window, inverted truth table, `/alignment` page)
+- [ ] 06-02-PLAN.md — Baseline-offset and tolerance settings on `/settings/general`, audited and applied without a redeploy
+- [ ] 06-03-PLAN.md — Cumulative TSYS live-cards derivation with its whole-window coverage guard, completing `/alignment` to four paired cards
+- [ ] 06-04-PLAN.md — Two-level drill Sheet with source-file provenance, plus the uncapped `/alignment/[metric]` day-breakdown route
+- [ ] 06-05-PLAN.md — Real dashboard home at `/`: alignment rollup strip, three headline KPI tiles, per-region error isolation
+- [ ] 06-06-PLAN.md — Authoritative live schema gate and demonstration of all five success criteria
 
 ### Phase 7: TSYS Tiered Volume & Revenue Forecast
 

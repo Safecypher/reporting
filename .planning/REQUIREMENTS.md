@@ -68,6 +68,18 @@ Requirements for the initial release (the PoC dashboard shown to Mark). Each map
 - [x] **TSYS-01**: The signed TSYS MSA tier table exists as a `pricing_tier_sets` row with `reset_window = 'monthly'`, and the MSA's own worked example (1.5M transactions in a month = $45,450) matches to the cent
 - [x] **TSYS-02**: Tier sets are editable in place and any set can be deleted, with the change audited and refused when it would leave the 13 Aug 2026 data window with no effective tier set
 
+### Dual-Source Alignment
+
+*Minted 2026-09-11 during Phase 6 planning — the roadmap recorded these as "TBD (derive during planning)". ALIGN-01..05 map one-to-one onto Phase 6's five ROADMAP success criteria; ALIGN-06 and ALIGN-07 are supporting requirements surfaced by the UI-consideration probe and recorded in 06-UI-SPEC.md's "Planner consequences".*
+
+- [ ] **ALIGN-01**: Enrolled cards, unenrolled cards, calculated live cards, and transaction volume each show a TSYS figure and a Bit Addict figure side by side for the selected period, with the variance (absolute and %) and which side is short
+- [ ] **ALIGN-02**: The TSYS side derives its figures from `apigee_calls.endpoint_category`; live cards on the TSYS side is a cumulative enrol-minus-unenrol derivation baselined at a stored offset, and the derivation is stated in the UI so the number is auditable rather than magic
+- [ ] **ALIGN-03**: Each comparison carries an explicit aligned / needs-review / mismatch status using the existing three-state badge, and "needs-review" is used where one source's report day is missing rather than silently reading as zero
+- [ ] **ALIGN-04**: A user can drill from either side of any comparison to the contributing rows and their originating source file
+- [ ] **ALIGN-05**: A day where the two sources genuinely disagree is visibly flagged on the dashboard home page without the user having to open the reconciliation page
+- [ ] **ALIGN-06**: Alignment tolerance and the TSYS live-cards baseline offset are configurable settings in `app_settings`, audited on every change, and applied uniformly across all four metrics
+- [ ] **ALIGN-07**: A full-page day-breakdown view exists for periods whose day count exceeds the drill Sheet's bounded window, reusing the level-one column set and the same period contract
+
 ## v2 Requirements
 
 Deferred to future release. Tracked but not in the current roadmap.
@@ -145,13 +157,20 @@ Which phases cover which requirements. Updated during roadmap creation.
 | FY-01 | Phase 5 | Complete |
 | TSYS-01 | Phase 5 | Complete |
 | TSYS-02 | Phase 5 | Complete |
+| ALIGN-01 | Phase 6 | Pending |
+| ALIGN-02 | Phase 6 | Pending |
+| ALIGN-03 | Phase 6 | Pending |
+| ALIGN-04 | Phase 6 | Pending |
+| ALIGN-05 | Phase 6 | Pending |
+| ALIGN-06 | Phase 6 | Pending |
+| ALIGN-07 | Phase 6 | Pending |
 
 **Coverage:**
 
-- v1 requirements: 32 total (26 original + 6 minted during Phase 5 planning)
-- Mapped to phases: 32 ✓
+- v1 requirements: 39 total (26 original + 6 minted during Phase 5 planning + 7 minted during Phase 6 planning)
+- Mapped to phases: 39 ✓
 - Unmapped: 0
 
 ---
 *Requirements defined: 2026-08-18*
-*Last updated: 2026-09-10 — Phase 5 planning minted PERIOD-01..03, FY-01, TSYS-01..02 and mapped them to Phase 5*
+*Last updated: 2026-09-11 — Phase 6 planning minted ALIGN-01..07 and mapped them to Phase 6*
