@@ -5,8 +5,11 @@ import {
   alignmentStatusToReconciliationStatus,
   computeAlignmentShortSide,
   computeAlignmentStatus,
+  computeLiveCardsGapChange,
   formatCoverageStatement,
   formatDeltaPhrase,
+  formatLiveCardsDerivationCaption,
+  formatLiveCardsStatusMeaningCaption,
   pctVariance,
 } from "../alignment-status";
 
@@ -101,5 +104,56 @@ describe("alignmentStatusToLabel", () => {
     expect(alignmentStatusToLabel("aligned")).toBe("Aligned");
     expect(alignmentStatusToLabel("needs_review")).toBe("Needs review");
     expect(alignmentStatusToLabel("mismatch")).toBe("Mismatch");
+  });
+});
+
+describe("computeLiveCardsGapChange", () => {
+  it("is zero when a constant offset persists unchanged across the period", () => {
+    expect(computeLiveCardsGapChange(500, 500)).toBe(0);
+  });
+
+  it("returns the signed change in the gap", () => {
+    expect(computeLiveCardsGapChange(500, 480)).toBe(-20);
+    expect(computeLiveCardsGapChange(500, 530)).toBe(30);
+  });
+});
+
+describe("live-cards verdict via computeAlignmentStatus (gap change, not level — D-07)", () => {
+  it("a constant pre-window offset with no drift yields an aligned verdict at any tolerance", () => {
+    // gapAtPeriodStart === gapAtPeriodEnd -> passing the two gap values
+    // themselves into computeAlignmentStatus (the same trick
+    // alignment_live_cards_for_period's SQL uses) yields 'aligned' even at
+    // zero tolerance, regardless of how large the constant offset is.
+    expect(computeAlignmentStatus(1500, 1500, 0, true, true)).toBe("aligned");
+  });
+
+  it("a gap that widens by more than the tolerance across the period yields a non-aligned verdict", () => {
+    expect(computeAlignmentStatus(500, 530, 5, true, true)).toBe("mismatch");
+  });
+
+  it("an incomplete running coverage guard yields needs_review even when the gap change is zero", () => {
+    expect(computeAlignmentStatus(1500, 1500, 0, true, false)).toBe("needs_review");
+  });
+});
+
+describe("formatLiveCardsDerivationCaption", () => {
+  it("renders the exact Copywriting Contract sentence with the offset and as-of date", () => {
+    expect(formatLiveCardsDerivationCaption(1234, "2026-08-14")).toBe(
+      "Cumulative enrol − unenrol from the TSYS report since 13 Aug 2026, baselined at 1,234 as of 14 Aug 2026; excludes cards live before that date.",
+    );
+  });
+
+  it("renders a clearly-stated not-yet-confirmed phrasing when the as-of date is null", () => {
+    expect(formatLiveCardsDerivationCaption(0, null)).toBe(
+      "Cumulative enrol − unenrol from the TSYS report since 13 Aug 2026, baselined at 0 (not yet confirmed); excludes cards live before that date.",
+    );
+  });
+});
+
+describe("formatLiveCardsStatusMeaningCaption", () => {
+  it("renders the exact Copywriting Contract sentence", () => {
+    expect(formatLiveCardsStatusMeaningCaption()).toBe(
+      "This status reflects the change in the gap between TSYS and Bit Addict, not the size of the gap — a permanent offset from before the data window is expected and is not flagged on its own.",
+    );
   });
 });

@@ -163,3 +163,64 @@ export function alignmentStatusToRowClassName(status: AlignmentStatus): string {
       return "border-l-4 border-l-destructive bg-destructive/5";
   }
 }
+
+/**
+ * D-06/D-07: live cards is a cumulative running total with no snapshot to
+ * anchor it, so its verdict is computed on the CHANGE in the TSYS-vs-Bit-
+ * Addict gap across the period, never on the gap's absolute level — a
+ * constant, unchanging pre-window offset must never read as a mismatch on
+ * its own. `gapAtPeriodStart`/`gapAtPeriodEnd` are both
+ * `(tsys_live_cards - bit_addict_live_cards)`, at the day immediately
+ * before the period and at the period's last day respectively
+ * (`supabase/migrations/0030_v_alignment_live_cards.sql`'s
+ * `alignment_live_cards_for_period` computes both server-side). This
+ * function is a plain subtraction — its only purpose is to give the "gap
+ * change" concept a named, unit-tested identity distinct from an inline
+ * expression, matching the SQL function's own `gap_change` column.
+ */
+export function computeLiveCardsGapChange(
+  gapAtPeriodStart: number,
+  gapAtPeriodEnd: number,
+): number {
+  return gapAtPeriodEnd - gapAtPeriodStart;
+}
+
+const LIVE_CARDS_WINDOW_START_LABEL = "13 Aug 2026";
+
+/** UTC-safe "d MMM yyyy" formatter for the derivation caption's as-of date,
+ * matching every other dashboard caption's date format (e.g.
+ * `card-inventory-kpi-cards.tsx`'s `formatDay`). */
+function formatCaptionDay(day: string): string {
+  return new Date(`${day}T00:00:00Z`).toLocaleDateString("en-GB", { dateStyle: "medium" });
+}
+
+/**
+ * Copywriting Contract, live-cards permanent derivation caption (D-08):
+ * states the cumulative enrol − unenrol formula, the baseline offset and its
+ * as-of date, and the data-window start — always rendered directly under the
+ * TSYS figure, never a tooltip (components/dashboard/alignment-kpi-cards.tsx
+ * renders this verbatim, never re-worded). Renders a clearly-stated
+ * not-yet-confirmed phrasing — rather than a missing/blank date — when
+ * `asOfDate` is null, i.e. the offset has never been saved via
+ * `/settings/general`.
+ */
+export function formatLiveCardsDerivationCaption(
+  offset: number,
+  asOfDate: string | null,
+): string {
+  const basisPhrase =
+    asOfDate === null
+      ? `baselined at ${offset.toLocaleString()} (not yet confirmed)`
+      : `baselined at ${offset.toLocaleString()} as of ${formatCaptionDay(asOfDate)}`;
+  return `Cumulative enrol − unenrol from the TSYS report since ${LIVE_CARDS_WINDOW_START_LABEL}, ${basisPhrase}; excludes cards live before that date.`;
+}
+
+/**
+ * Copywriting Contract, live-cards status-meaning caption (D-07): a second
+ * always-visible caption, positioned near the badge rather than the figure,
+ * so a viewer cannot read this card's badge the same way as the other three
+ * cards' badges — its verdict tracks drift in the gap, not the gap's size.
+ */
+export function formatLiveCardsStatusMeaningCaption(): string {
+  return "This status reflects the change in the gap between TSYS and Bit Addict, not the size of the gap — a permanent offset from before the data window is expected and is not flagged on its own.";
+}

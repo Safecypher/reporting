@@ -4,18 +4,21 @@ import type { AlignmentShortSide, AlignmentStatus } from "@/lib/dashboard/alignm
 
 /**
  * Server-side period-scoped fetchers for the `alignment_totals_for_period` /
- * `alignment_daily_for_period` RPCs (supabase/migrations/0028_v_alignment_daily.sql).
- * Uses the session-scoped `lib/supabase/server.ts` client so RLS applies
- * (T-06-01 precedent) — never the secret-key writer.
+ * `alignment_daily_for_period` RPCs (supabase/migrations/0028_v_alignment_daily.sql)
+ * and the `alignment_live_cards_for_period` RPC
+ * (supabase/migrations/0030_v_alignment_live_cards.sql). Uses the
+ * session-scoped `lib/supabase/server.ts` client so RLS applies (T-06-01
+ * precedent) — never the secret-key writer.
  *
- * The `tolerance` argument arrives from `app_settings.alignment_tolerance`
- * once Plan 06-02 lands (D-15/D-16); until then every call site passes `0`,
- * matching `lib/settings/fy-settings.ts`'s documented "migration not yet
- * pushed -> fall back to the default" convention. Each fetcher returns a
- * discriminated result carrying either rows or an error — it never throws
- * and never swallows the error silently; the raw error is logged
- * server-side and an error flag is returned for the page to render as its
- * own scoped error state.
+ * The `tolerance`/`baselineOffset` arguments now come from
+ * `fetchAlignmentSettings()` (`lib/settings/alignment-settings.ts`, D-15/D-16
+ * and D-06/D-09) — every call site in `app/(dashboard)/alignment/page.tsx`
+ * reads the live settings once and passes them into every metric fetch
+ * below (Plan 06-03, closing the gap 06-02's SUMMARY flagged). Each fetcher
+ * returns a discriminated result carrying either rows or an error — it
+ * never throws and never swallows the error silently; the raw error is
+ * logged server-side and an error flag is returned for the page to render
+ * as its own scoped error state.
  */
 
 export const ALIGNMENT_METRICS = ["enrolled", "unenrolled", "live-cards", "volume"] as const;
@@ -141,4 +144,68 @@ export async function fetchAlignmentDaily(
 
   const rows = (data ?? []) as unknown as AlignmentDailyRow[];
   return { data: rows, error: null };
+}
+
+/**
+ * Live cards (Plan 06-03, D-06/D-07/D-09) is a cumulative running total, not
+ * a per-day flow metric — its RPC shape is deliberately different from
+ * `AlignmentTotalsRow` above (no `total_days`/`tsys_covered_days`; instead a
+ * single as-at figure pair, the gap at the period's start and end, and the
+ * carried-forward Bit Addict snapshot day, D-06/L-02).
+ */
+export interface AlignmentLiveCardsRow {
+  tsys_live_cards: number;
+  bit_addict_live_cards: number;
+  bit_addict_snapshot_day: string | null;
+  gap_at_period_end: number;
+  gap_at_period_start: number;
+  gap_change: number;
+  coverage_complete: boolean;
+  settled: boolean;
+  short_side: AlignmentShortSide;
+  status: AlignmentStatus;
+}
+
+/** A period with no observed live-cards data at all — the RPC still returns
+ * exactly one row (composed from scalar/left-join subqueries, never an empty
+ * result), so this is what that row looks like when nothing has ever been
+ * carried forward: zero counts, incomplete coverage, needs_review — never a
+ * spuriously-confident aligned. */
+const EMPTY_LIVE_CARDS: AlignmentLiveCardsRow = {
+  tsys_live_cards: 0,
+  bit_addict_live_cards: 0,
+  bit_addict_snapshot_day: null,
+  gap_at_period_end: 0,
+  gap_at_period_start: 0,
+  gap_change: 0,
+  coverage_complete: false,
+  settled: false,
+  short_side: null,
+  status: "needs_review",
+};
+
+export type AlignmentLiveCardsResult =
+  | { data: AlignmentLiveCardsRow; error: null }
+  | { data: null; error: string };
+
+export async function fetchAlignmentLiveCards(
+  supabase: Awaited<ReturnType<typeof createClient>>,
+  period: Pick<ResolvedPeriod, "start" | "end">,
+  baselineOffset: number,
+  tolerance: number,
+): Promise<AlignmentLiveCardsResult> {
+  const { data, error } = await supabase.rpc("alignment_live_cards_for_period", {
+    p_start: period.start,
+    p_end: period.end,
+    p_baseline_offset: baselineOffset,
+    p_tolerance: tolerance,
+  });
+
+  if (error) {
+    console.error("fetchAlignmentLiveCards: RPC failed", { error });
+    return { data: null, error: error.message };
+  }
+
+  const rows = (data ?? []) as unknown as AlignmentLiveCardsRow[];
+  return { data: rows[0] ?? EMPTY_LIVE_CARDS, error: null };
 }

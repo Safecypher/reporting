@@ -4,6 +4,8 @@ import type { Metadata } from "next";
 
 import {
   PairedMetricCard,
+  PairedMetricCardError,
+  PairedMetricCardPeriodEmpty,
   PairedMetricCardSkeleton,
 } from "@/components/dashboard/alignment-kpi-cards";
 import { ScopeBadge } from "@/components/dashboard/scope-badge";
@@ -12,7 +14,15 @@ import { PeriodEmptyState } from "@/components/dashboard/period-empty-state";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { createClient } from "@/lib/supabase/server";
-import { alignmentMetricLabel, fetchAlignmentTotals } from "@/lib/dashboard/alignment";
+import {
+  alignmentMetricLabel,
+  fetchAlignmentLiveCards,
+  fetchAlignmentTotals,
+} from "@/lib/dashboard/alignment";
+import {
+  formatLiveCardsDerivationCaption,
+  formatLiveCardsStatusMeaningCaption,
+} from "@/lib/dashboard/alignment-status";
 import {
   monthOptions as buildMonthOptions,
   yearOptions as buildYearOptions,
@@ -20,20 +30,13 @@ import {
   type ResolvedPeriod,
 } from "@/lib/dashboard/period";
 import { fetchFinancialYearStart } from "@/lib/settings/fy-settings";
+import { fetchAlignmentSettings } from "@/lib/settings/alignment-settings";
 
 export const metadata: Metadata = {
   title: "Alignment — Safecypher Reporting",
 };
 
 const DATA_WINDOW_CAPTION = "Excludes data before 13 Aug 2026.";
-
-/**
- * Tolerance is a stored `app_settings.alignment_tolerance` value once Plan
- * 06-02 lands (D-15/D-16); until then this page passes the documented
- * default, matching `lib/settings/fy-settings.ts`'s "migration not yet
- * pushed -> fall back to the default" convention.
- */
-const DEFAULT_TOLERANCE = 0;
 
 type IngestedFileFreshness = { uploaded_at: string };
 
@@ -136,19 +139,33 @@ function LoadingState() {
         <Skeleton className="h-6 w-56" />
       </div>
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-        <PairedMetricCardSkeleton metricLabel="Transaction volume" />
+        <PairedMetricCardSkeleton metricLabel={alignmentMetricLabel("volume")} />
+        <PairedMetricCardSkeleton metricLabel={alignmentMetricLabel("live-cards")} />
       </div>
     </div>
   );
+}
+
+/** UTC-safe "d MMM yyyy" formatter, matching every other dashboard caption's
+ * date format (e.g. `card-inventory-kpi-cards.tsx`'s `formatDay`). */
+function formatAsOfDay(day: string): string {
+  return new Date(`${day}T00:00:00Z`).toLocaleDateString("en-GB", { dateStyle: "medium" });
 }
 
 type PageSearchParams = Promise<{ [key: string]: string | string[] | undefined }>;
 
 /**
  * Async Server Component mirroring `app/(dashboard)/cards/page.tsx`'s
- * period-scoped 4-state shape. Only the Transaction volume card is wired
- * this task (Task 1's tracer scope) — Plan 06-03 adds the remaining three
- * cards to the same grid.
+ * period-scoped 4-state shape. Transaction volume and Live cards are wired
+ * this task (Plan 06-03 Task 1) — Task 2 adds the remaining two card-flow
+ * metrics (Enrolled/Unenrolled cards) to the same grid.
+ *
+ * `fetchAlignmentSettings()` is read BEFORE any metric fetch (D-15/D-16,
+ * D-06/D-09) — the live tolerance and baseline offset flow into every
+ * metric RPC call below, closing the gap 06-02's SUMMARY flagged
+ * (`lib/dashboard/alignment.ts`/this page were not in that plan's
+ * `files_modified`, so the settings it built were not yet consumed anywhere
+ * until now).
  *
  * The domain-existence probe (unscoped, "has TSYS or Bit Addict volume data
  * ever been ingested") is distinct from the period-scoped totals fetch, so
@@ -165,9 +182,12 @@ async function AlignmentBody({ searchParams }: { searchParams: PageSearchParams 
   const monthOptions = buildMonthOptions(now);
   const yearOptions = buildYearOptions(now);
 
-  const [totalsResult, tsysDomainProbe, bitAddictDomainProbe, freshnessResult] =
+  const settings = await fetchAlignmentSettings(supabase);
+
+  const [totalsResult, liveCardsResult, tsysDomainProbe, bitAddictDomainProbe, freshnessResult] =
     await Promise.all([
-      fetchAlignmentTotals(supabase, "volume", period, DEFAULT_TOLERANCE),
+      fetchAlignmentTotals(supabase, "volume", period, settings.toleranceCount),
+      fetchAlignmentLiveCards(supabase, period, settings.baselineOffset, settings.toleranceCount),
       supabase
         .from("apigee_calls")
         .select("event_time", { count: "exact", head: true })
@@ -187,12 +207,7 @@ async function AlignmentBody({ searchParams }: { searchParams: PageSearchParams 
         .maybeSingle(),
     ]);
 
-  if (
-    totalsResult.error !== null ||
-    tsysDomainProbe.error ||
-    bitAddictDomainProbe.error ||
-    freshnessResult.error
-  ) {
+  if (tsysDomainProbe.error || bitAddictDomainProbe.error || freshnessResult.error) {
     return (
       <>
         <PageHeader uploadedAt={null} period={null} monthOptions={[]} yearOptions={[]} />
@@ -220,9 +235,17 @@ async function AlignmentBody({ searchParams }: { searchParams: PageSearchParams 
     );
   }
 
-  const totals = totalsResult.data;
+  // Period-empty only when NEITHER card has any comparison data for the
+  // active period — live cards is a stock metric (L-02) so its own
+  // "nothing to show" signal is a null carried-forward snapshot day, not a
+  // day count. Each card still renders its OWN period-empty/error treatment
+  // below (UI-SPEC E1/E2) — this whole-page check only covers the case
+  // where every metric is empty at once.
+  const volumeEmpty = totalsResult.error === null && totalsResult.data.total_days === 0;
+  const liveCardsEmpty =
+    liveCardsResult.error === null && liveCardsResult.data.bit_addict_snapshot_day === null;
 
-  if (totals.total_days === 0) {
+  if (volumeEmpty && liveCardsEmpty) {
     return (
       <>
         <PageHeader
@@ -245,17 +268,55 @@ async function AlignmentBody({ searchParams }: { searchParams: PageSearchParams 
         yearOptions={yearOptions}
       />
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-        <PairedMetricCard
-          metricLabel={alignmentMetricLabel("volume")}
-          data={{
-            tsysCount: totals.tsys_count,
-            bitAddictCount: totals.bit_addict_count,
-            status: totals.status,
-            tsysCoveredDays: totals.tsys_covered_days,
-            bitAddictCoveredDays: totals.bit_addict_covered_days,
-            totalDays: totals.total_days,
-          }}
-        />
+        {totalsResult.error !== null ? (
+          <PairedMetricCardError metricLabel={alignmentMetricLabel("volume")} />
+        ) : totalsResult.data.total_days === 0 ? (
+          <PairedMetricCardPeriodEmpty metricLabel={alignmentMetricLabel("volume")} />
+        ) : (
+          <PairedMetricCard
+            metricLabel={alignmentMetricLabel("volume")}
+            data={{
+              tsysCount: totalsResult.data.tsys_count,
+              bitAddictCount: totalsResult.data.bit_addict_count,
+              status: totalsResult.data.status,
+              tsysCoveredDays: totalsResult.data.tsys_covered_days,
+              bitAddictCoveredDays: totalsResult.data.bit_addict_covered_days,
+              totalDays: totalsResult.data.total_days,
+            }}
+          />
+        )}
+        {liveCardsResult.error !== null ? (
+          <PairedMetricCardError metricLabel={alignmentMetricLabel("live-cards")} />
+        ) : liveCardsResult.data.bit_addict_snapshot_day === null ? (
+          <PairedMetricCardPeriodEmpty metricLabel={alignmentMetricLabel("live-cards")} />
+        ) : (
+          <PairedMetricCard
+            metricLabel={alignmentMetricLabel("live-cards")}
+            data={{
+              tsysCount: Math.round(liveCardsResult.data.tsys_live_cards),
+              bitAddictCount: liveCardsResult.data.bit_addict_live_cards,
+              status: liveCardsResult.data.status,
+              // Live cards' coverage is a whole-window boolean guard (Task
+              // 1's running bool_and, RESEARCH Pitfall 2), not a per-day
+              // count like the flow metrics — expressed here as a 1-of-1 /
+              // 0-of-1 pair so the shared coverage-statement formatter still
+              // renders the D-12 "incomplete coverage" clause correctly.
+              tsysCoveredDays: liveCardsResult.data.coverage_complete ? 1 : 0,
+              bitAddictCoveredDays: liveCardsResult.data.bit_addict_snapshot_day !== null ? 1 : 0,
+              totalDays: 1,
+            }}
+            tsysCaption={formatLiveCardsDerivationCaption(
+              settings.baselineOffset,
+              settings.baselineAsOf,
+            )}
+            statusMeaningCaption={formatLiveCardsStatusMeaningCaption()}
+            bitAddictAsOfCaption={
+              liveCardsResult.data.bit_addict_snapshot_day
+                ? `As of ${formatAsOfDay(liveCardsResult.data.bit_addict_snapshot_day)}.`
+                : undefined
+            }
+          />
+        )}
       </div>
     </>
   );
