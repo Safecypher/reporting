@@ -191,8 +191,189 @@ begin
 end;
 $$;
 
+-- =============================================================================
+-- Block D -- alignment_settled(date, date, date) under deliberately
+-- divergent per-side freshness (0031, CR-01/WR-01)
+-- =============================================================================
+-- Literal-argument coverage exercising divergent freshness directly, rather
+-- than hoping the live dataset happens to contain it -- 06-VERIFICATION.md
+-- recorded that today's sparse data cannot reach these paths.
+do $$
+declare
+  v_actual boolean;
+begin
+  -- *** THE SINGLE MOST IMPORTANT ASSERTION IN THIS BLOCK (CR-01) ***
+  -- TSYS is far ahead (2026-09-30) but the counterpart has NOT reached
+  -- add_business_days('2026-08-14', 3) = '2026-08-19' -- no matter how far
+  -- ahead the OTHER side has run, the metric must not settle.
+  select alignment_settled('2026-08-14'::date, '2026-09-30'::date, '2026-08-15'::date) into v_actual;
+  if v_actual is distinct from false then
+    raise exception
+      'ALIGNMENT TEST FAILED (Block D, THE CRITICAL CASE -- CR-01): alignment_settled(2026-08-14, 2026-09-30, 2026-08-15) = %, expected false -- a fresh TSYS side must never settle a metric whose true counterpart has not caught up',
+      v_actual;
+  end if;
+
+  -- Mirror image: the counterpart is fresh but TSYS itself is stale. A fresh
+  -- counterpart cannot settle a stale TSYS side either.
+  select alignment_settled('2026-08-14'::date, '2026-08-15'::date, '2026-09-30'::date) into v_actual;
+  if v_actual is distinct from false then
+    raise exception
+      'ALIGNMENT TEST FAILED (Block D): alignment_settled(2026-08-14, 2026-08-15, 2026-09-30) = %, expected false',
+      v_actual;
+  end if;
+
+  -- Both sides genuinely fresh -> settled.
+  select alignment_settled('2026-08-14'::date, '2026-09-30'::date, '2026-09-30'::date) into v_actual;
+  if v_actual is distinct from true then
+    raise exception
+      'ALIGNMENT TEST FAILED (Block D): alignment_settled(2026-08-14, 2026-09-30, 2026-09-30) = %, expected true',
+      v_actual;
+  end if;
+
+  -- Exact-adjacency case: both maxima land EXACTLY on
+  -- add_business_days('2026-08-14', 3) = '2026-08-19'. The boundary is
+  -- inclusive (>=, not >) -- this must settle.
+  select alignment_settled('2026-08-14'::date, '2026-08-19'::date, '2026-08-19'::date) into v_actual;
+  if v_actual is distinct from true then
+    raise exception
+      'ALIGNMENT TEST FAILED (Block D): alignment_settled(2026-08-14, 2026-08-19, 2026-08-19) = %, expected true -- the boundary is inclusive',
+      v_actual;
+  end if;
+
+  -- One calendar day short on one side only -> not settled.
+  select alignment_settled('2026-08-14'::date, '2026-08-18'::date, '2026-08-19'::date) into v_actual;
+  if v_actual is distinct from false then
+    raise exception
+      'ALIGNMENT TEST FAILED (Block D): alignment_settled(2026-08-14, 2026-08-18, 2026-08-19) = %, expected false',
+      v_actual;
+  end if;
+
+  -- Absent-source case: TSYS maximum is NULL (no rows at all) -- must read
+  -- false (unsettled), never NULL/undefined.
+  select alignment_settled('2026-08-14'::date, null, '2026-09-30'::date) into v_actual;
+  if v_actual is distinct from false then
+    raise exception
+      'ALIGNMENT TEST FAILED (Block D): alignment_settled(2026-08-14, NULL, 2026-09-30) = %, expected false',
+      v_actual;
+  end if;
+  if v_actual is null then
+    raise exception
+      'ALIGNMENT TEST FAILED (Block D): alignment_settled(2026-08-14, NULL, 2026-09-30) returned NULL -- an absent source must read unsettled (false), never undefined';
+  end if;
+
+  raise notice 'ALIGNMENT TEST BLOCK D PASSED: alignment_settled holds for the CR-01 divergent-freshness case, its mirror image, both-fresh, the exact-adjacency boundary, one-day-short and the absent-source (NULL) case';
+end;
+$$;
+
+-- =============================================================================
+-- Block E -- alignment_counterpart_max_day(text, date, date) selects the
+-- metric's own source (0031, CR-01)
+-- =============================================================================
+do $$
+declare
+  v_actual date;
+begin
+  -- Deliberately divergent pair: p_max_inventory_day = 2026-08-15,
+  -- p_max_verification_day = 2026-09-30.
+  select alignment_counterpart_max_day('volume', '2026-08-15'::date, '2026-09-30'::date) into v_actual;
+  if v_actual is distinct from '2026-09-30'::date then
+    raise exception
+      'ALIGNMENT TEST FAILED (Block E): alignment_counterpart_max_day(volume, 2026-08-15, 2026-09-30) = %, expected 2026-09-30 -- volume must compare against verifications, not v_inventory_daily_diff',
+      v_actual;
+  end if;
+
+  select alignment_counterpart_max_day('enrolled', '2026-08-15'::date, '2026-09-30'::date) into v_actual;
+  if v_actual is distinct from '2026-08-15'::date then
+    raise exception
+      'ALIGNMENT TEST FAILED (Block E): alignment_counterpart_max_day(enrolled, 2026-08-15, 2026-09-30) = %, expected 2026-08-15 -- enrolled must compare against v_inventory_daily_diff, not verifications',
+      v_actual;
+  end if;
+
+  select alignment_counterpart_max_day('unenrolled', '2026-08-15'::date, '2026-09-30'::date) into v_actual;
+  if v_actual is distinct from '2026-08-15'::date then
+    raise exception
+      'ALIGNMENT TEST FAILED (Block E): alignment_counterpart_max_day(unenrolled, 2026-08-15, 2026-09-30) = %, expected 2026-08-15 -- unenrolled must compare against v_inventory_daily_diff, not verifications',
+      v_actual;
+  end if;
+
+  raise notice 'ALIGNMENT TEST BLOCK E PASSED: alignment_counterpart_max_day selects verifications for volume and v_inventory_daily_diff for enrolled/unenrolled, over a deliberately divergent pair';
+end;
+$$;
+
+-- =============================================================================
+-- Block F -- v_alignment_daily is actually wired to alignment_settled /
+-- alignment_counterpart_max_day (0031, structural proof)
+-- =============================================================================
+-- Read-only assertions over whatever v_alignment_daily currently contains.
+-- Each source's maximum is recomputed independently of the view -- directly
+-- from the base tables -- so this proves the WIRING, not merely that the
+-- view returns SOME values.
+do $$
+declare
+  v_recomputed_tsys_max date;
+  v_recomputed_inventory_max date;
+  v_recomputed_verification_max date;
+  v_bad text;
+begin
+  select coalesce(max((event_time at time zone 'UTC')::date), '2026-08-13'::date)
+    into v_recomputed_tsys_max
+    from apigee_calls
+   where event_time >= '2026-08-13T00:00:00Z';
+
+  select coalesce(max(day), '2026-08-13'::date)
+    into v_recomputed_inventory_max
+    from v_inventory_daily_diff;
+
+  select coalesce(max((created_at at time zone 'UTC')::date), '2026-08-13'::date)
+    into v_recomputed_verification_max
+    from verifications
+   where created_at >= '2026-08-13T00:00:00Z';
+
+  -- (a) no row's tsys_max_day differs from the recomputed apigee maximum.
+  select string_agg(format('%s/%s(tsys_max_day=%s)', day::text, metric, tsys_max_day::text), ', ' order by day, metric)
+    into v_bad
+    from v_alignment_daily
+   where tsys_max_day is distinct from v_recomputed_tsys_max;
+
+  if v_bad is not null then
+    raise exception
+      'ALIGNMENT TEST FAILED (Block F): row(s) [%] report tsys_max_day distinct from the recomputed apigee_calls maximum (%) -- v_alignment_daily is not wired to the recomputed TSYS bound',
+      v_bad, v_recomputed_tsys_max;
+  end if;
+
+  -- (b) no row's counterpart_max_day differs from
+  -- alignment_counterpart_max_day(metric, <recomputed inventory max>, <recomputed verification max>).
+  select string_agg(format('%s/%s(counterpart_max_day=%s)', day::text, metric, counterpart_max_day::text), ', ' order by day, metric)
+    into v_bad
+    from v_alignment_daily
+   where counterpart_max_day is distinct from
+         alignment_counterpart_max_day(metric, v_recomputed_inventory_max, v_recomputed_verification_max);
+
+  if v_bad is not null then
+    raise exception
+      'ALIGNMENT TEST FAILED (Block F): row(s) [%] report counterpart_max_day distinct from alignment_counterpart_max_day(metric, %, %) -- v_alignment_daily is not wired to the per-metric counterpart function',
+      v_bad, v_recomputed_inventory_max, v_recomputed_verification_max;
+  end if;
+
+  -- (c) no row's settled differs from alignment_settled(day, tsys_max_day, counterpart_max_day).
+  select string_agg(format('%s/%s(settled=%s)', day::text, metric, settled::text), ', ' order by day, metric)
+    into v_bad
+    from v_alignment_daily
+   where settled is distinct from alignment_settled(day, tsys_max_day, counterpart_max_day);
+
+  if v_bad is not null then
+    raise exception
+      'ALIGNMENT TEST FAILED (Block F): row(s) [%] report settled distinct from alignment_settled(day, tsys_max_day, counterpart_max_day) -- v_alignment_daily is not wired to alignment_settled',
+      v_bad;
+  end if;
+
+  raise notice 'ALIGNMENT TEST BLOCK F PASSED: v_alignment_daily''s tsys_max_day, counterpart_max_day and settled are wired to alignment_settled/alignment_counterpart_max_day over the live dataset. Recomputed maxima -- TSYS (apigee_calls): %, inventory (v_inventory_daily_diff): %, verification (verifications): %',
+    v_recomputed_tsys_max, v_recomputed_inventory_max, v_recomputed_verification_max;
+end;
+$$;
+
 do $$
 begin
-  raise notice 'ALIGNMENT TRUTH TABLE TEST PASSED (read-only, 3 blocks: business days, alignment_status truth table, v_alignment_daily invariants)';
+  raise notice 'ALIGNMENT TRUTH TABLE TEST PASSED (read-only, 6 blocks: business days, alignment_status truth table, v_alignment_daily invariants, alignment_settled divergent-freshness, alignment_counterpart_max_day per-metric selection, v_alignment_daily wiring proof)';
 end;
 $$;
