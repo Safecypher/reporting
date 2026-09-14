@@ -18,7 +18,7 @@ Decimal phases appear between their surrounding integers in numeric order.
 - [x] **Phase 3: Revenue, SLA & Drill-down** - Exact tiered revenue, configurable pricing admin, SLA-vs-750ms trend, and drill-from-metric-to-source (completed 2026-08-21)
 - [x] **Phase 4: Reconciliation & Discrepancy Flagging** - The core-value centrepiece: timing-aware billing-vs-verification and inventory reconciliation with explained, traceable discrepancy flags (completed 2026-08-23)
 - [ ] **Phase 5: Time Periods & Financial-Year Settings** - Configurable financial-year start plus a consistent month / FY-or-CY / all-time / historical period lens across every view, and the signed TSYS MSA tier table seeded
-- [ ] **Phase 6: Dual-Source Alignment: TSYS vs Bit Addict** - Enrolled, unenrolled, live cards and transaction volume shown for both sources side by side with variance and an explicit aligned/mismatch status
+- [x] **Phase 6: Dual-Source Alignment: TSYS vs Bit Addict** - Enrolled, unenrolled, live cards and transaction volume shown for both sources side by side with variance and an explicit aligned/mismatch status
 - [ ] **Phase 7: TSYS Tiered Volume & Revenue Forecast** - Stepped TSYS tiers on monthly billable volume, with actual-to-date and projected month-end shown side by side per source
 
 ## Phase Details
@@ -222,7 +222,7 @@ Plans:
   4. A user can drill from either side of any comparison to the contributing rows and their originating source file.
   5. A day where the two sources genuinely disagree is visibly flagged on the dashboard without the user having to open the reconciliation page.
 
-**Plans**: 10/10 plans executed + 4 gap-closure plans (06-07..06-10, from 06-VERIFICATION.md)
+**Plans**: 10/10 plans executed (6 original + 4 gap-closure 06-07..06-10) — phase verified passed 5/5 SC, 7/7 requirements (06-VERIFICATION.md, re-verified 2026-09-14)
 
 Plans:
 **Wave 1**
