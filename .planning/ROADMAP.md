@@ -222,7 +222,7 @@ Plans:
   4. A user can drill from either side of any comparison to the contributing rows and their originating source file.
   5. A day where the two sources genuinely disagree is visibly flagged on the dashboard without the user having to open the reconciliation page.
 
-**Plans**: 9/10 plans executed + 4 gap-closure plans (06-07..06-10, from 06-VERIFICATION.md)
+**Plans**: 10/10 plans executed + 4 gap-closure plans (06-07..06-10, from 06-VERIFICATION.md)
 
 Plans:
 **Wave 1**
@@ -257,7 +257,7 @@ Plans:
 
 **Gap closure — Wave 3** *(blocked on Wave 2 completion)*
 
-- [ ] 06-10-PLAN.md — Settings robustness: the action stops owning the as-of column, a settings-read failure becomes a visible notice, and the human UAT walkthrough (WR-02, WR-03, 11 pending UAT tests)
+- [x] 06-10-PLAN.md — Settings robustness: the action stops owning the as-of column, a settings-read failure becomes a visible notice, and the human UAT walkthrough (WR-02, WR-03, 11 pending UAT tests)
 
 ### Phase 7: TSYS Tiered Volume & Revenue Forecast
 
@@ -292,5 +292,5 @@ Phases execute in numeric order: 1 → 2 → 3 → 4 → 5 → 6 → 7 (Phase 3 
 | 3. Revenue, SLA & Drill-down | 7/7 | Complete   | 2026-08-21 |
 | 4. Reconciliation & Discrepancy Flagging | 4/4 | Complete   | 2026-08-23 |
 | 5. Time Periods & Financial-Year Settings | 8/8 | In Progress|  |
-| 6. Dual-Source Alignment: TSYS vs Bit Addict | 9/10 | In Progress|  |
+| 6. Dual-Source Alignment: TSYS vs Bit Addict | 10/10 | In Progress|  |
 | 7. TSYS Tiered Volume & Revenue Forecast | 0/0 | Not planned | — |

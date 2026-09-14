@@ -4,16 +4,16 @@ milestone: v1.0
 current_phase: 06
 current_phase_name: "Dual-Source Alignment: TSYS vs Bit Addict"
 status: executing
-stopped_at: Completed 06-09-PLAN.md (Tasks 2-3; Task 1 orchestrator-performed)
-last_updated: "2026-09-11T16:32:55.716Z"
-last_activity: 2026-09-11
-last_activity_desc: Quick task 260911-m2b — corrected counterparty name Thesis to TSYS in CLAUDE.md and apigee-stats.ts
-state_head: 0c180cfdc3cd38bd166be7e03e7754b3cd6a20f6
+stopped_at: "Completed 06-10-PLAN.md (Phase 06 complete: 10/10 plans, ALIGN-06 marked complete) -- new out-of-scope icon-glyph finding logged in WINDOWS.md id 6"
+last_updated: "2026-09-14T16:37:11.329Z"
+last_activity: 2026-09-14
+last_activity_desc: Phase 06 Plan 10 (06-10) complete — WR-02/WR-03 closed, human walkthrough approved, Phase 06 fully complete (10/10 plans)
+state_head: 3ed20a9b06d0f4bf462ad2b40e7159422ab49155
 progress:
   total_phases: 7
   completed_phases: 2
   total_plans: 44
-  completed_plans: 43
+  completed_plans: 44
 milestone_name: milestone
 ---
 
@@ -28,10 +28,10 @@ See: .planning/PROJECT.md (updated 2026-08-18)
 
 ## Current Position
 
-Phase: 06 (Dual-Source Alignment: TSYS vs Bit Addict) — EXECUTING
-Plan: 4 of 10
-Status: Ready to execute
-Last activity: 2026-09-11 — Phase 06 execution started
+Phase: 06 (Dual-Source Alignment: TSYS vs Bit Addict) — ALL PLANS COMPLETE
+Plan: 10 of 10
+Status: All 10 plans (06-01..06-10) have a SUMMARY.md; 06-UAT.md is status: complete (human-approved). Formal phase verification (`/gsd-verify-work 6`) not yet run — ROADMAP.md's phase-level row still reads "In Progress" pending that step.
+Last activity: 2026-09-14 — Plan 06-10 complete (WR-02/WR-03 closed, human walkthrough approved)
 
 Progress: [░░░░░░░░░░] 0%
 
@@ -80,6 +80,7 @@ Progress: [░░░░░░░░░░] 0%
 | Phase 06 P07 | 20min | 3 tasks | 5 files |
 | Phase 06 P08 | 25min | 2 tasks | 4 files |
 | Phase 06 P09 | ~35min | 3 tasks | 7 files |
+| Phase 06 P10 | 13min (executor) + multi-day human-verify gap | 3 tasks | 9 files |
 
 ## Accumulated Context
 
@@ -134,6 +135,8 @@ Recent decisions affecting current work:
 - [Phase 06]: [Phase 06] Plan 09: Task 1 (live migration push) performed by orchestrator (no executor MCP access); consumed via SUMMARY fold-in from 06-09-TASK1-RECORD.md rather than re-derived
 - [Phase 06]: [Phase 06] Plan 09: CR-02's fix expressed as exported pure helper computeLiveCardsCoverageFigures (alignment-status.ts) so the three coverage-figure cases are unit-testable without a Supabase client
 - [Phase 06]: [Phase 06] Plan 09: fetchAlignmentContributingRows's Bit Addict branch factored into fetchBitAddictContributingRows so the alignment_inventory_diff_rows RPC (enrolled/unenrolled) and the unchanged table reads (live-cards/volume) combine in one Promise.all via a uniform {rows, error} shape
+- [Phase 06]: [Phase 06] Plan 10: closed WR-02 (Server Action no longer writes tsys_live_cards_baseline_as_of -- the 0033 trigger is now the column's sole owner) and WR-03 (fetchAlignmentSettings returns a discriminated {settings, error} result; SettingsFallbackNotice now surfaces a read failure on all three verdict-rendering surfaces plus /settings/general). Added vitest.config.mts (deviation, Rule 3) so Vitest can resolve this repo's @/* alias at runtime for the first Server-Action unit test.
+- [Phase 06]: [Phase 06] Plan 10 Task 3 human walkthrough approved 2026-09-14 with no per-test observed values reported -- 06-UAT.md records this honestly as approved-by-human-walkthrough rather than fabricating per-test data. One new out-of-scope finding logged: public/icons.svg renders every glyph solid black (no stroke= attrs, only 5 fill=currentColor elements), so status colour never reaches an icon -- app-wide, pre-existing, does not corrupt any figure, StatusBadge text label still carries meaning. Recorded in 06-UAT.md Gaps and WINDOWS.md entry 6 for separate follow-up. Phase 06 is now fully complete (10/10 plans, ALIGN-06 marked complete).
 
 ### Pending Todos
 
@@ -148,7 +151,7 @@ Carried from research (resolve during phase planning):
 - [Phase 2] De-dup composite key for verification/dCVV is a business decision — confirm with Joachim whether two same-second verifications of one card are possible; retain raw staging so the key is re-tunable.
 - [Phase 2] Source timezone per report type must be established (not guessed) before finalising UTC normalisation — confirm with Joachim/Chris; store raw timestamp strings.
 - [Phase 4] 6am/8am billing/others delivery offset — design reconciliation to tolerate the offset regardless of Joachim's alignment effort; event-timestamp + settling window.
-- [Phase 06] Phase 6 is NOT fully verified: 06-06 Task 2 (live browser demonstration of the five ROADMAP success criteria and ALIGN-01..07) was deferred to human UAT -- see .planning/phases/06-dual-source-alignment-tsys-vs-bit-addict/06-UAT.md (11 pending tests). Run /gsd-verify-work 6 before considering Phase 6 complete.
+- [Phase 06] RESOLVED 2026-09-14 (Plan 06-10 Task 3): the human walkthrough deferred since 06-06 is complete -- 06-UAT.md is status: complete, approved, with all eleven tests plus four 06-10 re-checks recorded (honestly, with no fabricated per-test observed values -- see 06-10-SUMMARY.md "Known Gaps in the UAT Record"). One new out-of-scope finding was raised and logged rather than fixed: public/icons.svg renders every glyph solid black regardless of applied status colour (WINDOWS.md id 6, app-wide, pre-existing, does not corrupt any figure). Formal `/gsd-verify-work 6` has still not been run -- recommended before ROADMAP.md's Phase 6 row flips to Complete.
 
 ### Quick Tasks Completed
 
@@ -172,6 +175,6 @@ Items acknowledged and carried forward from previous milestone close:
 
 ## Session Continuity
 
-Last session: 2026-09-11T16:32:55.544Z
-Stopped at: Completed 06-09-PLAN.md (Tasks 2-3; Task 1 orchestrator-performed)
+Last session: 2026-09-14T16:37:11.106Z
+Stopped at: Completed 06-10-PLAN.md (Phase 06 complete: 10/10 plans, ALIGN-06 marked complete) -- new out-of-scope icon-glyph finding logged in WINDOWS.md id 6
 Resume file: None

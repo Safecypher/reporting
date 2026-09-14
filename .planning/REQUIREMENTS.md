@@ -77,7 +77,7 @@ Requirements for the initial release (the PoC dashboard shown to Mark). Each map
 - [x] **ALIGN-03**: Each comparison carries an explicit aligned / needs-review / mismatch status using the existing three-state badge, and "needs-review" is used where one source's report day is missing rather than silently reading as zero
 - [x] **ALIGN-04**: A user can drill from either side of any comparison to the contributing rows and their originating source file
 - [ ] **ALIGN-05**: A day where the two sources genuinely disagree is visibly flagged on the dashboard home page without the user having to open the reconciliation page
-- [ ] **ALIGN-06**: Alignment tolerance and the TSYS live-cards baseline offset are configurable settings in `app_settings`, audited on every change, and applied uniformly across all four metrics
+- [x] **ALIGN-06**: Alignment tolerance and the TSYS live-cards baseline offset are configurable settings in `app_settings`, audited on every change, and applied uniformly across all four metrics
 - [ ] **ALIGN-07**: A full-page day-breakdown view exists for periods whose day count exceeds the drill Sheet's bounded window, reusing the level-one column set and the same period contract
 
 ## v2 Requirements
@@ -162,7 +162,7 @@ Which phases cover which requirements. Updated during roadmap creation.
 | ALIGN-03 | Phase 6 | Complete |
 | ALIGN-04 | Phase 6 | Complete |
 | ALIGN-05 | Phase 6 | Pending |
-| ALIGN-06 | Phase 6 | Pending |
+| ALIGN-06 | Phase 6 | Complete |
 | ALIGN-07 | Phase 6 | Pending |
 
 **Coverage:**

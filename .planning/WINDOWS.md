@@ -1,10 +1,10 @@
 ---
 schema_version: 1
-open_count: 4
+open_count: 5
 waived_count: 0
 fixed_count: 1
-total_count: 5
-last_updated: 2026-09-11T13:22:47.191Z
+total_count: 6
+last_updated: 2026-09-14T16:34:33.048Z
 ---
 
 # Broken Windows Ledger
@@ -20,6 +20,7 @@ last_updated: 2026-09-11T13:22:47.191Z
 | 3 | 06 | unrun-verify | lib/dashboard/alignment-drill.ts |  | Live-cards day-breakdown gap-change/settled derivation (fetchLiveCardsDayBreakdown, addBusinessDaysLocal) has no dedicated Vitest coverage — mirrors 0030's SQL by hand, unlike alignment-status.ts's tested truth table | open |  | 2026-09-11T12:54:20.651Z |  |
 | 4 | 06 | unrun-verify | supabase/tests/tsys_msa_tier_test.sql |  | Blocks B and C (revenue-window boundary cases) are destructive if not run inside a true begin/rollback transaction — the Supabase MCP execute_sql path commits each statement separately, so running them as instructed would have permanently deleted every verification row and pricing tier set from live production. Only Block A (MSA tier boundaries) was executed and passed; B/C's revenue-window behaviour remains unverified against live data since Phase 5. The identical destructive-if-not-transactional pattern exists in supabase/tests/revenue_boundary_test.sql. Recommend converting both files to the fixture-free invariant style reconciliation_no_source_data_test.sql already uses. | open |  | 2026-09-11T13:22:47.100Z |  |
 | 5 | 06 | unrun-verify | lib/dashboard/alignment.ts |  | 06-06 acceptance criterion 'No narrow cast remains around any alignment RPC call site' is NOT met: three (data ?? []) as unknown as <Row>[] casts remain at lines 123, 145 and 209. Root cause: lib/supabase/server.ts's createServerClient(...) has no Database type parameter, so every supabase.rpc() result is untyped; typing it surfaces a separate real conflict (5 errors) because Supabase's generator emits p_end: string instead of string \| null even though every alignment SQL function legitimately accepts NULL p_end for the open-ended all-time scope. The obvious fix (createServerClient<Database>) was tried and reverted. Casts are currently load-bearing, not sloppiness, but the criterion is unmet. lib/supabase/server.ts and lib/dashboard/alignment.ts are both out of 06-06's files_modified scope. Recommend follow-up: type the server client and widen the nullable p_end call sites, or adopt the .returns<T>() idiom the revenue page already uses. | open |  | 2026-09-11T13:22:47.191Z |  |
+| 6 | 06 | lint-warning | public/icons.svg |  | Icon sprite renders every glyph as solid black, ignoring status colour -- no stroke= attrs on stroke-style symbols (e.g. alert/check), and only 5 elements use fill=currentColor. text-destructive/text-success/text-muted-foreground never reaches the glyph. Pre-existing, app-wide (~20 usage sites), found during 06-10 Task 3 human walkthrough. Does not corrupt any figure -- StatusBadge text label still carries meaning -- only the at-a-glance icon-colour affordance (SC5/ALIGN-05) is weakened. Follow-up: add stroke="currentColor" fill="none" (or equivalent) to the sprite's stroke-style symbols. Out of scope for 06-10 (WR-02/WR-03 only). | open |  | 2026-09-14T16:34:33.048Z |  |
 
 ````json
 [
@@ -81,6 +82,18 @@ last_updated: 2026-09-11T13:22:47.191Z
     "status": "open",
     "reason": "",
     "recorded_at": "2026-09-11T13:22:47.191Z",
+    "resolved_at": null
+  },
+  {
+    "id": 6,
+    "kind": "lint-warning",
+    "phase": "06",
+    "file": "public/icons.svg",
+    "line": null,
+    "description": "Icon sprite renders every glyph as solid black, ignoring status colour -- no stroke= attrs on stroke-style symbols (e.g. alert/check), and only 5 elements use fill=currentColor. text-destructive/text-success/text-muted-foreground never reaches the glyph. Pre-existing, app-wide (~20 usage sites), found during 06-10 Task 3 human walkthrough. Does not corrupt any figure -- StatusBadge text label still carries meaning -- only the at-a-glance icon-colour affordance (SC5/ALIGN-05) is weakened. Follow-up: add stroke=\"currentColor\" fill=\"none\" (or equivalent) to the sprite's stroke-style symbols. Out of scope for 06-10 (WR-02/WR-03 only).",
+    "status": "open",
+    "reason": "",
+    "recorded_at": "2026-09-14T16:34:33.048Z",
     "resolved_at": null
   }
 ]
