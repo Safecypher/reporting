@@ -25,6 +25,7 @@ import {
 } from "@/lib/dashboard/alignment";
 import type { AlignmentMetricStatus } from "@/lib/dashboard/alignment-rollup";
 import {
+  isProjectablePeriod,
   monthOptions as buildMonthOptions,
   yearOptions as buildYearOptions,
   resolvePeriod,
@@ -32,6 +33,8 @@ import {
 } from "@/lib/dashboard/period";
 import { fetchFinancialYearStart } from "@/lib/settings/fy-settings";
 import { fetchAlignmentSettings } from "@/lib/settings/alignment-settings";
+import { fetchRevenueForecastSettings } from "@/lib/settings/revenue-forecast-settings";
+import { fetchRevenueForecast, formatHomeProjectionSubLine } from "@/lib/dashboard/revenue-forecast";
 
 /**
  * The real dashboard home (D-04/D-05, ALIGN-05, ROADMAP SC5) — replaces the
@@ -157,7 +160,7 @@ function LoadingState() {
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
         <HomeKpiTileSkeleton label="Live cards" />
         <HomeKpiTileSkeleton label="Volume this period" />
-        <HomeKpiTileSkeleton label="Revenue this period" />
+        <HomeKpiTileSkeleton label="Revenue this period" hasSubLine />
       </div>
     </div>
   );
@@ -191,6 +194,9 @@ async function HomeBody({ searchParams }: { searchParams: PageSearchParams }) {
   const yearOptions = buildYearOptions(now);
 
   const { settings, error: settingsError } = await fetchAlignmentSettings(supabase);
+  // D-15/FCST-05: the live honest-degradation threshold, read alongside the
+  // alignment settings so it is available before the forecast gate below.
+  const { settings: forecastSettings } = await fetchRevenueForecastSettings(supabase);
 
   let verificationsQuery = supabase
     .from("v_verifications_daily")
@@ -199,6 +205,22 @@ async function HomeBody({ searchParams }: { searchParams: PageSearchParams }) {
   if (period.end !== null) {
     verificationsQuery = verificationsQuery.lt("day_utc", period.end);
   }
+
+  // D-12 gate (RESEARCH Pitfall 5): the projection is fetched ONLY for the
+  // current month/year — never inferred from resolvePeriod having returned
+  // successfully, since it also succeeds for every valid past period. The
+  // gate reuses the single `now` already captured above; no second clock
+  // read. When false, the forecast RPC is not issued at all.
+  const isProjectable = isProjectablePeriod(period, now);
+  const forecastPromise =
+    isProjectable && period.end !== null
+      ? fetchRevenueForecast(
+          supabase,
+          { start: period.start, end: period.end },
+          "bit_addict",
+          forecastSettings.minCoveredDays,
+        )
+      : Promise.resolve(null);
 
   const [
     alignEnrolledResult,
@@ -209,6 +231,7 @@ async function HomeBody({ searchParams }: { searchParams: PageSearchParams }) {
     verificationsResult,
     revenueTotalResult,
     freshnessResult,
+    forecastResult,
   ] = await Promise.all([
     fetchAlignmentTotals(supabase, "enrolled", period, settings.toleranceCount),
     fetchAlignmentTotals(supabase, "unenrolled", period, settings.toleranceCount),
@@ -236,6 +259,7 @@ async function HomeBody({ searchParams }: { searchParams: PageSearchParams }) {
       .limit(1)
       .returns<IngestedFileFreshness[]>()
       .maybeSingle(),
+    forecastPromise,
   ]);
 
   if (freshnessResult.error) {
@@ -295,6 +319,19 @@ async function HomeBody({ searchParams }: { searchParams: PageSearchParams }) {
   );
   const revenueTotal = revenueTotalResult.error ? 0 : Number(revenueTotalResult.data ?? "0");
 
+  // D-18/07-UI-SPEC E4: the sub-line is present ONLY when the gate held, the
+  // fetch succeeded, and the forecast is not degraded — every other case
+  // (past scope, failed fetch, or a below-threshold degraded forecast)
+  // collapses to `undefined`, so the tile renders exactly as it does today:
+  // absent, never zeroed, never a second error message on this tile.
+  const forecastScope = period.scope === "year" ? "year" : "month";
+  const forecastPointRevenue =
+    forecastResult !== null && forecastResult.error === null && !forecastResult.data.degraded
+      ? forecastResult.data.projected_revenue
+      : null;
+  const projectedSubLine =
+    formatHomeProjectionSubLine(forecastScope, forecastPointRevenue) ?? undefined;
+
   return (
     <>
       <PageHeader
@@ -331,6 +368,7 @@ async function HomeBody({ searchParams }: { searchParams: PageSearchParams }) {
             total={revenueTotal}
             hasData={hasVerificationActivity}
             error={revenueTotalResult.error !== null}
+            projectedSubLine={projectedSubLine}
           />
         </TileErrorBoundary>
       </div>

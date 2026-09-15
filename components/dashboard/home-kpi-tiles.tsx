@@ -62,11 +62,22 @@ function TileLink({ href, label }: { href: string; label: string }) {
   );
 }
 
-/** Loading state — its own shape, independent of the other two tiles and of the alignment strip (UI-SPEC E6). */
-export function HomeKpiTileSkeleton({ label }: { label: string }) {
+/** Loading state — its own shape, independent of the other two tiles and of
+ * the alignment strip (UI-SPEC E6). `hasSubLine` (07-UI-SPEC E4) renders an
+ * extra skeleton line beneath the headline skeleton, matching the shape the
+ * populated tile takes when it carries a projection sub-line — used only by
+ * the revenue tile's loading placeholder, independent of the other two. */
+export function HomeKpiTileSkeleton({
+  label,
+  hasSubLine,
+}: {
+  label: string;
+  hasSubLine?: boolean;
+}) {
   return (
     <HomeKpiTileShell label={label}>
       <Skeleton className="h-12 w-32" />
+      {hasSubLine && <Skeleton className="h-4 w-40" />}
       <Skeleton className="h-4 w-28" />
     </HomeKpiTileShell>
   );
@@ -108,17 +119,27 @@ function HomeKpiTileNoData({
  * others) with its 12px uppercase label and a `View {page}` link affordance.
  * `value` is pre-formatted by the caller (comma-grouped count, or currency)
  * so this component never re-derives formatting per figure type — the tile
- * grows to fit a long value rather than truncating (no line-clamp/ellipsis
- * class is ever applied here).
+ * grows to fit a long value rather than shrinking or eliding it (no
+ * clamping utility is ever applied here).
+ *
+ * `subLine` (D-18, 07-UI-SPEC E4) is an optional 14px `--provisional`-ink
+ * line rendered directly beneath the headline value and above the
+ * `TileLink` — currently only `RevenueThisPeriodTile` populates it, with the
+ * projection sub-line. When absent, the tile renders exactly as it did
+ * before this prop existed: no empty element, no blank line. A long
+ * `subLine` value is free to wrap onto a second line — no class here clamps
+ * line count or elides overflow.
  */
 function HomeKpiTilePopulated({
   label,
   value,
+  subLine,
   linkHref,
   linkLabel,
 }: {
   label: string;
   value: string;
+  subLine?: string;
   linkHref: string;
   linkLabel: string;
 }) {
@@ -127,6 +148,9 @@ function HomeKpiTilePopulated({
       <span className="text-[48px] leading-none font-bold tabular-nums text-[var(--cypher-blue)]">
         {value}
       </span>
+      {subLine !== undefined && (
+        <span className="text-sm font-medium text-[var(--provisional)]">{subLine}</span>
+      )}
       <TileLink href={linkHref} label={linkLabel} />
     </HomeKpiTileShell>
   );
@@ -189,10 +213,16 @@ export function RevenueThisPeriodTile({
   total,
   hasData,
   error,
+  projectedSubLine,
 }: {
   total: number;
   hasData: boolean;
   error: boolean;
+  /** D-18, 07-UI-SPEC E4: the projection sub-line, absent (not empty) when
+   * the projection is not computable — a past scope, a below-threshold
+   * degraded forecast, or a failed fetch all collapse to "no sub-line",
+   * never a second error message or a fabricated zero on this tile. */
+  projectedSubLine?: string;
 }) {
   const label = "Revenue this period";
   if (error) return <HomeKpiTileError label={label} />;
@@ -203,6 +233,7 @@ export function RevenueThisPeriodTile({
     <HomeKpiTilePopulated
       label={label}
       value={currencyFormatter.format(total)}
+      subLine={projectedSubLine}
       linkHref="/revenue"
       linkLabel="View revenue"
     />

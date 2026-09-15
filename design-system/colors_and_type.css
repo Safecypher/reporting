@@ -110,6 +110,18 @@
   --error-bg:       #fde8e8;
   --error-border:   #f2bdc0;
 
+  /* --- Semantic: provisional / projected (Phase 7) --------------- */
+  /* A forecast is not an alarm — this deliberately aliases existing
+     neutral-ink tokens rather than introducing a new hue, so a projected
+     figure reads as "not yet real" without competing with success/warning/
+     error for attention. */
+  /* Binding: never use --cypher-ink-50 (--fg-3) for the projected point
+     figure itself — at 20px bold that tone fails WCAG AA for text
+     (~2.6:1 on white); --fg-3 stays reserved for captions. */
+  --provisional:         var(--cypher-ink-70);  /* muted figure/stroke ink — same value as --fg-2, contrast-checked at ~7:1 on white (AA-safe for bold 20px+ text) */
+  --provisional-border:  var(--cypher-ink-30);  /* dashed card border — same value as --rule */
+  --provisional-bg:      var(--cypher-ink-04);  /* quiet card background wash — same value as --bg-2 */
+
   /* --- Type families ----------------------------------- */
   --font-sans:    'Poppins', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
   --font-accent:  'EB Garamond', 'Iowan Old Style', Georgia, serif;
