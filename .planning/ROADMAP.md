@@ -264,7 +264,7 @@ Plans:
 **Goal**: Turn billable transaction volume into money the way the MSA actually pays it — TSYS stepped tiers on monthly volume — and show actual-to-date alongside a projected month-end forecast, for both sources, for any selected period.
 **Mode:** mvp
 **Depends on**: Phase 5 (TSYS tier set + period scoping), Phase 6 (per-source volume)
-**Requirements**: TBD (derive during planning)
+**Requirements**: FCST-01, FCST-02, FCST-03, FCST-04, FCST-05
 **Success Criteria** (what must be TRUE):
 
   1. The revenue view shows, side by side, **actual-to-date** revenue (TSYS tiers applied to volume actually recorded) and a **projected month-end** forecast (current-month volume extrapolated at the observed daily run rate, then priced through the tiers) — both labelled so nobody mistakes a projection for a booked figure.
@@ -279,6 +279,30 @@ Plans:
   - **Resolved in Phase 5 (05-CONTEXT D-12):** the FY setting takes a single current value, no effective-dating. Tier rates remain date-effective via `pricing_tier_sets`, but are now editable in place (05-CONTEXT D-17) — so the audit trail is the only record of what a past revenue figure was computed with.
   - Still open: confirm the agreed definition of "live cards" with Thesis so the calculated figure reconciles rather than merely displays.
   - Still open: whether the revenue figure should count all verifications or only authorised ones. Locked to all-verifications by 03 D-02, with the gap surfaced as a Phase 4 reconciliation delta — see the standing tension in 05-CONTEXT.
+  - **Resolved in Phase 7 planning (07-CONTEXT D-19):** the all-verifications basis stays locked and is handled in labelling — a permanent caption on `/revenue` and on the alignment revenue card states that revenue counts every verification and may exceed an authorised-only TSYS invoice.
+
+**Plans**: 6 plans
+Plans:
+**Wave 1**
+
+- [ ] 07-01-PLAN.md — Per-source revenue attribution end to end (migration 0034: `source` through the `0012` chain, `revenue_total_for_period` signature change, every consumer made source-explicit) [BLOCKING push]
+
+**Wave 2** *(blocked on Wave 1 completion)*
+
+- [ ] 07-02-PLAN.md — The honest-degradation threshold as a fourth audited `app_settings` key, with a third `/settings/general` section (migration 0035) [BLOCKING push]
+- [ ] 07-03-PLAN.md — One shared which-side-is-short phrase, `/alignment`'s fifth Revenue card (status derived from volume), and the shared billable-basis caption
+
+**Wave 3** *(blocked on Wave 2 completion)*
+
+- [ ] 07-04-PLAN.md — `price_volume_through_tier_set` + the forecast RPCs + a read-only SC3/D-06 regression oracle (migrations 0036, 0037) [decision checkpoint + BLOCKING push]
+
+**Wave 4** *(blocked on Wave 3 completion)*
+
+- [ ] 07-05-PLAN.md — The D-12 current-period gate, the forecast fetcher and formatters, the `--provisional` tokens, and the home revenue tile's projection sub-line
+
+**Wave 5** *(blocked on Wave 4 completion)*
+
+- [ ] 07-06-PLAN.md — `/revenue`'s projected KPI card (band sentence, method caption, degraded state) and the dashed forward chart segment
 
 ## Progress
 

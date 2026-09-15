@@ -80,6 +80,16 @@ Requirements for the initial release (the PoC dashboard shown to Mark). Each map
 - [x] **ALIGN-06**: Alignment tolerance and the TSYS live-cards baseline offset are configurable settings in `app_settings`, audited on every change, and applied uniformly across all four metrics
 - [x] **ALIGN-07**: A full-page day-breakdown view exists for periods whose day count exceeds the drill Sheet's bounded window, reusing the level-one column set and the same period contract
 
+### TSYS Tiered Volume & Revenue Forecast
+
+*Minted 2026-09-15 during Phase 7 planning — the roadmap recorded these as "TBD (derive during planning)" and 07-CONTEXT.md "Claude's Discretion" assigned the minting to the planner with a suggested `FCST-` prefix. `REV-01`/`REV-02` are already registered against Phase 3, so the bare `REV-` prefix would collide (07-RESEARCH.md §Phase Requirements). FCST-01..05 map one-to-one onto Phase 7's five ROADMAP success criteria.*
+
+- [ ] **FCST-01**: The revenue view shows actual-to-date revenue beside a projected month-end (or year-end) forecast, both labelled and visually distinct, so a projection can never be mistaken for a booked figure — including a projection sub-line on the dashboard home revenue tile
+- [ ] **FCST-02**: Revenue is computed from billable transaction volume attributable per source, through one shared tier-ladder implementation, so a TSYS-vs-Bit-Addict volume disagreement is visible as a revenue disagreement rather than being averaged away
+- [ ] **FCST-03**: A year or all-time figure is the sum of per-month tiered figures, locked by a regression test proving that running the ladder over aggregate volume, and that linearly scaling an already-priced figure, each produce a different and wrong number
+- [ ] **FCST-04**: Money stays exact `NUMERIC` end to end through the source-dimensioned chain and the forecast, and is rounded once at display — no approximate arithmetic in the app layer
+- [ ] **FCST-05**: The projection degrades honestly below a configurable covered-day threshold, stating how many days it has instead of printing a forecast; the threshold is an audited `app_settings` value editable without a redeploy
+
 ## v2 Requirements
 
 Deferred to future release. Tracked but not in the current roadmap.
@@ -164,13 +174,18 @@ Which phases cover which requirements. Updated during roadmap creation.
 | ALIGN-05 | Phase 6 | Complete |
 | ALIGN-06 | Phase 6 | Complete |
 | ALIGN-07 | Phase 6 | Complete |
+| FCST-01 | Phase 7 | Pending |
+| FCST-02 | Phase 7 | Pending |
+| FCST-03 | Phase 7 | Pending |
+| FCST-04 | Phase 7 | Pending |
+| FCST-05 | Phase 7 | Pending |
 
 **Coverage:**
 
-- v1 requirements: 39 total (26 original + 6 minted during Phase 5 planning + 7 minted during Phase 6 planning)
-- Mapped to phases: 39 ✓
+- v1 requirements: 44 total (26 original + 6 minted during Phase 5 planning + 7 minted during Phase 6 planning + 5 minted during Phase 7 planning)
+- Mapped to phases: 44 ✓
 - Unmapped: 0
 
 ---
 *Requirements defined: 2026-08-18*
-*Last updated: 2026-09-11 — Phase 6 planning minted ALIGN-01..07 and mapped them to Phase 6*
+*Last updated: 2026-09-15 — Phase 7 planning minted FCST-01..05 and mapped them to Phase 7*
