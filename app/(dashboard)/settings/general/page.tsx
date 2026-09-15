@@ -2,13 +2,16 @@ import { Suspense } from "react";
 import type { Metadata } from "next";
 
 import { Skeleton } from "@/components/ui/skeleton";
+import { Separator } from "@/components/ui/separator";
 import { createClient } from "@/lib/supabase/server";
 import { FySettingsForm } from "@/components/settings/fy-settings-form";
 import { AlignmentSettingsForm } from "@/components/settings/alignment-settings-form";
+import { RevenueForecastSettingsForm } from "@/components/settings/revenue-forecast-settings-form";
 import { AuditLog, type AuditLogEntry } from "@/components/pricing/audit-log";
 import { SettingsFallbackNotice } from "@/components/dashboard/settings-fallback-notice";
 import { DEFAULT_FY_START } from "@/lib/settings/fy-settings";
 import { fetchAlignmentSettings } from "@/lib/settings/alignment-settings";
+import { fetchRevenueForecastSettings } from "@/lib/settings/revenue-forecast-settings";
 
 export const metadata: Metadata = {
   title: "General settings — Safecypher Reporting",
@@ -38,8 +41,8 @@ function PageHeader() {
         General settings
       </h1>
       <p className="max-w-2xl text-sm font-light text-muted-foreground">
-        Set the financial-year start used by the Year (financial) period
-        option across every view.
+        Set the financial-year start, dual-source alignment tolerance, and
+        revenue forecast threshold used across the dashboard.
       </p>
     </div>
   );
@@ -88,7 +91,12 @@ function LoadingState() {
 async function GeneralBody() {
   const supabase = await createClient();
 
-  const [settingsResult, auditResult, alignmentSettingsResult] = await Promise.all([
+  const [
+    settingsResult,
+    auditResult,
+    alignmentSettingsResult,
+    revenueForecastSettingsResult,
+  ] = await Promise.all([
     supabase
       .from("app_settings")
       .select("fy_start_month, fy_start_day")
@@ -109,8 +117,16 @@ async function GeneralBody() {
     // failed read is the most dangerous place for that failure to be
     // invisible, since an admin could "confirm" values they never saw.
     fetchAlignmentSettings(supabase),
+    // Same rule applies to the revenue-forecast threshold (T-07-10): its
+    // read failure must not take the whole page to ErrorState, and must
+    // not be silently absorbed into the default either.
+    fetchRevenueForecastSettings(supabase),
   ]);
   const { settings: alignmentSettings, error: alignmentSettingsError } = alignmentSettingsResult;
+  const {
+    settings: revenueForecastSettings,
+    error: revenueForecastSettingsError,
+  } = revenueForecastSettingsResult;
 
   if (settingsResult.error || auditResult.error) {
     return (
@@ -142,6 +158,7 @@ async function GeneralBody() {
     <>
       <PageHeader />
       <FySettingsForm fyStartMonth={settings.month} fyStartDay={settings.day} />
+      <Separator />
       <div className="flex flex-col gap-4">
         <div className="flex flex-col gap-1">
           <h2 className="text-lg font-medium text-foreground">
@@ -161,6 +178,26 @@ async function GeneralBody() {
           toleranceCount={alignmentSettings.toleranceCount}
         />
       </div>
+      <Separator />
+      <div className="flex flex-col gap-4">
+        <div className="flex flex-col gap-1">
+          <h2 className="text-lg font-medium text-foreground">
+            Revenue forecast
+          </h2>
+          <p className="max-w-2xl text-sm font-light text-muted-foreground">
+            Set how many covered days of data are required before the Revenue
+            page shows a month-end or year-end projection.
+          </p>
+        </div>
+        {/* T-07-10: same rule as the alignment section above — a form
+            pre-filled from a failed read must never look like a confirmed
+            value. */}
+        {revenueForecastSettingsError !== null && <SettingsFallbackNotice />}
+        <RevenueForecastSettingsForm
+          minCoveredDays={revenueForecastSettings.minCoveredDays}
+        />
+      </div>
+      <Separator />
       <div className="flex flex-col gap-2">
         <AuditLog
           entries={entries}

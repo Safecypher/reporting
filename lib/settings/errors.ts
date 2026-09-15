@@ -67,3 +67,22 @@ export function friendlyAlignmentSettingsErrorMessage(
   void rawMessage;
   return ALIGNMENT_SETTINGS_GENERIC_ERROR;
 }
+
+/**
+ * Revenue forecast threshold error mapping (Phase 7 Plan 2, D-15/FCST-05).
+ * Zod (`revenueForecastSettingsSchema`) already rejects any non-integer or
+ * sub-1 value before this ever reaches Postgres, so the `>= 1` CHECK
+ * constraint is a defence-in-depth backstop (a direct PostgREST update
+ * bypassing the form), not an expected user-facing path -- but the same
+ * "never echo the raw constraint name" discipline (WR-01) applies.
+ */
+
+export const REVENUE_FORECAST_SETTINGS_GENERIC_ERROR =
+  "Could not save revenue forecast settings — please check the value and try again.";
+
+export function friendlyRevenueForecastSettingsErrorMessage(
+  rawMessage: string,
+): string {
+  void rawMessage;
+  return REVENUE_FORECAST_SETTINGS_GENERIC_ERROR;
+}

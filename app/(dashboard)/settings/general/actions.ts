@@ -6,10 +6,12 @@ import { createClient } from "@/lib/supabase/server";
 import {
   alignmentSettingsSchema,
   financialYearSettingsSchema,
+  revenueForecastSettingsSchema,
 } from "@/lib/settings/schema";
 import {
   friendlyAlignmentSettingsErrorMessage,
   friendlyFinancialYearErrorMessage,
+  friendlyRevenueForecastSettingsErrorMessage,
 } from "@/lib/settings/errors";
 
 /**
@@ -153,6 +155,71 @@ export async function saveAlignmentSettings(
   // leaving them stale is a correctness bug, not a refresh annoyance.
   revalidatePath("/settings/general");
   revalidatePath("/alignment");
+  revalidatePath("/");
+
+  return { success: true };
+}
+
+/**
+ * saveRevenueForecastSettings — the Revenue forecast section's only write
+ * path (FCST-05, D-15). Mirrors `saveAlignmentSettings` above object-for-
+ * object:
+ * - Re-validates `input` with the SAME Zod schema
+ *   (`revenueForecastSettingsSchema`) the client form uses -- client-side
+ *   react-hook-form validation is UX only, this action is an untrusted
+ *   entry point and must never trust its caller (T-07-06).
+ * - Uses the SESSION-SCOPED `lib/supabase/server.ts` client (never a
+ *   service-role/secret-key client) so `auth.uid()` is present on the
+ *   session and reaches `app_settings`'s AFTER UPDATE trigger
+ *   (`trg_app_settings_audit`), attributing the audit row to the acting
+ *   user (T-07-07). An unauthenticated call returns `Unauthorized` before
+ *   any query.
+ * - Never stamps an audit column itself -- the audit row is owned entirely
+ *   by the database trigger, so the trail cannot be forged from the
+ *   application side (T-07-09).
+ *
+ * `/alignment` is deliberately NOT revalidated by this action: the
+ * alignment revenue card shows an actual figure, never a projection, so
+ * the threshold cannot change anything on that page.
+ */
+export async function saveRevenueForecastSettings(
+  input: unknown,
+): Promise<{ success: true } | { error: string | Record<string, unknown> }> {
+  const parsed = revenueForecastSettingsSchema.safeParse(input);
+  if (!parsed.success) {
+    return { error: parsed.error.flatten() };
+  }
+
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  if (!user) {
+    return { error: "Unauthorized" };
+  }
+
+  const { error } = await supabase
+    .from("app_settings")
+    .update({
+      revenue_forecast_min_covered_days: parsed.data.minCoveredDays,
+      updated_by: user.id,
+      updated_at: new Date().toISOString(),
+    })
+    .eq("id", 1);
+
+  if (error) {
+    // WR-01: log the raw, detailed error server-side only; the client only
+    // ever sees the mapped, friendly message.
+    console.error(
+      "saveRevenueForecastSettings: app_settings update failed",
+      error,
+    );
+    return { error: friendlyRevenueForecastSettingsErrorMessage(error.message) };
+  }
+
+  revalidatePath("/settings/general");
+  revalidatePath("/revenue");
   revalidatePath("/");
 
   return { success: true };
