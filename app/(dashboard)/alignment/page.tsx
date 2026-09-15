@@ -252,7 +252,16 @@ function AlignmentRevenueCard({
     <PairedMetricCard
       metricLabel={metricLabel}
       data={{
-        tsysCount: revenueResult.data.tsys,
+        // `PerSourceRevenueTotals.tsys` widened to `number | null` (07-UAT
+        // fix, absence-vs-zero for /revenue's TSYS block) — `PairedMetricCard`
+        // still requires a plain `number`, and this card's own coverage
+        // signal (badge/caption) already comes verbatim from `volumeResult`
+        // (D-11), never independently from this figure, so `?? 0` here is a
+        // type-safety coalesce that reproduces this card's pre-existing
+        // behaviour exactly, not a new absence treatment — extending the
+        // coverage-aware distinction to this card is out of scope for the
+        // /revenue-only UAT gap this fix addresses.
+        tsysCount: revenueResult.data.tsys ?? 0,
         bitAddictCount: revenueResult.data.bitAddict,
         status: volumeResult.data.status,
         tsysCoveredDays: volumeResult.data.tsys_covered_days,

@@ -22,9 +22,14 @@ function formatCurrency(value: number): string {
 /**
  * D-10/D-16: the actual-to-date figure pair this card renders — Bit
  * Addict (the headline, D-09) plus TSYS (the customer-side check, never
- * averaged in). `tsys` is `null` exactly when `tsysError` is true (the
- * per-source RPC call failed) — never a fabricated 0 standing in for a
- * genuine load failure.
+ * averaged in). `tsys` is `null` for two DISTINCT reasons, never conflated:
+ * (1) `tsysError` is true — the per-source RPC call (or its coverage check)
+ * failed, a genuine load failure; (2) `tsysError` is false but TSYS has no
+ * coverage at all in this period (`lib/dashboard/revenue-source.ts`'s
+ * `PerSourceRevenueTotals.tsys`, derived from `v_apigee_coverage_daily`) —
+ * an honest "no data", never a fabricated 0 standing in for either case
+ * (07-UAT gap: a period with no TSYS data must never render as a confident
+ * $0.00 with a manufactured 100% shortfall).
  */
 export interface RevenueActualPair {
   bitAddict: number;
@@ -153,8 +158,11 @@ export function RevenueProjectionCardSkeleton() {
  * renders the which-side-is-short variance phrase — the SAME
  * implementation `/alignment`'s cards use, formatted as currency — so the
  * phrase grammar has exactly one implementation across both pages. It is
- * omitted entirely when the TSYS figure could not be loaded, since a
- * variance against a missing number is meaningless.
+ * omitted entirely whenever `tsys` is `null` — whether that is a genuine
+ * load failure (`tsysError`) or TSYS having no coverage this period —
+ * since a variance against a missing or absent number is meaningless. The
+ * two `null` cases render distinct, honest copy (see below) rather than
+ * sharing one ambiguous message.
  */
 export function RevenueKpiCards({ actual, projection }: RevenueKpiCardsProps) {
   const { bitAddict, tsys, tsysError } = actual;
@@ -177,9 +185,16 @@ export function RevenueKpiCards({ actual, projection }: RevenueKpiCardsProps) {
             <span className="text-xs font-medium uppercase tracking-[0.08em] text-[var(--fg-3)]">
               TSYS
             </span>
-            {tsysError || tsys === null ? (
+            {tsysError ? (
               <span className="text-sm font-medium text-[var(--fg-2)]">
                 TSYS revenue could not be loaded.
+              </span>
+            ) : tsys === null ? (
+              // Honest absence, never a fabricated $0.00 (07-UAT gap): TSYS
+              // has no coverage at all in this period, distinct from
+              // `tsysError` (a genuine load failure, handled above).
+              <span className="text-sm font-medium text-[var(--fg-2)]">
+                TSYS has no data for this period.
               </span>
             ) : (
               <>
