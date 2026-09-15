@@ -6,6 +6,7 @@ import { RevenueChart } from "@/components/dashboard/revenue-chart";
 import {
   RevenueKpiCards,
   type RevenueActualPair,
+  type RevenueProjection,
 } from "@/components/dashboard/revenue-kpi-cards";
 import {
   RevenueTierBreakdown,
@@ -34,6 +35,9 @@ interface RevenueViewControlsProps {
   /** Bit Addict + TSYS actual-to-date figures (D-10), both pre-summed by
    * the SQL view — never a client re-sum. */
   actual: RevenueActualPair;
+  /** D-12: null for any period that is not the current month/year — passed
+   * straight through to `RevenueKpiCards`, unexamined here. */
+  projection: RevenueProjection | null;
 }
 
 /**
@@ -47,6 +51,7 @@ export function RevenueViewControls({
   dailyRows,
   tierRows,
   actual,
+  projection,
 }: RevenueViewControlsProps) {
   const [granularity, setGranularity] = useState<Granularity>("daily");
   const [timeZone, setTimeZone] = useState<BucketTimeZone>("UTC");
@@ -98,7 +103,7 @@ export function RevenueViewControls({
 
       <RevenueChart data={bucketed} />
 
-      <RevenueKpiCards actual={actual} />
+      <RevenueKpiCards actual={actual} projection={projection} />
 
       <RevenueTierBreakdown rows={tierRows} />
     </div>
