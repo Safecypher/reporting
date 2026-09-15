@@ -3,7 +3,10 @@
 import { useMemo, useState } from "react";
 
 import { RevenueChart } from "@/components/dashboard/revenue-chart";
-import { RevenueKpiCards } from "@/components/dashboard/revenue-kpi-cards";
+import {
+  RevenueKpiCards,
+  type RevenueActualPair,
+} from "@/components/dashboard/revenue-kpi-cards";
 import {
   RevenueTierBreakdown,
   type RevenueTierRow,
@@ -28,21 +31,22 @@ const TIMEZONE_OPTIONS: { value: BucketTimeZone; label: string }[] = [
 interface RevenueViewControlsProps {
   dailyRows: RevenueDailyRow[];
   tierRows: RevenueTierRow[];
-  /** Pre-summed grand total (dollars) from the SQL view — never a client re-sum. */
-  totalRevenue: number;
+  /** Bit Addict + TSYS actual-to-date figures (D-10), both pre-summed by
+   * the SQL view — never a client re-sum. */
+  actual: RevenueActualPair;
 }
 
 /**
  * Owns the granularity + timezone selection and re-buckets the revenue
  * daily series client-side via `rebucketRevenue` on every change (D-09,
- * mirrors ViewControls/SlaViewControls verbatim in shape). The Total
- * revenue KPI receives the SQL-computed grand total as a prop — it is never
- * derived from the client-side re-bucketed chart series.
+ * mirrors ViewControls/SlaViewControls verbatim in shape). The "Revenue to
+ * date" KPI card receives the SQL-computed per-source totals as a prop — it
+ * is never derived from the client-side re-bucketed chart series.
  */
 export function RevenueViewControls({
   dailyRows,
   tierRows,
-  totalRevenue,
+  actual,
 }: RevenueViewControlsProps) {
   const [granularity, setGranularity] = useState<Granularity>("daily");
   const [timeZone, setTimeZone] = useState<BucketTimeZone>("UTC");
@@ -94,7 +98,7 @@ export function RevenueViewControls({
 
       <RevenueChart data={bucketed} />
 
-      <RevenueKpiCards total={totalRevenue} />
+      <RevenueKpiCards actual={actual} />
 
       <RevenueTierBreakdown rows={tierRows} />
     </div>

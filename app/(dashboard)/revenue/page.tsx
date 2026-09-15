@@ -24,6 +24,8 @@ import {
   type ResolvedPeriod,
 } from "@/lib/dashboard/period";
 import { fetchFinancialYearStart } from "@/lib/settings/fy-settings";
+import { fetchPerSourceRevenueTotals } from "@/lib/dashboard/revenue-source";
+import type { RevenueActualPair } from "@/components/dashboard/revenue-kpi-cards";
 import {
   fetchVerificationDrillRows,
   type VerificationDrillFetchResult,
@@ -267,10 +269,14 @@ async function RevenueBody({ searchParams }: { searchParams: PageSearchParams })
   // RESEARCH Pattern 1: an outer .gte()/.lt() predicate on the unchanged
   // v_revenue_daily / v_revenue_by_tier / v_revenue_daily_counts views —
   // never a rewrite of any view itself. `.lt` is applied only when the
-  // period has a defined end ("all" leaves it open-ended).
+  // period has a defined end ("all" leaves it open-ended). D-08/D-10: every
+  // query below is source-explicit to `bit_addict` — the headline path —
+  // now that the chain carries two rows per (day, source); the TSYS figure
+  // is fetched separately via `fetchPerSourceRevenueTotals` below.
   let dailyQuery = supabase
     .from("v_revenue_daily")
     .select("day_utc, revenue")
+    .eq("source", "bit_addict")
     .gte("day_utc", period.start);
   if (period.end !== null) {
     dailyQuery = dailyQuery.lt("day_utc", period.end);
@@ -279,6 +285,7 @@ async function RevenueBody({ searchParams }: { searchParams: PageSearchParams })
   let tierQuery = supabase
     .from("v_revenue_by_tier")
     .select("day_utc, tier_order, tier_revenue, tier_set_id")
+    .eq("source", "bit_addict")
     .gte("day_utc", period.start);
   if (period.end !== null) {
     tierQuery = tierQuery.lt("day_utc", period.end);
@@ -290,6 +297,7 @@ async function RevenueBody({ searchParams }: { searchParams: PageSearchParams })
   let countsQuery = supabase
     .from("v_revenue_daily_counts")
     .select("day_utc")
+    .eq("source", "bit_addict")
     .gte("day_utc", period.start);
   if (period.end !== null) {
     countsQuery = countsQuery.lt("day_utc", period.end);
@@ -298,7 +306,7 @@ async function RevenueBody({ searchParams }: { searchParams: PageSearchParams })
   const [
     dailyResult,
     tierResult,
-    totalResult,
+    perSourceTotalsResult,
     verificationCountsResult,
     domainActivityResult,
     pricingTierSetsResult,
@@ -308,25 +316,25 @@ async function RevenueBody({ searchParams }: { searchParams: PageSearchParams })
   ] = await Promise.all([
     dailyQuery.order("day_utc", { ascending: true }).returns<RevenueDailyViewRow[]>(),
     tierQuery.returns<RevenueTierViewRow[]>(),
-    // Grand total summed in Postgres via revenue_total_for_period (0024) —
-    // the number reaching JS is already the final NUMERIC total for the
-    // resolved period, never summed client-side from the per-day/per-tier
-    // rows above. An RPC is used instead of a PostgREST `sum()` aggregate
+    // Grand totals summed in Postgres via revenue_total_for_period (0024,
+    // now source-required per 0034/D-08) — the numbers reaching JS are
+    // already the final NUMERIC totals for the resolved period, one per
+    // source, never summed client-side from the per-day/per-tier rows
+    // above. An RPC is used instead of a PostgREST `sum()` aggregate
     // because Supabase blocks aggregate functions by default (PGRST123).
-    // types/db.ts regenerated after 0024 was pushed (plan 05-05) — called
-    // directly through the typed `supabase.rpc` client.
-    supabase.rpc("revenue_total_for_period", {
-      p_start: period.start,
-      p_end: period.end,
-    }),
+    fetchPerSourceRevenueTotals(supabase, period),
     countsQuery.returns<RevenueDailyCountsRow[]>(),
     // UNSCOPED existence probe (never a period predicate) — distinguishes
     // "no verifications at all" (EmptyState) from "verifications exist,
     // this period has none" (PeriodEmptyState). A narrow period must never
-    // masquerade as a totally-empty view.
+    // masquerade as a totally-empty view. Restricted to source =
+    // "bit_addict" (D-08): otherwise TSYS-only rows would make
+    // hasVerificationActivity true for a database with no Bit Addict
+    // verifications at all.
     supabase
       .from("v_revenue_daily_counts")
       .select("day_utc", { count: "exact", head: true })
+      .eq("source", "bit_addict")
       .limit(1)
       .returns<RevenueDailyCountsRow[]>(),
     supabase
@@ -363,7 +371,7 @@ async function RevenueBody({ searchParams }: { searchParams: PageSearchParams })
   if (
     dailyResult.error ||
     tierResult.error ||
-    totalResult.error ||
+    perSourceTotalsResult.error ||
     verificationCountsResult.error ||
     domainActivityResult.error ||
     pricingTierSetsResult.error ||
@@ -458,9 +466,16 @@ async function RevenueBody({ searchParams }: { searchParams: PageSearchParams })
       tier_set_id: row.tier_set_id,
     }));
 
-  // The RPC returns the exact-NUMERIC total as a string — no arithmetic
-  // over the fetched daily rows ever produces this value (Pitfall 2).
-  const totalRevenue = Number(totalResult.data ?? "0");
+  // The RPCs return the exact-NUMERIC totals as strings — no arithmetic
+  // over the fetched daily rows ever produces these values (Pitfall 2).
+  // Reaching here means perSourceTotalsResult.error is null (checked
+  // above), so `.data` is non-null in practice — the `?? 0`/`?? null`
+  // fallbacks and `tsysError` derivation are defensive, never load-bearing.
+  const actual: RevenueActualPair = {
+    bitAddict: perSourceTotalsResult.data?.bitAddict ?? 0,
+    tsys: perSourceTotalsResult.data?.tsys ?? null,
+    tsysError: perSourceTotalsResult.data === null,
+  };
 
   // WR-03: compare days WITH verification activity (within the period)
   // against days that were actually priced (within the period) — a
@@ -488,7 +503,7 @@ async function RevenueBody({ searchParams }: { searchParams: PageSearchParams })
       <RevenueViewControls
         dailyRows={dailyRows}
         tierRows={tierRows}
-        totalRevenue={totalRevenue}
+        actual={actual}
       />
       <VerificationDrillSheet
         filter={isVerificationDrill ? drillFilter : null}
