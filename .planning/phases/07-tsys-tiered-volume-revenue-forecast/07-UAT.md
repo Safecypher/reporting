@@ -3,12 +3,21 @@ status: testing
 phase: 07-tsys-tiered-volume-revenue-forecast
 source: 07-01-SUMMARY.md, 07-02-SUMMARY.md, 07-03-SUMMARY.md, 07-04-SUMMARY.md, 07-05-SUMMARY.md, 07-06-SUMMARY.md
 started: 2026-09-15T14:05:00Z
-updated: 2026-09-15T17:40:00Z
+updated: 2026-09-15T17:55:00Z
 ---
 
 ## Current Test
 
-number: 3
+number: 2
+name: Re-test /revenue TSYS block after the absent-vs-zero fix (6e0af54)
+expected: |
+  Reload /revenue for September 2026. The TSYS block no longer reads "$0.00"
+  with "TSYS is short by $179.66 (100%)." Instead it states plainly that TSYS
+  has no data for this period, and the shortfall phrase is gone entirely.
+  The Bit Addict headline is unchanged at $179.66.
+awaiting: user response
+
+next_after: 3
 name: Settings — three stacked sections, pre-populated threshold, always-visible notice, inline validation
 expected: |
   /settings/general shows three vertically-stacked sections separated by a
@@ -41,6 +50,14 @@ result: issue
 reported: "Screenshot of /revenue, September 2026. Headline and nested TSYS figure both render as specified, but the TSYS block reads $0.00 with 'TSYS is short by $179.66 (100%).' — TSYS has no September data at all, so absence is being presented as a 100% shortfall."
 severity: major
 source: 07-01 D4 (human_judgment)
+fix_applied: 6e0af54
+awaiting_retest: true
+retest_note: |
+  Fix verified at the data layer by the orchestrator: v_apigee_coverage_daily
+  returns 0 covered TSYS days for September (and 1 for August, so a genuine-zero
+  period is NOT collapsed into absent). `authenticated` can select the view.
+  revenue_total_for_period(2026-09-01, 2026-10-01, 'bit_addict') = 179.6580,
+  matching the $179.66 headline on screen. The rendering needs one more look.
 partially_established: |
   The DATA half of this test is already proven live by the orchestrator, and does
   not need re-checking — only the RENDERING does:
@@ -88,11 +105,31 @@ result: issue
 reported: "Phrase renders and is correctly formatted as currency ('TSYS is short by $179.66 (100%).'), but it fires on a period where TSYS has NO data rather than being omitted. The 'when TSYS is unavailable, omitted entirely' half of the expectation is not met, because the unavailable case is indistinguishable from a real zero upstream."
 severity: major
 source: 07-03 D2 (human_judgment)
+fix_applied: 6e0af54
+awaiting_retest: true
+retest_note: |
+  SourceDeltaPhrase itself was correctly left untouched — all its branches
+  (exact-match, computeAlignmentShortSide, pctVariance on Bit Addict, and the
+  D-14 zero-denominator em-dash with its aria-label) are intact. The caller
+  (revenue-kpi-cards.tsx) now decides not to render it in the absent case,
+  which is where that decision belongs.
 
 ### 6. /alignment fifth Revenue card mirrors the volume card
 expected: /alignment (current month) shows a fifth card labelled Revenue with two currency figures. Its badge is identical to the Transaction volume card's badge, its coverage sentence is word-identical to the volume card's, the status-meaning caption is visible without hovering, and the billable-basis sentence carries a working Reconciliation link. The same sentence appears exactly once on /revenue beneath the KPI row.
 result: [pending]
 source: 07-03 D4 (human_judgment)
+check_specifically: |
+  ORCHESTRATOR NOTE — check the TSYS side of the new Revenue card deliberately.
+  The 6e0af54 fix was scoped to /revenue only; /alignment's AlignmentRevenueCard
+  still coalesces `revenueResult.data.tsys ?? 0` (alignment/page.tsx:264), so it
+  may render $0.00 plus a shortfall phrase for a period where TSYS has no data.
+  Live September figures from alignment_totals_for_period(volume): tsys_count 0,
+  tsys_covered_days 0, total_days 10, period_coverage_complete false,
+  short_side 'tsys', status 'needs_review'.
+  This is SOFTER than the /revenue defect was — Phase 6 deliberately degrades to
+  needs_review rather than asserting a confirmed mismatch, and the coverage
+  sentence should say TSYS covered 0 of 10 days. But confirm whether the card
+  reads honestly or repeats the fabricated-shortfall pattern on a different page.
 partially_established: |
   Verified in source by the phase verifier: status/tsysCoveredDays/
   bitAddictCoveredDays/totalDays are copied verbatim from volumeResult.data
@@ -150,7 +187,7 @@ partially_established: |
 
 total: 9
 passed: 3
-issues: 2
+issues: 2 (both fixed in 6e0af54, awaiting re-test)
 pending: 4
 skipped: 0
 blocked: 0
@@ -175,4 +212,7 @@ blocked: 0
     - "PerSourceRevenueTotals.tsys widened to allow null (absent), distinct from 0 (genuinely zero)"
     - "SourceDeltaPhrase omitted when the counterpart source has no coverage in the period, per its own documented contract"
   debug_session: ""
+  fix_applied: "6e0af54 — PerSourceRevenueTotals.tsys widened to number|null; absence derived from v_apigee_coverage_daily (the same view revenue_forecast_for_period uses); revenue-kpi-cards.tsx split into three branches (load error / no coverage / populated) so SourceDeltaPhrase is omitted in the absent case. No SQL or migration needed. 433/433 tests, tsc clean, build green."
+  new_copy_needing_signoff: "\"TSYS has no data for this period.\" — 07-UI-SPEC.md's Copywriting Contract has no wording for this state (only the RPC-failure case, \"TSYS revenue could not be loaded.\"). New copy, not lifted from the spec."
+  residual: "/alignment's AlignmentRevenueCard still coalesces tsys ?? 0 (alignment/page.tsx:264) — deliberately out of scope for this /revenue-only gap. Flagged on UAT test 6."
   contradicts: "PROJECT.md core value — billing-vs-verification discrepancies must be immediately visible and trustworthy. A fabricated 100% shortfall is a false discrepancy."
