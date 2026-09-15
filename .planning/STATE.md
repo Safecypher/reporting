@@ -3,17 +3,17 @@ gsd_state_version: "1.0"
 milestone: v1.0
 current_phase: 07
 current_phase_name: TSYS Tiered Volume & Revenue Forecast
-status: executing
-stopped_at: Completed 07-05-PLAN.md
-last_updated: "2026-09-15T12:53:27.020Z"
+status: verifying
+stopped_at: Completed 07-06-PLAN.md
+last_updated: "2026-09-15T13:07:07.007Z"
 last_activity: 2026-09-15
 last_activity_desc: Phase 07 execution started
-state_head: 9e3ac4245600b707fb8f434fee9b14634b9a44f9
+state_head: 00af12f04031d0d4829e4c4a9472f40c6e9c106a
 progress:
   total_phases: 7
   completed_phases: 4
   total_plans: 50
-  completed_plans: 49
+  completed_plans: 50
 milestone_name: milestone
 ---
 
@@ -30,7 +30,7 @@ See: .planning/PROJECT.md (updated 2026-08-18)
 
 Phase: 07 (TSYS Tiered Volume & Revenue Forecast) — EXECUTING
 Plan: 6 of 6
-Status: Ready to execute
+Status: Phase complete — ready for verification
 Last activity: 2026-09-15 — Phase 07 execution started
 
 Progress: [░░░░░░░░░░] 0%
@@ -86,6 +86,7 @@ Progress: [░░░░░░░░░░] 0%
 | Phase 07 P03 | interrupted-resumed | 3 tasks | 7 files |
 | Phase 07 P04 | ~4min (+2 checkpoint round-trips) | 3 tasks | 4 files |
 | Phase 07 P05 | 7min | 3 tasks | 8 files |
+| Phase 07 P06 | not precisely tracked | 3 tasks | 6 files |
 
 ## Accumulated Context
 
@@ -155,6 +156,7 @@ Recent decisions affecting current work:
 - [Phase 07]: [Phase 07] Plan 07-05: isCurrentUtcMonthPeriod/isCurrentUtcYearPeriod/isProjectablePeriod exported from period.ts as the named D-12 current-period gate -- resolvePeriod succeeding is not evidence a period is current (RESEARCH Pitfall 5)
 - [Phase 07]: [Phase 07] Plan 07-05: revenue-forecast.ts fetcher converts every NUMERIC-string column to a number exactly once, preserving null (degraded) columns as null rather than coercing to zero; formatForecastMethodCaption returns null based on runRate/asOfDay being null as a degraded-state proxy, per its five-argument plan signature
 - [Phase 07]: [Phase 07] Plan 07-05: home revenue tile's projectedSubLine wired live -- isProjectablePeriod gates a single conditional fetchRevenueForecast call folded into the existing Promise.all, reusing the one already-captured clock read; absent (never zeroed) whenever the gate is false, the fetch errors, or the forecast is degraded
+- [Phase 07]: [Phase 07] Plan 07-06: /revenue's actual/projected KPI pair and dashed chart segment complete -- RevenueProjection interface/card, projection-aware rebucketRevenue (null-preserving), RevenueChart's second dashed provisional Line, full D-12 page wiring folding both forecast RPCs into the existing Promise.all with a card-scoped error path kept out of the page-level combined error branch
 
 ### Pending Todos
 
@@ -194,6 +196,6 @@ Items acknowledged and carried forward from previous milestone close:
 
 ## Session Continuity
 
-Last session: 2026-09-15T12:53:26.725Z
-Stopped at: Completed 07-05-PLAN.md
+Last session: 2026-09-15T13:07:06.670Z
+Stopped at: Completed 07-06-PLAN.md
 Resume file: None
