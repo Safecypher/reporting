@@ -676,6 +676,7 @@ export type Database = {
           day_utc: string | null
           overlap_count: number | null
           rate: number | null
+          source: string | null
           tier_order: number | null
           tier_revenue: number | null
           tier_set_id: string | null
@@ -686,12 +687,14 @@ export type Database = {
         Row: {
           day_utc: string | null
           revenue: number | null
+          source: string | null
         }
         Relationships: []
       }
       v_revenue_daily_counts: {
         Row: {
           day_utc: string | null
+          source: string | null
           verification_count: number | null
         }
         Relationships: []
@@ -700,6 +703,7 @@ export type Database = {
         Row: {
           day_utc: string | null
           reset_window: string | null
+          source: string | null
           tier_set_id: string | null
           verification_count: number | null
         }
@@ -716,6 +720,7 @@ export type Database = {
           c_before: number | null
           day_utc: string | null
           reset_window: string | null
+          source: string | null
           tier_set_id: string | null
           verification_count: number | null
           window_start: string | null
@@ -869,7 +874,7 @@ export type Database = {
         Returns: undefined
       }
       revenue_total_for_period: {
-        Args: { p_end: string; p_start: string }
+        Args: { p_end: string; p_source: string; p_start: string }
         Returns: number
       }
       save_pricing_tier_set: {
