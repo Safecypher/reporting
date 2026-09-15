@@ -2,18 +2,18 @@
 gsd_state_version: "1.0"
 milestone: v1.0
 current_phase: 07
-current_phase_name: tsys-tiered-volume-revenue-forecast
+current_phase_name: TSYS Tiered Volume & Revenue Forecast
 status: executing
-stopped_at: Phase 7 UI-SPEC approved
-last_updated: "2026-09-15T09:19:21.905Z"
-last_activity: 2026-09-14
-last_activity_desc: Phase 06 Plan 10 (06-10) complete — WR-02/WR-03 closed, human walkthrough approved, Phase 06 fully complete (10/10 plans)
-state_head: e84ef81995e4ae1cbb15b26ff8bf618e0eba66b7
+stopped_at: Completed 07-01-PLAN.md
+last_updated: "2026-09-15T10:54:56.101Z"
+last_activity: 2026-09-15
+last_activity_desc: Phase 07 execution started
+state_head: bde038e8fad6f35cdd9fe1c86b79934ff1e19cbd
 progress:
   total_phases: 7
   completed_phases: 4
   total_plans: 50
-  completed_plans: 44
+  completed_plans: 45
 milestone_name: milestone
 ---
 
@@ -24,14 +24,14 @@ milestone_name: milestone
 See: .planning/PROJECT.md (updated 2026-08-18)
 
 **Core value:** Trustworthy revenue reconciliation — billing must equal verifications, and any discrepancy must be immediately visible and traceable to source.
-**Current focus:** Phase 06 — Dual-Source Alignment: TSYS vs Bit Addict
+**Current focus:** Phase 07 — TSYS Tiered Volume & Revenue Forecast
 
 ## Current Position
 
-Phase: 07 (tsys-tiered-volume-revenue-forecast) — READY TO EXECUTE
-Plan: 10 of 10
-Status: All 10 plans (06-01..06-10) have a SUMMARY.md; 06-UAT.md is status: complete (human-approved). Formal phase verification (`/gsd-verify-work 6`) not yet run — ROADMAP.md's phase-level row still reads "In Progress" pending that step.
-Last activity: 2026-09-14 — Plan 06-10 complete (WR-02/WR-03 closed, human walkthrough approved)
+Phase: 07 (TSYS Tiered Volume & Revenue Forecast) — EXECUTING
+Plan: 2 of 6
+Status: Ready to execute
+Last activity: 2026-09-15 — Phase 07 execution started
 
 Progress: [░░░░░░░░░░] 0%
 
@@ -81,6 +81,7 @@ Progress: [░░░░░░░░░░] 0%
 | Phase 06 P08 | 25min | 2 tasks | 4 files |
 | Phase 06 P09 | ~35min | 3 tasks | 7 files |
 | Phase 06 P10 | 13min (executor) + multi-day human-verify gap | 3 tasks | 9 files |
+| Phase 07 P01 | ~30min | 3 tasks | 11 files |
 
 ## Accumulated Context
 
@@ -137,6 +138,10 @@ Recent decisions affecting current work:
 - [Phase 06]: [Phase 06] Plan 09: fetchAlignmentContributingRows's Bit Addict branch factored into fetchBitAddictContributingRows so the alignment_inventory_diff_rows RPC (enrolled/unenrolled) and the unchanged table reads (live-cards/volume) combine in one Promise.all via a uniform {rows, error} shape
 - [Phase 06]: [Phase 06] Plan 10: closed WR-02 (Server Action no longer writes tsys_live_cards_baseline_as_of -- the 0033 trigger is now the column's sole owner) and WR-03 (fetchAlignmentSettings returns a discriminated {settings, error} result; SettingsFallbackNotice now surfaces a read failure on all three verdict-rendering surfaces plus /settings/general). Added vitest.config.mts (deviation, Rule 3) so Vitest can resolve this repo's @/* alias at runtime for the first Server-Action unit test.
 - [Phase 06]: [Phase 06] Plan 10 Task 3 human walkthrough approved 2026-09-14 with no per-test observed values reported -- 06-UAT.md records this honestly as approved-by-human-walkthrough rather than fabricating per-test data. One new out-of-scope finding logged: public/icons.svg renders every glyph solid black (no stroke= attrs, only 5 fill=currentColor elements), so status colour never reaches an icon -- app-wide, pre-existing, does not corrupt any figure, StatusBadge text label still carries meaning. Recorded in 06-UAT.md Gaps and WINDOWS.md entry 6 for separate follow-up. Phase 06 is now fully complete (10/10 plans, ALIGN-06 marked complete).
+- [Phase 07]: [Phase 07] source is appended as the LAST column of every view in the 0012 chain (never inserted mid-list), so create or replace view can extend the chain without a cascading drop that would destroy v_reconciliation_billing_daily (D-07)
+- [Phase 07]: [Phase 07] revenue_total_for_period's two-argument overload is dropped explicitly before creating the three-argument replacement, rather than left to coexist, so a stale call site fails loudly (PGRST202) instead of silently reading a doubled figure (D-08)
+- [Phase 07]: [Phase 07] countRestatedDays now counts distinct days across BOTH revenue sources (a day either source recorded activity on can be restated by a tier-set edit) rather than a per-source count -- a UI warning count, not a money figure, per 07-RESEARCH Open Question A2's recommended default
+- [Phase 07]: [Phase 07] git.allow_default_branch_commits: true added to .planning/config.json by the orchestrator after an explicit human decision, unblocking commits on main for a project whose established convention (branching_strategy: none, six prior phases' history) is to commit directly to main
 
 ### Pending Todos
 
@@ -176,6 +181,6 @@ Items acknowledged and carried forward from previous milestone close:
 
 ## Session Continuity
 
-Last session: 2026-09-15T08:33:46.314Z
-Stopped at: Phase 7 UI-SPEC approved
-Resume file: .planning/phases/07-tsys-tiered-volume-revenue-forecast/07-UI-SPEC.md
+Last session: 2026-09-15T10:54:55.879Z
+Stopped at: Completed 07-01-PLAN.md
+Resume file: None

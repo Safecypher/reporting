@@ -193,3 +193,10 @@ None - no external service configuration required.
 ---
 *Phase: 07-tsys-tiered-volume-revenue-forecast*
 *Completed: 2026-09-15*
+
+## Self-Check: PASSED
+
+- All 11 key files (3 created, 8 modified) confirmed present on disk.
+- All 4 commits confirmed in git history: `f3156fd`, `3d1084f`, `afd04ae`, `bde038e`.
+- All task-level `<acceptance_criteria>` automated checks re-confirmed passing (see Coverage block above).
+- `npx tsc --noEmit`, `npm test` (361/361, 26 files), `npm run build` all pass on the final tree.
