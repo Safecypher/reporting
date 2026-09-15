@@ -47,7 +47,13 @@ findings:
   warning: 2
   info: 1
   total: 5
-status: issues_found
+status: resolved
+resolution:
+  critical_fixed: 2
+  critical_commits: [16e8ab4, 242a63b]
+  warnings_deferred: [WR-01, WR-02]
+  info_deferred: [IN-01]
+  note: "Both criticals fixed on main; 424+3 new tests / 427 total passing, tsc clean, next build green. CR-01: added the missing .eq(\"source\", \"bit_addict\") filter to fetchRevenueTierDrillRows, matching the file's five other source-explicit reads. CR-02: fetchRevenueTierDrillRows unaffected — the drill-down fix is scoped to the query only; the dashed-chart fix synthesizes a RevenueDailyRow for every day present in the forecast daily series but absent from v_revenue_daily, with revenue: null (never \"0\") for forecast-only days, propagated honestly through rebucketRevenue's now-nullable revenue field; pricedDayUtcs (WR-03's partial-coverage check) was repointed at the narrower actual-only day set so a synthesized day is never counted as priced. WR-01/WR-02 (per-source atomic-failure model; 'covered days' mislabelling) and IN-01 (forecast RPCs' differing intra-month tier-set resolution) are explicitly deferred by the user, left open for a follow-up pass."
 ---
 
 # Phase 7: Code Review Report
