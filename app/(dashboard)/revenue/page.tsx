@@ -239,6 +239,7 @@ async function fetchRevenueTierDrillRows(
   let query = supabase
     .from("v_revenue_by_tier")
     .select("day_utc, overlap_count, rate, tier_revenue")
+    .eq("source", "bit_addict")
     .eq("tier_order", tierOrder)
     .gt("overlap_count", 0)
     .gte("day_utc", range.start);
