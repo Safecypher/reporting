@@ -20,7 +20,7 @@ affects: [07-05, 07-06]
 actuals:
   tokens: 11095
   tasks: 3
-  commits: 3
+  commits: 2
 
 # Tech tracking
 tech-stack:
@@ -116,7 +116,7 @@ duration: ~4 min of active execution between the Task 2 and Task 3 commits (13:3
 completed: 2026-09-15
 status: complete
 plan_head_before: d3a5cd1cc191106f282691115d1b33321e0df000
-commits: 3
+commits: 2
 ---
 
 # Phase 7 Plan 4: TSYS Tiered Volume & Revenue Forecast (Forecast RPCs) Summary
