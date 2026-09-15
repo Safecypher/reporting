@@ -882,6 +882,53 @@ export type Database = {
         Args: { p_tier_set_id: string }
         Returns: undefined
       }
+      price_volume_through_tier_set: {
+        Args: { p_tier_set_id: string; p_volume: number }
+        Returns: number
+      }
+      pricing_tier_set_effective_on: {
+        Args: { p_day: string }
+        Returns: string
+      }
+      revenue_forecast_daily_for_period: {
+        Args: {
+          p_end: string
+          p_min_covered_days: number
+          p_source: string
+          p_start: string
+        }
+        Returns: {
+          day: string
+          is_projected: boolean
+          revenue: number
+        }[]
+      }
+      revenue_forecast_for_period: {
+        Args: {
+          p_end: string
+          p_min_covered_days: number
+          p_source: string
+          p_start: string
+        }
+        Returns: {
+          actual_volume: number
+          as_of_day: string
+          covered_days: number
+          degraded: boolean
+          degraded_reason: string
+          high_revenue: number
+          high_volume: number
+          inferred_days: number
+          low_revenue: number
+          low_volume: number
+          max_day_volume: number
+          min_day_volume: number
+          projected_revenue: number
+          projected_volume: number
+          run_rate: number
+          usable_days: number
+        }[]
+      }
       revenue_total_for_period: {
         Args: { p_end: string; p_source: string; p_start: string }
         Returns: number
