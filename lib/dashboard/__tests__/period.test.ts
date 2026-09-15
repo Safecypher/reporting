@@ -3,6 +3,10 @@ import { describe, expect, it } from "vitest";
 import {
   DATA_WINDOW_START,
   DEFAULT_YEAR_MODE,
+  daysInUtcMonth,
+  isCurrentUtcMonthPeriod,
+  isCurrentUtcYearPeriod,
+  isProjectablePeriod,
   monthOptions,
   resolveFinancialYearBounds,
   resolvePeriod,
@@ -206,6 +210,121 @@ describe("resolvePeriod", () => {
 
     expect(result.yearMode).toBe(DEFAULT_YEAR_MODE);
     expect(result.yearMode).toBe("calendar");
+  });
+});
+
+describe("isCurrentUtcMonthPeriod", () => {
+  const today = new Date("2026-09-10T12:00:00Z");
+
+  it("is true for a month-scoped period naming the current UTC month", () => {
+    const period = resolvePeriod({ period: "month", of: "2026-09" }, CALENDAR_FY, today);
+    expect(isCurrentUtcMonthPeriod(period, today)).toBe(true);
+  });
+
+  it("is false for a month-scoped period naming an earlier month", () => {
+    const period = resolvePeriod({ period: "month", of: "2026-08" }, CALENDAR_FY, today);
+    expect(isCurrentUtcMonthPeriod(period, today)).toBe(false);
+  });
+
+  it("is false for a year-scoped period, regardless of today", () => {
+    const period = resolvePeriod({ period: "year", of: "2026" }, CALENDAR_FY, today);
+    expect(isCurrentUtcMonthPeriod(period, today)).toBe(false);
+  });
+
+  it("is false for an all-time period, regardless of today", () => {
+    const period = resolvePeriod({ period: "all" }, CALENDAR_FY, today);
+    expect(isCurrentUtcMonthPeriod(period, today)).toBe(false);
+  });
+});
+
+describe("isCurrentUtcYearPeriod", () => {
+  const today = new Date("2026-09-10T12:00:00Z");
+
+  it("is true for a calendar year-scoped period naming the current UTC year", () => {
+    const period = resolvePeriod(
+      { period: "year", yearMode: "calendar", of: "2026" },
+      CALENDAR_FY,
+      today,
+    );
+    expect(isCurrentUtcYearPeriod(period, today)).toBe(true);
+  });
+
+  it("is true for a financial year-scoped period naming the current UTC year", () => {
+    const period = resolvePeriod(
+      { period: "year", yearMode: "financial", of: "2026" },
+      APRIL_FY,
+      today,
+    );
+    expect(isCurrentUtcYearPeriod(period, today)).toBe(true);
+  });
+
+  it("is false for a year-scoped period naming an earlier year", () => {
+    const period = resolvePeriod({ period: "year", of: "2026" }, CALENDAR_FY, today);
+    const laterToday = new Date("2027-01-15T00:00:00Z");
+    expect(isCurrentUtcYearPeriod(period, laterToday)).toBe(false);
+  });
+
+  it("is false for a month-scoped period, regardless of today", () => {
+    const period = resolvePeriod({ period: "month" }, CALENDAR_FY, today);
+    expect(isCurrentUtcYearPeriod(period, today)).toBe(false);
+  });
+
+  it("is false for an all-time period, regardless of today", () => {
+    const period = resolvePeriod({ period: "all" }, CALENDAR_FY, today);
+    expect(isCurrentUtcYearPeriod(period, today)).toBe(false);
+  });
+});
+
+describe("isProjectablePeriod", () => {
+  const today = new Date("2026-09-10T12:00:00Z");
+
+  it("is true for the current month", () => {
+    const period = resolvePeriod({ period: "month", of: "2026-09" }, CALENDAR_FY, today);
+    expect(isProjectablePeriod(period, today)).toBe(true);
+  });
+
+  it("is true for the current year", () => {
+    const period = resolvePeriod({ period: "year", of: "2026" }, CALENDAR_FY, today);
+    expect(isProjectablePeriod(period, today)).toBe(true);
+  });
+
+  it("is false for a past month", () => {
+    const period = resolvePeriod({ period: "month", of: "2026-08" }, CALENDAR_FY, today);
+    expect(isProjectablePeriod(period, today)).toBe(false);
+  });
+
+  it("is false for a past year", () => {
+    const period = resolvePeriod({ period: "year", of: "2026" }, CALENDAR_FY, new Date("2027-06-01T00:00:00Z"));
+    expect(isProjectablePeriod(period, new Date("2027-06-01T00:00:00Z"))).toBe(false);
+  });
+
+  it("is false for the all-time scope, whose end is null", () => {
+    const period = resolvePeriod({ period: "all" }, CALENDAR_FY, today);
+    expect(period.end).toBeNull();
+    expect(isProjectablePeriod(period, today)).toBe(false);
+  });
+
+  it("is pure — same period and today always produce the same answer", () => {
+    const period = resolvePeriod({ period: "month", of: "2026-09" }, CALENDAR_FY, today);
+    expect(isProjectablePeriod(period, today)).toBe(isProjectablePeriod(period, today));
+  });
+});
+
+describe("daysInUtcMonth", () => {
+  it("returns 31 for January", () => {
+    expect(daysInUtcMonth(2026, 1)).toBe(31);
+  });
+
+  it("returns 28 for February in a non-leap year", () => {
+    expect(daysInUtcMonth(2026, 2)).toBe(28);
+  });
+
+  it("returns 29 for February in a leap year", () => {
+    expect(daysInUtcMonth(2028, 2)).toBe(29);
+  });
+
+  it("returns 30 for April", () => {
+    expect(daysInUtcMonth(2026, 4)).toBe(30);
   });
 });
 

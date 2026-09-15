@@ -91,7 +91,7 @@ function toDateOnlyString(d: Date): string {
  * next month is the last day of this one) — never date-fns's `getDaysInMonth`,
  * which reads local getters.
  */
-function daysInUtcMonth(year: number, month1to12: number): number {
+export function daysInUtcMonth(year: number, month1to12: number): number {
   return new Date(Date.UTC(year, month1to12, 0)).getUTCDate();
 }
 
@@ -138,6 +138,49 @@ function currentUtcMonthOf(today: Date): string {
 
 function currentUtcYearOf(today: Date): string {
   return String(today.getUTCFullYear());
+}
+
+/**
+ * D-12 gate (RESEARCH Pitfall 5): `resolvePeriod` returning successfully is
+ * NOT evidence that the resolved period is the current one — it also
+ * succeeds for every valid past month, so "is this the current month" must
+ * be asked explicitly rather than inferred from a successful resolution.
+ * True only for a month-scoped period whose `of` equals the current UTC
+ * month of `today`; false for a year-scoped or all-time period regardless of
+ * `today`. Pure — no clock of its own, `today` is always the caller's.
+ */
+export function isCurrentUtcMonthPeriod(period: ResolvedPeriod, today: Date): boolean {
+  return period.scope === "month" && period.of === currentUtcMonthOf(today);
+}
+
+/**
+ * D-12 gate (RESEARCH Pitfall 5): the year-scope counterpart to
+ * `isCurrentUtcMonthPeriod` — `resolvePeriod` succeeding is not evidence the
+ * resolved year is the current one, since it also succeeds for every valid
+ * past year. True for a year-scoped period whose `of` equals the current UTC
+ * year, in BOTH calendar and financial year modes (`yearMode` is deliberately
+ * ignored: a financial year whose `of` is the current year is still the
+ * current year for projection purposes). False for a month-scoped or
+ * all-time period regardless of `today`. Pure — no clock of its own.
+ */
+export function isCurrentUtcYearPeriod(period: ResolvedPeriod, today: Date): boolean {
+  return period.scope === "year" && period.of === currentUtcYearOf(today);
+}
+
+/**
+ * D-12 gate (RESEARCH Pitfall 5): whether a projection should even be
+ * attempted for `period` — the disjunction of the two current-period checks
+ * above, additionally requiring a bounded horizon (`period.end` non-null,
+ * which rules out the all-time scope structurally as well as belt-and-braces
+ * for any future scope that might resolve to an open end). Pure — no clock
+ * of its own; `today` is always the single value the caller already
+ * captured.
+ */
+export function isProjectablePeriod(period: ResolvedPeriod, today: Date): boolean {
+  return (
+    period.end !== null &&
+    (isCurrentUtcMonthPeriod(period, today) || isCurrentUtcYearPeriod(period, today))
+  );
 }
 
 function monthBounds(of: string): { start: string; end: string } {
