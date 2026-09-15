@@ -1,5 +1,9 @@
 import { describe, expect, it } from "vitest";
-import { alignmentSettingsSchema, financialYearSettingsSchema } from "../schema";
+import {
+  alignmentSettingsSchema,
+  financialYearSettingsSchema,
+  revenueForecastSettingsSchema,
+} from "../schema";
 
 const VALIDATION_MESSAGE =
   "Enter a valid day for the selected month (e.g. day 30 is invalid for February).";
@@ -192,6 +196,87 @@ describe("alignmentSettingsSchema", () => {
         (i) => i.path.join(".") === "toleranceCount",
       );
       expect(issue?.message).toBe(ALIGNMENT_VALIDATION_MESSAGE);
+    }
+  });
+});
+
+const REVENUE_FORECAST_VALIDATION_MESSAGE = "Enter a whole number of 1 or more.";
+
+describe("revenueForecastSettingsSchema", () => {
+  it("accepts the default of 7", () => {
+    const result = revenueForecastSettingsSchema.safeParse({
+      minCoveredDays: 7,
+    });
+    expect(result.success).toBe(true);
+  });
+
+  it("accepts the floor value of 1", () => {
+    const result = revenueForecastSettingsSchema.safeParse({
+      minCoveredDays: 1,
+    });
+    expect(result.success).toBe(true);
+  });
+
+  it("rejects 0 — a projection from zero usable days is not a projection", () => {
+    const result = revenueForecastSettingsSchema.safeParse({
+      minCoveredDays: 0,
+    });
+    expect(result.success).toBe(false);
+    if (!result.success) {
+      const issue = result.error.issues.find(
+        (i) => i.path.join(".") === "minCoveredDays",
+      );
+      expect(issue?.message).toBe(REVENUE_FORECAST_VALIDATION_MESSAGE);
+    }
+  });
+
+  it("rejects a negative value", () => {
+    const result = revenueForecastSettingsSchema.safeParse({
+      minCoveredDays: -1,
+    });
+    expect(result.success).toBe(false);
+    if (!result.success) {
+      const issue = result.error.issues.find(
+        (i) => i.path.join(".") === "minCoveredDays",
+      );
+      expect(issue?.message).toBe(REVENUE_FORECAST_VALIDATION_MESSAGE);
+    }
+  });
+
+  it("rejects a non-integer value", () => {
+    const result = revenueForecastSettingsSchema.safeParse({
+      minCoveredDays: 2.5,
+    });
+    expect(result.success).toBe(false);
+    if (!result.success) {
+      const issue = result.error.issues.find(
+        (i) => i.path.join(".") === "minCoveredDays",
+      );
+      expect(issue?.message).toBe(REVENUE_FORECAST_VALIDATION_MESSAGE);
+    }
+  });
+
+  it("rejects a string value", () => {
+    const result = revenueForecastSettingsSchema.safeParse({
+      minCoveredDays: "7",
+    });
+    expect(result.success).toBe(false);
+    if (!result.success) {
+      const issue = result.error.issues.find(
+        (i) => i.path.join(".") === "minCoveredDays",
+      );
+      expect(issue?.message).toBe(REVENUE_FORECAST_VALIDATION_MESSAGE);
+    }
+  });
+
+  it("rejects a missing minCoveredDays", () => {
+    const result = revenueForecastSettingsSchema.safeParse({});
+    expect(result.success).toBe(false);
+    if (!result.success) {
+      const issue = result.error.issues.find(
+        (i) => i.path.join(".") === "minCoveredDays",
+      );
+      expect(issue?.message).toBe(REVENUE_FORECAST_VALIDATION_MESSAGE);
     }
   });
 });

@@ -65,3 +65,26 @@ export const alignmentSettingsSchema = z.object({
 });
 
 export type AlignmentSettingsInput = z.infer<typeof alignmentSettingsSchema>;
+
+// ---------------------------------------------------------------------------
+// Revenue forecast honest-degradation threshold (Phase 7 Plan 2, D-15/FCST-05)
+// ---------------------------------------------------------------------------
+// A single positive-integer field: the minimum number of USABLE covered days
+// (after the D-02 drop of the most recent day) required before /revenue
+// shows a projection. Floor is 1, not 0 (unlike alignmentSettingsSchema's
+// fields) -- a projection from zero usable days is not a projection. Every
+// rejection carries the identical message string (07-UI-SPEC.md Copywriting
+// Contract), so the form never branches on error type.
+
+const REVENUE_FORECAST_VALIDATION_MESSAGE = "Enter a whole number of 1 or more.";
+
+export const revenueForecastSettingsSchema = z.object({
+  minCoveredDays: z
+    .number({ error: REVENUE_FORECAST_VALIDATION_MESSAGE })
+    .int({ message: REVENUE_FORECAST_VALIDATION_MESSAGE })
+    .min(1, { message: REVENUE_FORECAST_VALIDATION_MESSAGE }),
+});
+
+export type RevenueForecastSettingsInput = z.infer<
+  typeof revenueForecastSettingsSchema
+>;
