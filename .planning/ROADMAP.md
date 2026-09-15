@@ -281,7 +281,7 @@ Plans:
   - Still open: whether the revenue figure should count all verifications or only authorised ones. Locked to all-verifications by 03 D-02, with the gap surfaced as a Phase 4 reconciliation delta — see the standing tension in 05-CONTEXT.
   - **Resolved in Phase 7 planning (07-CONTEXT D-19):** the all-verifications basis stays locked and is handled in labelling — a permanent caption on `/revenue` and on the alignment revenue card states that revenue counts every verification and may exceed an authorised-only TSYS invoice.
 
-**Plans**: 4/6 plans executed
+**Plans**: 5/6 plans executed
 Plans:
 **Wave 1**
 
@@ -298,7 +298,7 @@ Plans:
 
 **Wave 4** *(blocked on Wave 3 completion)*
 
-- [ ] 07-05-PLAN.md — The D-12 current-period gate, the forecast fetcher and formatters, the `--provisional` tokens, and the home revenue tile's projection sub-line
+- [x] 07-05-PLAN.md — The D-12 current-period gate, the forecast fetcher and formatters, the `--provisional` tokens, and the home revenue tile's projection sub-line
 
 **Wave 5** *(blocked on Wave 4 completion)*
 
@@ -317,4 +317,4 @@ Phases execute in numeric order: 1 → 2 → 3 → 4 → 5 → 6 → 7 (Phase 3 
 | 4. Reconciliation & Discrepancy Flagging | 4/4 | Complete   | 2026-08-23 |
 | 5. Time Periods & Financial-Year Settings | 8/8 | In Progress|  |
 | 6. Dual-Source Alignment: TSYS vs Bit Addict | 10/10 | In Progress|  |
-| 7. TSYS Tiered Volume & Revenue Forecast | 4/6 | In Progress|  |
+| 7. TSYS Tiered Volume & Revenue Forecast | 5/6 | In Progress|  |
