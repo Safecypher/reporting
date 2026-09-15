@@ -257,7 +257,12 @@ export function PairedMetricCard({
         </DrillableMetric>
       ) : null}
       {footerCaption ? (
-        <p className="text-xs font-light text-[var(--fg-3)]">{footerCaption}</p>
+        // A `<div>`, not a `<p>` — `footerCaption` may itself be a
+        // fully-rendered component with its own block-level markup (e.g.
+        // `RevenueBasisCaption`, 07-03), and a <p> cannot legally nest
+        // another <p>. The 12px font-light --fg-3 styling still applies as
+        // the default for a plain-string/no-markup caption.
+        <div className="text-xs font-light text-[var(--fg-3)]">{footerCaption}</div>
       ) : null}
     </CardShell>
   );

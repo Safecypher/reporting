@@ -26,6 +26,7 @@ import {
 import { fetchFinancialYearStart } from "@/lib/settings/fy-settings";
 import { fetchPerSourceRevenueTotals } from "@/lib/dashboard/revenue-source";
 import type { RevenueActualPair } from "@/components/dashboard/revenue-kpi-cards";
+import { RevenueBasisCaption } from "@/components/dashboard/revenue-basis-caption";
 import {
   fetchVerificationDrillRows,
   type VerificationDrillFetchResult,
@@ -505,6 +506,7 @@ async function RevenueBody({ searchParams }: { searchParams: PageSearchParams })
         tierRows={tierRows}
         actual={actual}
       />
+      <RevenueBasisCaption />
       <VerificationDrillSheet
         filter={isVerificationDrill ? drillFilter : null}
         rows={verificationDrillResult.rows}

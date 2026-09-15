@@ -7,7 +7,9 @@ import {
   PairedMetricCardError,
   PairedMetricCardPeriodEmpty,
   PairedMetricCardSkeleton,
+  formatCurrency,
 } from "@/components/dashboard/alignment-kpi-cards";
+import { RevenueBasisCaption } from "@/components/dashboard/revenue-basis-caption";
 import { ScopeBadge } from "@/components/dashboard/scope-badge";
 import { PeriodControls } from "@/components/dashboard/period-controls";
 import { PeriodEmptyState } from "@/components/dashboard/period-empty-state";
@@ -23,6 +25,10 @@ import {
   type AlignmentTotalsResult,
   type FlowAlignmentMetric,
 } from "@/lib/dashboard/alignment";
+import {
+  fetchPerSourceRevenueTotals,
+  type PerSourceRevenueTotalsResult,
+} from "@/lib/dashboard/revenue-source";
 import {
   computeLiveCardsCoverageFigures,
   formatLiveCardsDerivationCaption,
@@ -212,6 +218,55 @@ function FlowMetricCard({
   );
 }
 
+/**
+ * D-11: `/alignment`'s fifth `PairedMetricCard` instance, Revenue. This is a
+ * render-time composition of the volume metric's already-resolved verdict
+ * with the per-source revenue figures — NOT a sixth alignment metric with
+ * its own RPC. `status`/`tsysCoveredDays`/`bitAddictCoveredDays`/`totalDays`
+ * are copied verbatim from `volumeResult.data` (never recomputed from the
+ * revenue figures, never given a tolerance of its own), so the coverage
+ * statement is word-identical to the Transaction volume card's for the same
+ * period and the card's own emptiness/error state tracks the volume metric's
+ * — Revenue itself adds no independent emptiness/error signal (see the
+ * whole-page period-empty comment below, which deliberately does not
+ * reference this card).
+ */
+function AlignmentRevenueCard({
+  volumeResult,
+  revenueResult,
+}: {
+  volumeResult: AlignmentTotalsResult;
+  revenueResult: PerSourceRevenueTotalsResult;
+}) {
+  const metricLabel = "Revenue";
+
+  if (volumeResult.error !== null || revenueResult.error !== null) {
+    return <PairedMetricCardError metricLabel={metricLabel} />;
+  }
+
+  if (volumeResult.data.total_days === 0) {
+    return <PairedMetricCardPeriodEmpty metricLabel={metricLabel} />;
+  }
+
+  return (
+    <PairedMetricCard
+      metricLabel={metricLabel}
+      data={{
+        tsysCount: revenueResult.data.tsys,
+        bitAddictCount: revenueResult.data.bitAddict,
+        status: volumeResult.data.status,
+        tsysCoveredDays: volumeResult.data.tsys_covered_days,
+        bitAddictCoveredDays: volumeResult.data.bit_addict_covered_days,
+        totalDays: volumeResult.data.total_days,
+      }}
+      formatValue={formatCurrency}
+      statusMeaningCaption="This status mirrors the Transaction volume status — a revenue difference can only come from a volume difference, since both sides price the same verified activity through the same tier ladder."
+      footerCaption={<RevenueBasisCaption />}
+      drillEntity={ALIGNMENT_METRIC_TO_DRILL_ENTITY.volume}
+    />
+  );
+}
+
 type PageSearchParams = Promise<{ [key: string]: string | string[] | undefined }>;
 
 /**
@@ -282,6 +337,7 @@ async function AlignmentBody({ searchParams }: { searchParams: PageSearchParams 
     unenrolledResult,
     volumeResult,
     liveCardsResult,
+    revenueResult,
     tsysDomainProbe,
     bitAddictVerificationDomainProbe,
     bitAddictInventoryDomainProbe,
@@ -293,6 +349,12 @@ async function AlignmentBody({ searchParams }: { searchParams: PageSearchParams 
     fetchAlignmentTotals(supabase, "unenrolled", period, settings.toleranceCount),
     fetchAlignmentTotals(supabase, "volume", period, settings.toleranceCount),
     fetchAlignmentLiveCards(supabase, period, settings.baselineOffset, settings.toleranceCount),
+    // D-11: Revenue is a render-time composition of the volume verdict with
+    // its own per-source figures, not a fifth `alignment_totals_for_period`
+    // metric — `fetchPerSourceRevenueTotals` is the same fetcher plan 07-01
+    // shipped for /revenue, called here with the alignment page's own
+    // period.
+    fetchPerSourceRevenueTotals(supabase, period),
     supabase
       .from("apigee_calls")
       .select("event_time", { count: "exact", head: true })
@@ -388,7 +450,11 @@ async function AlignmentBody({ searchParams }: { searchParams: PageSearchParams 
   // below (UI-SPEC E1/E2, via FlowMetricCard for the three flow metrics);
   // this whole-page check only covers the case where all four are empty at
   // once, matching /cards' and /reconciliation's precedent for the
-  // domain-empty-vs-period-empty split.
+  // domain-empty-vs-period-empty split. Revenue (the fifth card) is
+  // deliberately NOT a fifth term here — it is derived entirely from the
+  // volume metric's verdict (D-11) and adds no independent emptiness
+  // signal, so this four-way AND stays exactly as it was before this card
+  // existed; do not "complete" it to a five-way AND.
   const enrolledEmpty = enrolledResult.error === null && enrolledResult.data.total_days === 0;
   const unenrolledEmpty =
     unenrolledResult.error === null && unenrolledResult.data.total_days === 0;
@@ -423,9 +489,12 @@ async function AlignmentBody({ searchParams }: { searchParams: PageSearchParams 
           is computed from DEFAULT_ALIGNMENT_SETTINGS when this is shown, so
           the notice sits above the grid rather than replacing it (E1). */}
       {settingsError !== null && <SettingsFallbackNotice />}
-      {/* Fixed at exactly four paired KPI cards, grid-cols-1 sm:grid-cols-2
-          (D-18, UI-SPEC E1) — no chart, no full-width table, the grid
-          collapsing to one column is the page's only reflow. */}
+      {/* Four ROADMAP SC1 paired KPI cards plus a fifth, Revenue (07-03,
+          D-11) — grid-cols-1 sm:grid-cols-2 (D-18, UI-SPEC E1); five cards
+          resolves to a lone trailing card on the final row at sm and above,
+          expected and matching how this grid already behaves for any odd
+          card count — not a defect to fix by forcing a three-column
+          layout. */}
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
         <FlowMetricCard metric="enrolled" result={enrolledResult} />
         <FlowMetricCard metric="unenrolled" result={unenrolledResult} />
@@ -469,6 +538,7 @@ async function AlignmentBody({ searchParams }: { searchParams: PageSearchParams 
           />
         )}
         <FlowMetricCard metric="volume" result={volumeResult} />
+        <AlignmentRevenueCard volumeResult={volumeResult} revenueResult={revenueResult} />
       </div>
       {drillSheet}
     </>
