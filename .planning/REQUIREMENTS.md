@@ -85,7 +85,7 @@ Requirements for the initial release (the PoC dashboard shown to Mark). Each map
 *Minted 2026-09-15 during Phase 7 planning — the roadmap recorded these as "TBD (derive during planning)" and 07-CONTEXT.md "Claude's Discretion" assigned the minting to the planner with a suggested `FCST-` prefix. `REV-01`/`REV-02` are already registered against Phase 3, so the bare `REV-` prefix would collide (07-RESEARCH.md §Phase Requirements). FCST-01..05 map one-to-one onto Phase 7's five ROADMAP success criteria.*
 
 - [ ] **FCST-01**: The revenue view shows actual-to-date revenue beside a projected month-end (or year-end) forecast, both labelled and visually distinct, so a projection can never be mistaken for a booked figure — including a projection sub-line on the dashboard home revenue tile
-- [ ] **FCST-02**: Revenue is computed from billable transaction volume attributable per source, through one shared tier-ladder implementation, so a TSYS-vs-Bit-Addict volume disagreement is visible as a revenue disagreement rather than being averaged away
+- [x] **FCST-02**: Revenue is computed from billable transaction volume attributable per source, through one shared tier-ladder implementation, so a TSYS-vs-Bit-Addict volume disagreement is visible as a revenue disagreement rather than being averaged away
 - [ ] **FCST-03**: A year or all-time figure is the sum of per-month tiered figures, locked by a regression test proving that running the ladder over aggregate volume, and that linearly scaling an already-priced figure, each produce a different and wrong number
 - [ ] **FCST-04**: Money stays exact `NUMERIC` end to end through the source-dimensioned chain and the forecast, and is rounded once at display — no approximate arithmetic in the app layer
 - [ ] **FCST-05**: The projection degrades honestly below a configurable covered-day threshold, stating how many days it has instead of printing a forecast; the threshold is an audited `app_settings` value editable without a redeploy
@@ -175,7 +175,7 @@ Which phases cover which requirements. Updated during roadmap creation.
 | ALIGN-06 | Phase 6 | Complete |
 | ALIGN-07 | Phase 6 | Complete |
 | FCST-01 | Phase 7 | Pending |
-| FCST-02 | Phase 7 | Pending |
+| FCST-02 | Phase 7 | Complete |
 | FCST-03 | Phase 7 | Pending |
 | FCST-04 | Phase 7 | Pending |
 | FCST-05 | Phase 7 | Pending |
