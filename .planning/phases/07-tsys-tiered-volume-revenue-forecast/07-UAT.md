@@ -3,18 +3,18 @@ status: testing
 phase: 07-tsys-tiered-volume-revenue-forecast
 source: 07-01-SUMMARY.md, 07-02-SUMMARY.md, 07-03-SUMMARY.md, 07-04-SUMMARY.md, 07-05-SUMMARY.md, 07-06-SUMMARY.md
 started: 2026-09-15T14:05:00Z
-updated: 2026-09-15T18:05:00Z
+updated: 2026-09-15T18:15:00Z
 ---
 
 ## Current Test
 
-number: 3
-name: Settings — three stacked sections, pre-populated threshold, always-visible notice, inline validation
+number: 4
+name: Audit-trail behaviour on a real settings save
 expected: |
-  /settings/general shows three vertically-stacked sections separated by a
-  Separator. The Revenue forecast field shows 7, not an empty input. The inline
-  scope-impact notice is visible without hovering and wraps. Submitting 0 shows
-  the inline validation message rather than a silent no-op.
+  Change the Revenue forecast threshold on /settings/general and save. A new
+  app_settings_audit row appears naming BOTH the old and new threshold value.
+  Then change only the financial-year start and save — that audit row's summary
+  keeps its original pre-Phase-7 wording and does not mention the threshold.
 awaiting: user response
 name: Settings — three stacked sections, pre-populated threshold, always-visible notice, inline validation
 expected: |
@@ -73,7 +73,8 @@ partially_established: |
 
 ### 3. Settings: three stacked sections, pre-populated threshold, always-visible notice, inline validation
 expected: /settings/general shows three vertically-stacked sections separated by a Separator. The Revenue forecast field shows 7 (or the persisted value), not an empty input. The inline scope-impact notice is visible without hovering and wraps rather than truncating. Submitting 0 shows the inline validation message rather than a silent no-op.
-result: [pending]
+result: pass
+reported: "approved"
 source: 07-02 D3 (human_judgment)
 partially_established: |
   Proven structurally live: app_settings.revenue_forecast_min_covered_days has
@@ -186,9 +187,9 @@ partially_established: |
 ## Summary
 
 total: 9
-passed: 5
+passed: 6
 issues: 0 (2 found, both fixed in 6e0af54 and confirmed by re-test)
-pending: 4
+pending: 3
 skipped: 0
 blocked: 0
 
@@ -214,6 +215,6 @@ blocked: 0
   debug_session: ""
   resolved_by_retest: "User confirmed /revenue now reads \"TSYS has no data for this period.\" — fabricated shortfall gone."
   fix_applied: "6e0af54 — PerSourceRevenueTotals.tsys widened to number|null; absence derived from v_apigee_coverage_daily (the same view revenue_forecast_for_period uses); revenue-kpi-cards.tsx split into three branches (load error / no coverage / populated) so SourceDeltaPhrase is omitted in the absent case. No SQL or migration needed. 433/433 tests, tsc clean, build green."
-  new_copy_needing_signoff: "\"TSYS has no data for this period.\" — 07-UI-SPEC.md's Copywriting Contract has no wording for this state (only the RPC-failure case, \"TSYS revenue could not be loaded.\"). New copy, not lifted from the spec."
+  new_copy_signed_off: "\"TSYS has no data for this period.\" — APPROVED by the user 2026-09-15. Not lifted from 07-UI-SPEC.md's Copywriting Contract, which had wording only for the RPC-failure case (\"TSYS revenue could not be loaded.\"). 07-UI-SPEC.md should gain this string so the contract stays the single source of truth."
   residual: "/alignment's AlignmentRevenueCard still coalesces tsys ?? 0 (alignment/page.tsx:264) — deliberately out of scope for this /revenue-only gap. Flagged on UAT test 6."
   contradicts: "PROJECT.md core value — billing-vs-verification discrepancies must be immediately visible and trustworthy. A fabricated 100% shortfall is a false discrepancy."
