@@ -143,4 +143,50 @@ describe("rebucketRevenue", () => {
       { bucketKey: "2026-09", label: "Sep 2026", revenue: 150, projected: 2 },
     ]);
   });
+
+  // 07-REVIEW CR-02: a forecast-only day (present in `forecastDailyByDay`
+  // but absent from `v_revenue_daily`, i.e. every day after `as_of_day`) is
+  // synthesized in app/(dashboard)/revenue/page.tsx with `revenue: null` —
+  // never `"0"`. These cases lock in that `rebucketRevenue` propagates that
+  // absence honestly, mirroring the existing null-`projected` handling
+  // above rather than treating a synthesized day as zero actual revenue.
+  it("keeps a bucket's revenue null (not zero) when none of its days carry an actual value", () => {
+    const rows: RevenueDailyRow[] = [
+      { day_utc: "2026-09-16", revenue: null, projected: "12.00" },
+      { day_utc: "2026-09-17", revenue: null, projected: "12.50" },
+    ];
+
+    const result = rebucketRevenue(rows, "monthly", "UTC");
+
+    expect(result).toEqual([
+      { bucketKey: "2026-09", label: "Sep 2026", revenue: null, projected: 24.5 },
+    ]);
+  });
+
+  it("sums only the days that carry an actual revenue value in a mixed bucket, alongside the dashed forward series", () => {
+    const rows: RevenueDailyRow[] = [
+      // as_of_day: shares one x-value between the actual and dashed series
+      // (07-UI-SPEC E2) — both revenue and projected are populated.
+      { day_utc: "2026-09-15", revenue: "40.00", projected: "40.00" },
+      // forecast-only days after as_of_day: no actual row exists yet.
+      { day_utc: "2026-09-16", revenue: null, projected: "41.00" },
+      { day_utc: "2026-09-17", revenue: null, projected: "42.00" },
+    ];
+
+    const result = rebucketRevenue(rows, "monthly", "UTC");
+
+    expect(result).toEqual([
+      { bucketKey: "2026-09", label: "Sep 2026", revenue: 40, projected: 123 },
+    ]);
+  });
+
+  it("passes a lone forecast-only day through as null revenue at daily granularity", () => {
+    const rows: RevenueDailyRow[] = [{ day_utc: "2026-09-20", revenue: null, projected: "50.00" }];
+
+    const result = rebucketRevenue(rows, "daily", "UTC");
+
+    expect(result).toEqual([
+      { bucketKey: "2026-09-20", label: "2026-09-20", revenue: null, projected: 50 },
+    ]);
+  });
 });

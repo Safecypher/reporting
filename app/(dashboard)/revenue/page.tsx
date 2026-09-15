@@ -519,18 +519,32 @@ async function RevenueBody({ searchParams }: { searchParams: PageSearchParams })
     }
   }
 
-  const dailyRows: RevenueDailyRow[] = (dailyResult.data ?? [])
-    .filter(
-      (row): row is RevenueDailyViewRow & { day_utc: string; revenue: string } =>
-        row.day_utc !== null && row.revenue !== null,
-    )
-    .map((row) => ({
-      day_utc: row.day_utc,
-      revenue: row.revenue,
-      projected: forecastDailyByDay.has(row.day_utc)
-        ? String(forecastDailyByDay.get(row.day_utc))
-        : undefined,
-    }));
+  // 07-REVIEW CR-02: `dailyResult.data` only ever has a row for a day with
+  // actual priced verification activity — every day strictly after
+  // `as_of_day` is, by construction, a day this system has not received
+  // real data for yet, so it can never appear there. Build the actual and
+  // forecast day-sets separately, then union them, so the dashed forward
+  // series (07-UI-SPEC E2) has a row to draw through for every projected
+  // day, not just `as_of_day` itself. A synthesized forecast-only day's
+  // `revenue` is `null` (never `"0"` — see revenue-bucketing.ts's
+  // `RevenueDailyRow` doc comment for why a confident zero is dishonest
+  // here).
+  const actualByDay = new Map<string, string>(
+    (dailyResult.data ?? [])
+      .filter(
+        (row): row is RevenueDailyViewRow & { day_utc: string; revenue: string } =>
+          row.day_utc !== null && row.revenue !== null,
+      )
+      .map((row) => [row.day_utc, row.revenue] as const),
+  );
+  const allDayUtcs = new Set<string>([...actualByDay.keys(), ...forecastDailyByDay.keys()]);
+  const dailyRows: RevenueDailyRow[] = [...allDayUtcs].sort().map((day_utc) => ({
+    day_utc,
+    revenue: actualByDay.get(day_utc) ?? null,
+    projected: forecastDailyByDay.has(day_utc)
+      ? String(forecastDailyByDay.get(day_utc))
+      : undefined,
+  }));
 
   const tierRows: RevenueTierRow[] = (tierResult.data ?? [])
     .filter(
@@ -620,7 +634,12 @@ async function RevenueBody({ searchParams }: { searchParams: PageSearchParams })
       .map((row) => row.day_utc)
       .filter((day): day is string => day !== null),
   );
-  const pricedDayUtcs = new Set(dailyRows.map((row) => row.day_utc));
+  // "Priced" means an actual `v_revenue_daily` row exists for the day —
+  // `actualByDay`, not `dailyRows`. After the CR-02 fix above, `dailyRows`
+  // also carries synthesized forecast-only days (`revenue: null`); those
+  // must never count as priced, or a future day with no activity yet could
+  // mask a genuine same-day pricing gap.
+  const pricedDayUtcs = new Set(actualByDay.keys());
   const missingDayCount = [...activityDayUtcs].filter(
     (day) => !pricedDayUtcs.has(day),
   ).length;
