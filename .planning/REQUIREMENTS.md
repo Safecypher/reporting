@@ -86,8 +86,8 @@ Requirements for the initial release (the PoC dashboard shown to Mark). Each map
 
 - [ ] **FCST-01**: The revenue view shows actual-to-date revenue beside a projected month-end (or year-end) forecast, both labelled and visually distinct, so a projection can never be mistaken for a booked figure — including a projection sub-line on the dashboard home revenue tile
 - [x] **FCST-02**: Revenue is computed from billable transaction volume attributable per source, through one shared tier-ladder implementation, so a TSYS-vs-Bit-Addict volume disagreement is visible as a revenue disagreement rather than being averaged away
-- [ ] **FCST-03**: A year or all-time figure is the sum of per-month tiered figures, locked by a regression test proving that running the ladder over aggregate volume, and that linearly scaling an already-priced figure, each produce a different and wrong number
-- [ ] **FCST-04**: Money stays exact `NUMERIC` end to end through the source-dimensioned chain and the forecast, and is rounded once at display — no approximate arithmetic in the app layer
+- [x] **FCST-03**: A year or all-time figure is the sum of per-month tiered figures, locked by a regression test proving that running the ladder over aggregate volume, and that linearly scaling an already-priced figure, each produce a different and wrong number
+- [x] **FCST-04**: Money stays exact `NUMERIC` end to end through the source-dimensioned chain and the forecast, and is rounded once at display — no approximate arithmetic in the app layer
 - [ ] **FCST-05**: The projection degrades honestly below a configurable covered-day threshold, stating how many days it has instead of printing a forecast; the threshold is an audited `app_settings` value editable without a redeploy
 
 ## v2 Requirements
@@ -176,8 +176,8 @@ Which phases cover which requirements. Updated during roadmap creation.
 | ALIGN-07 | Phase 6 | Complete |
 | FCST-01 | Phase 7 | Pending |
 | FCST-02 | Phase 7 | Complete |
-| FCST-03 | Phase 7 | Pending |
-| FCST-04 | Phase 7 | Pending |
+| FCST-03 | Phase 7 | Complete |
+| FCST-04 | Phase 7 | Complete |
 | FCST-05 | Phase 7 | Pending |
 
 **Coverage:**

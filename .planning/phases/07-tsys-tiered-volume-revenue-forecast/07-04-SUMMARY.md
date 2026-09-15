@@ -230,3 +230,10 @@ None — no external service configuration required.
 ---
 *Phase: 07-tsys-tiered-volume-revenue-forecast*
 *Completed: 2026-09-15*
+
+## Self-Check: PASSED
+
+- All 5 key files (3 created, 1 modified, this SUMMARY) confirmed present on disk.
+- All 3 commits confirmed in git history: `58bdb5c`, `44a8cb3`, `fe0bafc`.
+- All task-level `<acceptance_criteria>` automated checks re-confirmed passing: `PRICING_FN_MIGRATION_OK`, `FORECAST_MIGRATION_OK`, `READ_ONLY_OK`, `REVENUE_CHAIN_SOURCE_UNTOUCHED`, `TYPES_OK`.
+- `npx tsc --noEmit`, `npm test` (378/378, 28 files), `npm run build` all pass (Task 3, live-reported).

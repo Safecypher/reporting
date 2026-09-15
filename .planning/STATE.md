@@ -4,16 +4,16 @@ milestone: v1.0
 current_phase: 07
 current_phase_name: TSYS Tiered Volume & Revenue Forecast
 status: executing
-stopped_at: Completed 07-03-PLAN.md
-last_updated: "2026-09-15T12:13:51.598Z"
+stopped_at: Completed 07-04-PLAN.md
+last_updated: "2026-09-15T12:39:11.134Z"
 last_activity: 2026-09-15
 last_activity_desc: Phase 07 execution started
-state_head: e31312678bd339eb3342c747d65cec9dfee1ba51
+state_head: fe0bafc4a3003bef8516cafd2a5367629ded3344
 progress:
   total_phases: 7
   completed_phases: 4
   total_plans: 50
-  completed_plans: 47
+  completed_plans: 48
 milestone_name: milestone
 ---
 
@@ -29,7 +29,7 @@ See: .planning/PROJECT.md (updated 2026-08-18)
 ## Current Position
 
 Phase: 07 (TSYS Tiered Volume & Revenue Forecast) — EXECUTING
-Plan: 4 of 6
+Plan: 5 of 6
 Status: Ready to execute
 Last activity: 2026-09-15 — Phase 07 execution started
 
@@ -84,6 +84,7 @@ Progress: [░░░░░░░░░░] 0%
 | Phase 07 P01 | ~30min | 3 tasks | 11 files |
 | Phase 07 P02 | ~15 min | 3 tasks | 10 files |
 | Phase 07 P03 | interrupted-resumed | 3 tasks | 7 files |
+| Phase 07 P04 | ~4min (+2 checkpoint round-trips) | 3 tasks | 4 files |
 
 ## Accumulated Context
 
@@ -148,6 +149,8 @@ Recent decisions affecting current work:
 - [Phase 07]: Phase 07 Plan 02: fetchRevenueForecastSettings mirrors alignment-settings.ts's discriminated {settings, error} shape, not fy-settings.ts's silent default -- a forecast threshold silently defaulting to 7 is a money-adjacent surprise (WR-03 precedent)
 - [Phase 07]: [Phase 07] Plan 07-03: PairedMetricCard's footerCaption slot renders in a <div>, not the plan-specified <p> -- footerCaption can itself be a fully-rendered block-level component (RevenueBasisCaption renders its own <p>), and a <p> cannot legally nest another <p>
 - [Phase 07]: [Phase 07] Plan 07-03: /alignment's fifth Revenue card copies status/coverage verbatim from the Transaction volume card's resolved result (D-11) rather than recomputing -- the whole-page period-empty check stays a four-way AND, with Revenue deliberately excluded since it has no independent emptiness signal
+- [Phase 07]: Phase 07 Plan 04: Task 1's D-06 checkpoint (forecast computation shape) resolved 'as-proposed' by explicit human sign-off, including the data-window inference floor (greatest(p_start, 2026-08-13)) -- without it a current-year projection would fabricate pre-launch revenue for Jan-Jul 2026
+- [Phase 07]: Phase 07 Plan 04: price_volume_through_tier_set is the ONE pricing implementation both new migrations contain; month and year forecasts are structurally the same per-month loop (L-02/SC3 enforced by construction); live TSYS September forecast correctly degraded (too_few_usable_days) on real sparse data
 
 ### Pending Todos
 
@@ -187,6 +190,6 @@ Items acknowledged and carried forward from previous milestone close:
 
 ## Session Continuity
 
-Last session: 2026-09-15T12:13:51.291Z
-Stopped at: Completed 07-03-PLAN.md
+Last session: 2026-09-15T12:39:10.828Z
+Stopped at: Completed 07-04-PLAN.md
 Resume file: None
