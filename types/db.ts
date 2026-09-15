@@ -89,6 +89,7 @@ export type Database = {
           fy_start_day: number
           fy_start_month: number
           id: number
+          revenue_forecast_min_covered_days: number
           tsys_live_cards_baseline_as_of: string | null
           tsys_live_cards_baseline_offset: number
           updated_at: string
@@ -99,6 +100,7 @@ export type Database = {
           fy_start_day?: number
           fy_start_month?: number
           id?: number
+          revenue_forecast_min_covered_days?: number
           tsys_live_cards_baseline_as_of?: string | null
           tsys_live_cards_baseline_offset?: number
           updated_at?: string
@@ -109,6 +111,7 @@ export type Database = {
           fy_start_day?: number
           fy_start_month?: number
           id?: number
+          revenue_forecast_min_covered_days?: number
           tsys_live_cards_baseline_as_of?: string | null
           tsys_live_cards_baseline_offset?: number
           updated_at?: string
@@ -124,10 +127,12 @@ export type Database = {
           new_alignment_tolerance: number | null
           new_fy_start_day: number
           new_fy_start_month: number
+          new_revenue_forecast_min_covered_days: number | null
           new_tsys_live_cards_baseline_offset: number | null
           old_alignment_tolerance: number | null
           old_fy_start_day: number | null
           old_fy_start_month: number | null
+          old_revenue_forecast_min_covered_days: number | null
           old_tsys_live_cards_baseline_offset: number | null
           summary: string
         }
@@ -138,10 +143,12 @@ export type Database = {
           new_alignment_tolerance?: number | null
           new_fy_start_day: number
           new_fy_start_month: number
+          new_revenue_forecast_min_covered_days?: number | null
           new_tsys_live_cards_baseline_offset?: number | null
           old_alignment_tolerance?: number | null
           old_fy_start_day?: number | null
           old_fy_start_month?: number | null
+          old_revenue_forecast_min_covered_days?: number | null
           old_tsys_live_cards_baseline_offset?: number | null
           summary: string
         }
@@ -152,10 +159,12 @@ export type Database = {
           new_alignment_tolerance?: number | null
           new_fy_start_day?: number
           new_fy_start_month?: number
+          new_revenue_forecast_min_covered_days?: number | null
           new_tsys_live_cards_baseline_offset?: number | null
           old_alignment_tolerance?: number | null
           old_fy_start_day?: number | null
           old_fy_start_month?: number | null
+          old_revenue_forecast_min_covered_days?: number | null
           old_tsys_live_cards_baseline_offset?: number | null
           summary?: string
         }
