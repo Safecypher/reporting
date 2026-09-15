@@ -3,21 +3,19 @@ status: testing
 phase: 07-tsys-tiered-volume-revenue-forecast
 source: 07-01-SUMMARY.md, 07-02-SUMMARY.md, 07-03-SUMMARY.md, 07-04-SUMMARY.md, 07-05-SUMMARY.md, 07-06-SUMMARY.md
 started: 2026-09-15T14:05:00Z
-updated: 2026-09-15T17:55:00Z
+updated: 2026-09-15T18:05:00Z
 ---
 
 ## Current Test
 
-number: 2
-name: Re-test /revenue TSYS block after the absent-vs-zero fix (6e0af54)
+number: 3
+name: Settings — three stacked sections, pre-populated threshold, always-visible notice, inline validation
 expected: |
-  Reload /revenue for September 2026. The TSYS block no longer reads "$0.00"
-  with "TSYS is short by $179.66 (100%)." Instead it states plainly that TSYS
-  has no data for this period, and the shortfall phrase is gone entirely.
-  The Bit Addict headline is unchanged at $179.66.
+  /settings/general shows three vertically-stacked sections separated by a
+  Separator. The Revenue forecast field shows 7, not an empty input. The inline
+  scope-impact notice is visible without hovering and wraps. Submitting 0 shows
+  the inline validation message rather than a silent no-op.
 awaiting: user response
-
-next_after: 3
 name: Settings — three stacked sections, pre-populated threshold, always-visible notice, inline validation
 expected: |
   /settings/general shows three vertically-stacked sections separated by a
@@ -46,12 +44,13 @@ evidence: |
 
 ### 2. Revenue headline unchanged, TSYS figure appears, /reconciliation not doubled
 expected: On /revenue (current month) the Bit Addict headline is unchanged from its pre-Phase-7 value and a nested TSYS secondary figure appears at 14px. On /reconciliation, per-day verification counts are unchanged (no doubling).
-result: issue
-reported: "Screenshot of /revenue, September 2026. Headline and nested TSYS figure both render as specified, but the TSYS block reads $0.00 with 'TSYS is short by $179.66 (100%).' — TSYS has no September data at all, so absence is being presented as a 100% shortfall."
-severity: major
+result: pass
+initially_reported: "Screenshot of /revenue, September 2026. Headline and nested TSYS figure both render as specified, but the TSYS block reads $0.00 with 'TSYS is short by $179.66 (100%).' — TSYS has no September data at all, so absence is being presented as a 100% shortfall."
+initial_severity: major
 source: 07-01 D4 (human_judgment)
 fix_applied: 6e0af54
-awaiting_retest: true
+retest_result: pass
+retest_reported: "TSYS has no data for this period."
 retest_note: |
   Fix verified at the data layer by the orchestrator: v_apigee_coverage_daily
   returns 0 covered TSYS days for September (and 1 for August, so a genuine-zero
@@ -101,12 +100,13 @@ why_deferred: |
 
 ### 5. Source-delta phrase renders on /revenue
 expected: On /revenue, beneath the TSYS secondary figure, a plain-language phrase states which source is short and by how much, formatted as currency. When TSYS is unavailable, the phrase is omitted entirely rather than rendering an empty or broken line.
-result: issue
-reported: "Phrase renders and is correctly formatted as currency ('TSYS is short by $179.66 (100%).'), but it fires on a period where TSYS has NO data rather than being omitted. The 'when TSYS is unavailable, omitted entirely' half of the expectation is not met, because the unavailable case is indistinguishable from a real zero upstream."
-severity: major
+result: pass
+initially_reported: "Phrase renders and is correctly formatted as currency ('TSYS is short by $179.66 (100%).'), but it fires on a period where TSYS has NO data rather than being omitted. The 'when TSYS is unavailable, omitted entirely' half of the expectation is not met, because the unavailable case is indistinguishable from a real zero upstream."
+initial_severity: major
 source: 07-03 D2 (human_judgment)
 fix_applied: 6e0af54
-awaiting_retest: true
+retest_result: pass
+retest_reported: "TSYS has no data for this period." — the shortfall phrase is gone; the absent branch renders instead, confirming SourceDeltaPhrase is correctly omitted rather than rendering an empty or broken line.
 retest_note: |
   SourceDeltaPhrase itself was correctly left untouched — all its branches
   (exact-match, computeAlignmentShortSide, pctVariance on Bit Addict, and the
@@ -186,8 +186,8 @@ partially_established: |
 ## Summary
 
 total: 9
-passed: 3
-issues: 2 (both fixed in 6e0af54, awaiting re-test)
+passed: 5
+issues: 0 (2 found, both fixed in 6e0af54 and confirmed by re-test)
 pending: 4
 skipped: 0
 blocked: 0
@@ -195,7 +195,7 @@ blocked: 0
 ## Gaps
 
 - truth: "A period with no TSYS data is shown as absent, not as a confident $0.00 with a 100% shortfall"
-  status: failed
+  status: resolved
   reason: "User screenshot of /revenue Sept 2026: TSYS renders '$0.00' and 'TSYS is short by $179.66 (100%).' TSYS has zero covered days in September (live: covered_days 0, actual_volume 0, forecast degraded too_few_usable_days); its only data is one covered day in August. Missing data is being presented as a reconciliation finding."
   severity: major
   test: 2
@@ -212,6 +212,7 @@ blocked: 0
     - "PerSourceRevenueTotals.tsys widened to allow null (absent), distinct from 0 (genuinely zero)"
     - "SourceDeltaPhrase omitted when the counterpart source has no coverage in the period, per its own documented contract"
   debug_session: ""
+  resolved_by_retest: "User confirmed /revenue now reads \"TSYS has no data for this period.\" — fabricated shortfall gone."
   fix_applied: "6e0af54 — PerSourceRevenueTotals.tsys widened to number|null; absence derived from v_apigee_coverage_daily (the same view revenue_forecast_for_period uses); revenue-kpi-cards.tsx split into three branches (load error / no coverage / populated) so SourceDeltaPhrase is omitted in the absent case. No SQL or migration needed. 433/433 tests, tsc clean, build green."
   new_copy_needing_signoff: "\"TSYS has no data for this period.\" — 07-UI-SPEC.md's Copywriting Contract has no wording for this state (only the RPC-failure case, \"TSYS revenue could not be loaded.\"). New copy, not lifted from the spec."
   residual: "/alignment's AlignmentRevenueCard still coalesces tsys ?? 0 (alignment/page.tsx:264) — deliberately out of scope for this /revenue-only gap. Flagged on UAT test 6."
