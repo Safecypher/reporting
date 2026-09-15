@@ -21,12 +21,27 @@ import {
   monthOptions as buildMonthOptions,
   yearOptions as buildYearOptions,
   resolvePeriod,
+  isProjectablePeriod,
   type ResolvedPeriod,
 } from "@/lib/dashboard/period";
 import { fetchFinancialYearStart } from "@/lib/settings/fy-settings";
+import { fetchRevenueForecastSettings } from "@/lib/settings/revenue-forecast-settings";
 import { fetchPerSourceRevenueTotals } from "@/lib/dashboard/revenue-source";
-import type { RevenueActualPair } from "@/components/dashboard/revenue-kpi-cards";
+import {
+  type RevenueActualPair,
+  type RevenueProjection,
+  RevenueProjectionCardSkeleton,
+} from "@/components/dashboard/revenue-kpi-cards";
 import { RevenueBasisCaption } from "@/components/dashboard/revenue-basis-caption";
+import { SettingsFallbackNotice } from "@/components/dashboard/settings-fallback-notice";
+import {
+  fetchRevenueForecast,
+  fetchRevenueForecastDaily,
+  projectedCardEyebrow,
+  formatForecastBandSentence,
+  formatForecastMethodCaption,
+  formatForecastDegradedMessage,
+} from "@/lib/dashboard/revenue-forecast";
 import {
   fetchVerificationDrillRows,
   type VerificationDrillFetchResult,
@@ -197,8 +212,9 @@ function LoadingState() {
         <Skeleton className="h-8 w-72" />
       </div>
       <Skeleton className="h-[320px] w-full" />
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
         <Skeleton className="h-28 w-full" />
+        <RevenueProjectionCardSkeleton />
       </div>
       <Skeleton className="h-48 w-full" />
     </div>
@@ -267,6 +283,42 @@ async function RevenueBody({ searchParams }: { searchParams: PageSearchParams })
   const monthOptions = buildMonthOptions(now);
   const yearOptions = buildYearOptions(now);
 
+  // D-15/FCST-05: the live honest-degradation threshold, read before the
+  // forecast gate below so it is available for both forecast RPC calls. A
+  // non-null `forecastSettingsError` surfaces `SettingsFallbackNotice`
+  // above the KPI row (WR-03 precedent) — a projection computed from a
+  // silently defaulted threshold is exactly the case that notice exists to
+  // prevent.
+  const { settings: forecastSettings, error: forecastSettingsError } =
+    await fetchRevenueForecastSettings(supabase);
+
+  // D-12 gate (RESEARCH Pitfall 5): explicit, never inferred from
+  // `resolvePeriod` having returned successfully — it also returns
+  // successfully for every valid past month/year. Reuses the single `now`
+  // already captured above; no second clock read anywhere in this file.
+  // Only when `projectable` is true are the two forecast RPCs issued at
+  // all — otherwise both promises resolve to `null` placeholders so
+  // neither RPC reaches the database for a past period.
+  const projectable = isProjectablePeriod(period, now);
+  const forecastPromise =
+    projectable && period.end !== null
+      ? fetchRevenueForecast(
+          supabase,
+          { start: period.start, end: period.end },
+          "bit_addict",
+          forecastSettings.minCoveredDays,
+        )
+      : Promise.resolve(null);
+  const forecastDailyPromise =
+    projectable && period.end !== null
+      ? fetchRevenueForecastDaily(
+          supabase,
+          { start: period.start, end: period.end },
+          "bit_addict",
+          forecastSettings.minCoveredDays,
+        )
+      : Promise.resolve(null);
+
   // RESEARCH Pattern 1: an outer .gte()/.lt() predicate on the unchanged
   // v_revenue_daily / v_revenue_by_tier / v_revenue_daily_counts views —
   // never a rewrite of any view itself. `.lt` is applied only when the
@@ -314,6 +366,8 @@ async function RevenueBody({ searchParams }: { searchParams: PageSearchParams })
     freshnessResult,
     verificationDrillResult,
     revenueTierDrillRows,
+    forecastResult,
+    forecastDailyResult,
   ] = await Promise.all([
     dailyQuery.order("day_utc", { ascending: true }).returns<RevenueDailyViewRow[]>(),
     tierQuery.returns<RevenueTierViewRow[]>(),
@@ -367,6 +421,8 @@ async function RevenueBody({ searchParams }: { searchParams: PageSearchParams })
           end: period.end,
         })
       : Promise.resolve<RevenueTierDrillRow[]>([]),
+    forecastPromise,
+    forecastDailyPromise,
   ]);
 
   if (
@@ -438,12 +494,42 @@ async function RevenueBody({ searchParams }: { searchParams: PageSearchParams })
     );
   }
 
+  // 07-06/planner_notes: the dashed series starts AT `as_of_day`, not after
+  // it — `revenue_forecast_daily_for_period` reports the actual figure for
+  // `as_of_day` itself (its `is_projected` is false there), so carrying
+  // that same day's value into `projected` is what lets the solid and
+  // dashed `Line`s (both `connectNulls={false}`) share one x-value and
+  // visually meet, per 07-UI-SPEC E2. Every day before `as_of_day` is left
+  // `undefined` deliberately — a dashed spur mid-history would read as a
+  // rendering fault, not a chart feature. `asOfDay` is null whenever the
+  // forecast is degraded or errored, which alone empties this map (the
+  // degraded RPC also returns zero daily rows — 07-04-SUMMARY — so this is
+  // belt-and-braces, not the only gate).
+  const asOfDay =
+    forecastResult !== null && forecastResult.error === null
+      ? forecastResult.data.as_of_day
+      : null;
+  const forecastDailyByDay = new Map<string, number>();
+  if (asOfDay !== null && forecastDailyResult !== null && forecastDailyResult.error === null) {
+    for (const row of forecastDailyResult.data) {
+      if (row.day >= asOfDay) {
+        forecastDailyByDay.set(row.day, row.revenue);
+      }
+    }
+  }
+
   const dailyRows: RevenueDailyRow[] = (dailyResult.data ?? [])
     .filter(
       (row): row is RevenueDailyViewRow & { day_utc: string; revenue: string } =>
         row.day_utc !== null && row.revenue !== null,
     )
-    .map((row) => ({ day_utc: row.day_utc, revenue: row.revenue }));
+    .map((row) => ({
+      day_utc: row.day_utc,
+      revenue: row.revenue,
+      projected: forecastDailyByDay.has(row.day_utc)
+        ? String(forecastDailyByDay.get(row.day_utc))
+        : undefined,
+    }));
 
   const tierRows: RevenueTierRow[] = (tierResult.data ?? [])
     .filter(
@@ -478,6 +564,52 @@ async function RevenueBody({ searchParams }: { searchParams: PageSearchParams })
     tsysError: perSourceTotalsResult.data === null,
   };
 
+  // D-12: null whenever `projectable` is false — the absent case, never an
+  // object with null fields. `error`/`degradedMessage`/the populated
+  // figure/band/caption fields are mutually exclusive per
+  // `RevenueProjection`'s own contract; `formatForecastBandSentence` and
+  // `formatForecastMethodCaption` already return null for the degraded
+  // row's null columns (a second, independent safety net — see
+  // lib/dashboard/revenue-forecast.ts), so no extra `row.degraded` branch
+  // is needed to null those two out here.
+  const forecastScope = period.scope === "year" ? "year" : "month";
+  let projection: RevenueProjection | null = null;
+  if (projectable && forecastResult !== null) {
+    projection =
+      forecastResult.error !== null
+        ? {
+            eyebrow: projectedCardEyebrow(forecastScope),
+            point: null,
+            bandSentence: null,
+            methodCaption: null,
+            degradedMessage: null,
+            error: true,
+          }
+        : {
+            eyebrow: projectedCardEyebrow(forecastScope),
+            point: forecastResult.data.projected_revenue,
+            bandSentence: formatForecastBandSentence(
+              forecastScope,
+              forecastResult.data.low_revenue,
+              forecastResult.data.high_revenue,
+            ),
+            methodCaption: formatForecastMethodCaption(
+              forecastScope,
+              forecastResult.data.covered_days,
+              forecastResult.data.run_rate,
+              forecastResult.data.as_of_day,
+              forecastResult.data.inferred_days,
+            ),
+            degradedMessage: forecastResult.data.degraded
+              ? formatForecastDegradedMessage(
+                  forecastResult.data.usable_days,
+                  forecastSettings.minCoveredDays,
+                )
+              : null,
+            error: false,
+          };
+  }
+
   // WR-03: compare days WITH verification activity (within the period)
   // against days that were actually priced (within the period) — a
   // difference means a partial pricing-tier coverage gap inside the
@@ -501,10 +633,12 @@ async function RevenueBody({ searchParams }: { searchParams: PageSearchParams })
         yearOptions={yearOptions}
       />
       {missingDayCount > 0 && <PartialCoverageBanner missingDayCount={missingDayCount} />}
+      {forecastSettingsError !== null && <SettingsFallbackNotice />}
       <RevenueViewControls
         dailyRows={dailyRows}
         tierRows={tierRows}
         actual={actual}
+        projection={projection}
       />
       <RevenueBasisCaption />
       <VerificationDrillSheet
