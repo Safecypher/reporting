@@ -261,6 +261,8 @@ numbers, no silent failure.
 |---------|------|
 | "Revenue to date" card — eyebrow (supersedes "Total revenue") | `Revenue to date` |
 | TSYS secondary figure — side label | `TSYS` |
+| TSYS secondary figure — no coverage in period (**added post-UAT, signed off 2026-09-15**) | `TSYS has no data for this period.` — rendered **instead of** a figure and instead of the delta phrase, whenever TSYS has zero covered days in the selected period. Distinct from a genuine `$0.00` (TSYS covered at least one day but recorded no billable volume), which renders normally with its delta phrase. Absence is derived from `v_apigee_coverage_daily`, never inferred from the figure being zero. |
+| TSYS secondary figure — load failure | `TSYS revenue could not be loaded.` — card-scoped, never blanks the "Revenue to date" figure |
 | Delta phrase — exact match | `TSYS and Bit Addict match exactly.` |
 | Delta phrase — non-zero, Bit Addict ≠ 0 | `{Side} is short by {formattedAbsDelta} ({pct}%).` e.g. `TSYS is short by $6,232.10 (3.3%).` |
 | Delta phrase — non-zero, Bit Addict = 0 | `{Side} is short by {formattedAbsDelta} (—).` — em dash wrapped with an accessible label stating the reason (D-14 pattern from 06-UI-SPEC.md, reused verbatim for money) |
@@ -285,6 +287,13 @@ numbers, no silent failure.
 | Save button | `Save revenue forecast settings` |
 | Save success toast | `Revenue forecast settings saved.` |
 | Validation error | `Enter a whole number of 1 or more.` |
+
+> **Post-UAT amendment (2026-09-15).** The two TSYS non-populated rows above were added
+> after UAT found `/revenue` rendering a period with no TSYS data as `$0.00` plus
+> `TSYS is short by $179.66 (100%).` — a fabricated reconciliation discrepancy. The
+> Copywriting Contract originally had no wording for either non-populated state. Fixed in
+> `6e0af54`; copy approved by the user. Recorded here so this table stays the single source
+> of truth rather than drifting from what ships.
 
 **Destructive actions in this phase:** None. `/revenue`'s new KPI card and `/alignment`'s new
 card are read-only, matching every existing metric surface. The new `/settings/general` field is
