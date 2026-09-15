@@ -26,6 +26,14 @@
 -- verifications ON the test day (to produce c_after = 501,500), all inside
 -- a single reset-window instance (monthly, effective_from 2026-08-13) so no
 -- other tier set or window boundary interferes with the assertion.
+--
+-- Phase 7 (0034/D-08): every read of v_revenue_daily/v_revenue_by_tier below
+-- is narrowed to source = 'bit_addict' — this fixture only ever inserts
+-- into `verifications`, never `apigee_calls`, but the views now union in
+-- live TSYS rows too, so an unfiltered read could pick up real data. The
+-- expected values (215.0000/80.0000/135.0000) are UNCHANGED by this
+-- narrowing, which is itself the evidence the Bit Addict slice still prices
+-- identically after the source refactor.
 
 begin;
 
@@ -104,7 +112,8 @@ begin
   select revenue
     into v_revenue
     from v_revenue_daily
-   where day_utc = '2026-08-14T00:00:00'::timestamp;
+   where day_utc = '2026-08-14T00:00:00'::timestamp
+     and source = 'bit_addict';
 
   if v_revenue is distinct from 215.0000 then
     raise exception 'BOUNDARY TEST FAILED: v_revenue_daily.revenue = %, expected 215.0000', v_revenue;
@@ -114,7 +123,8 @@ begin
     into v_tier0
     from v_revenue_by_tier
    where day_utc = '2026-08-14T00:00:00'::timestamp
-     and tier_order = 0;
+     and tier_order = 0
+     and source = 'bit_addict';
 
   if v_tier0 is distinct from 80.0000 then
     raise exception 'BOUNDARY TEST FAILED: v_revenue_by_tier tier_order 0 = %, expected 80.0000', v_tier0;
@@ -124,7 +134,8 @@ begin
     into v_tier1
     from v_revenue_by_tier
    where day_utc = '2026-08-14T00:00:00'::timestamp
-     and tier_order = 1;
+     and tier_order = 1
+     and source = 'bit_addict';
 
   if v_tier1 is distinct from 135.0000 then
     raise exception 'BOUNDARY TEST FAILED: v_revenue_by_tier tier_order 1 = %, expected 135.0000', v_tier1;

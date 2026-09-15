@@ -28,6 +28,16 @@
 --   proving the seeded ROWS (not just the formula in Block A) cross the
 --   first band boundary correctly. Keeps the seeded TSYS set in place,
 --   isolates only the verifications table.
+--
+-- Phase 7 (0034/D-08): Block A reads pricing_tiers directly (no source
+-- column exists there) so it is unaffected. Blocks B and C's v_revenue_daily
+-- reads are narrowed to source = 'bit_addict' — both fixtures only ever
+-- insert into `verifications`, never `apigee_calls`, but the view now
+-- unions in live TSYS rows too (Block C's seeded tier set in particular
+-- also prices any real live apigee_calls rows in its date range). The
+-- expected values (1200.0000/45450.0000 sub-figures such as 20251.3950)
+-- are UNCHANGED by this narrowing, which is itself the evidence the Bit
+-- Addict slice still prices identically after the source refactor.
 
 -- =============================================================================
 -- Block A — MSA worked example + six band boundaries (formula over seeded rows)
@@ -177,12 +187,14 @@ begin
   select coalesce(sum(revenue), 0) into v_month1_revenue
   from v_revenue_daily
   where day_utc >= '2026-08-01T00:00:00'::timestamp
-    and day_utc <  '2026-09-01T00:00:00'::timestamp;
+    and day_utc <  '2026-09-01T00:00:00'::timestamp
+    and source = 'bit_addict';
 
   select coalesce(sum(revenue), 0) into v_month2_revenue
   from v_revenue_daily
   where day_utc >= '2026-09-01T00:00:00'::timestamp
-    and day_utc <  '2026-10-01T00:00:00'::timestamp;
+    and day_utc <  '2026-10-01T00:00:00'::timestamp
+    and source = 'bit_addict';
 
   if v_month1_revenue is distinct from 600.0000 then
     raise exception 'TSYS TIER TEST FAILED (Block B): August (month 1) revenue = %, expected 600.0000', v_month1_revenue;
@@ -267,7 +279,8 @@ begin
   select coalesce(sum(revenue), 0) into v_month_revenue
   from v_revenue_daily
   where day_utc >= '2026-08-01T00:00:00'::timestamp
-    and day_utc <  '2026-09-01T00:00:00'::timestamp;
+    and day_utc <  '2026-09-01T00:00:00'::timestamp
+    and source = 'bit_addict';
 
   if v_month_revenue is distinct from 20251.3950 then
     raise exception 'TSYS TIER TEST FAILED (Block C): August revenue via the seeded TSYS set = %, expected 20251.3950 (500000 @ 0.0405 + 50 @ 0.0279)', v_month_revenue;

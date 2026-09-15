@@ -170,11 +170,18 @@ export async function deletePricingTierSet(
  * as before. When the effective end precedes `fromDate`, this returns zero
  * days without querying.
  *
- * Uses the `{ count: "exact", head: true }` exact-count mechanism against
- * `v_revenue_daily_counts` (RESEARCH Pattern 3) — never a blocked PostgREST
- * aggregate function and never fetching rows just to measure their length.
- * Read-only: unlike the two write actions above, this performs no mutation
- * and therefore calls no revalidatePath.
+ * Phase 7 (D-08/07-RESEARCH Open Question A2): `v_revenue_daily_counts` now
+ * carries a `source` dimension (0034) — one row per (day, source) rather
+ * than one row per day — so the previous exact-count-with-no-rows-returned
+ * approach would roughly double for any day both TSYS and Bit Addict had
+ * activity on. This counts GENUINE DISTINCT DAYS instead: a day on which
+ * EITHER source recorded activity is a day whose priced figure a tier-set
+ * edit can restate, so `source` is deliberately left unfiltered and the
+ * returned day strings are deduplicated in TypeScript via a `Set`. This is
+ * acceptable here (unlike money arithmetic, L-01) because this is a UI
+ * warning count, not a money figure. Read-only: unlike the two write
+ * actions above, this performs no mutation and therefore calls no
+ * revalidatePath.
  */
 export async function countRestatedDays(
   fromDate: string,
@@ -204,11 +211,12 @@ export async function countRestatedDays(
     return { days: 0 };
   }
 
-  const { count, error } = await supabase
+  const { data, error } = await supabase
     .from("v_revenue_daily_counts")
-    .select("day_utc", { count: "exact", head: true })
+    .select("day_utc")
     .gte("day_utc", fromDate)
-    .lte("day_utc", effectiveEnd);
+    .lte("day_utc", effectiveEnd)
+    .returns<{ day_utc: string | null }[]>();
 
   if (error) {
     console.error(
@@ -218,5 +226,11 @@ export async function countRestatedDays(
     return { error: "Could not determine the affected day count — please try again." };
   }
 
-  return { days: count ?? 0 };
+  const distinctDays = new Set(
+    (data ?? [])
+      .map((row) => row.day_utc)
+      .filter((day): day is string => day !== null)
+  );
+
+  return { days: distinctDays.size };
 }

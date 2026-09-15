@@ -219,7 +219,15 @@ async function HomeBody({ searchParams }: { searchParams: PageSearchParams }) {
     // source `/cards` reads, never re-derived.
     fetchCardInventoryRowsUpTo(supabase, null),
     verificationsQuery.returns<VerificationsDailyRow[]>(),
-    supabase.rpc("revenue_total_for_period", { p_start: period.start, p_end: period.end }),
+    // D-09: the home tile's revenue figure is the Bit Addict headline —
+    // an unqualified "revenue" always means Bit Addict, never a sum of
+    // both sources. p_source is required as of 0034 (the two-argument
+    // overload was dropped, not overloaded).
+    supabase.rpc("revenue_total_for_period", {
+      p_start: period.start,
+      p_end: period.end,
+      p_source: "bit_addict",
+    }),
     supabase
       .from("ingested_files")
       .select("uploaded_at")
