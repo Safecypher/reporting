@@ -4,13 +4,12 @@ import { Card, CardAction, CardContent, CardHeader, CardTitle } from "@/componen
 import { Skeleton } from "@/components/ui/skeleton";
 import { StatusBadge } from "@/components/dashboard/status-badge";
 import { DrillableMetric } from "@/components/dashboard/drillable-metric";
+import { SourceDeltaPhrase } from "@/components/dashboard/source-delta-phrase";
 import type { DrillEntity } from "@/lib/dashboard/drill-params";
 import {
   alignmentStatusToLabel,
   alignmentStatusToReconciliationStatus,
-  computeAlignmentShortSide,
   formatCoverageStatement,
-  pctVariance,
   type AlignmentStatus,
 } from "@/lib/dashboard/alignment-status";
 
@@ -41,6 +40,21 @@ import {
 
 function formatCount(value: number): string {
   return value.toLocaleString();
+}
+
+const currencyFormatter = new Intl.NumberFormat("en-US", {
+  style: "currency",
+  currency: "USD",
+});
+
+/**
+ * Currency formatting mode for `PairedMetricCard` (07-03, D-11) — the
+ * `/alignment` Revenue card passes this as `formatValue` so both figures and
+ * the delta phrase's absolute-difference term render as USD. The one
+ * `Intl.NumberFormat` instance in this file.
+ */
+export function formatCurrency(value: number): string {
+  return currencyFormatter.format(value);
 }
 
 function CardShell({
@@ -108,44 +122,6 @@ export function PairedMetricCardPeriodEmpty({ metricLabel }: { metricLabel: stri
   );
 }
 
-/**
- * Renders the delta/which-side-short phrase (Copywriting Contract). The
- * D-14 zero case is built here, not via `formatDeltaPhrase`'s plain string,
- * so the em dash carries its own `aria-label` — the reason for the missing
- * percentage reaches the accessibility tree unconditionally, never only on
- * hover.
- */
-function DeltaPhrase({
-  tsysCount,
-  bitAddictCount,
-}: {
-  tsysCount: number;
-  bitAddictCount: number;
-}) {
-  if (tsysCount === bitAddictCount) {
-    return <>TSYS and Bit Addict match exactly.</>;
-  }
-
-  const shortSide = computeAlignmentShortSide(tsysCount, bitAddictCount);
-  const sideLabel = shortSide === "tsys" ? "TSYS" : "Bit Addict";
-  const absDelta = Math.abs(tsysCount - bitAddictCount).toLocaleString();
-  const pct = pctVariance(tsysCount, bitAddictCount);
-
-  if (pct === null) {
-    return (
-      <>
-        {`${sideLabel} is short by ${absDelta} (`}
-        <span aria-label="Percentage not applicable — Bit Addict recorded zero for this metric">
-          —
-        </span>
-        {`).`}
-      </>
-    );
-  }
-
-  return <>{`${sideLabel} is short by ${absDelta} (${pct}%).`}</>;
-}
-
 export interface PairedMetricCardData {
   tsysCount: number;
   bitAddictCount: number;
@@ -176,6 +152,8 @@ export function PairedMetricCard({
   statusMeaningCaption,
   bitAddictAsOfCaption,
   drillEntity,
+  formatValue = formatCount,
+  footerCaption,
 }: {
   metricLabel: string;
   data: PairedMetricCardData;
@@ -187,6 +165,14 @@ export function PairedMetricCard({
    * the level-one per-day breakdown Sheet for this metric. Omitting it keeps
    * the card exactly as before (e.g. a future non-drillable context). */
   drillEntity?: DrillEntity;
+  /** Formats both figures and the delta phrase's absolute-difference term.
+   * Defaults to the plain count formatter every existing card instance used
+   * before this prop existed (07-03), so those four cards render
+   * byte-identically. */
+  formatValue?: (n: number) => string;
+  /** Rendered as the last child inside `CardContent`, beneath the existing
+   * drill affordance — absent when not supplied (07-03). */
+  footerCaption?: ReactNode;
 }) {
   const {
     tsysCount,
@@ -239,7 +225,7 @@ export function PairedMetricCard({
             TSYS
           </span>
           <span className="font-mono text-[20px] font-bold tabular-nums text-[var(--fg-1)]">
-            {formatCount(tsysCount)}
+            {formatValue(tsysCount)}
           </span>
           {tsysCaption ? (
             <span className="text-xs font-light text-[var(--fg-3)]">{tsysCaption}</span>
@@ -250,7 +236,7 @@ export function PairedMetricCard({
             Bit Addict
           </span>
           <span className="font-mono text-[20px] font-bold tabular-nums text-[var(--fg-1)]">
-            {formatCount(bitAddictCount)}
+            {formatValue(bitAddictCount)}
           </span>
           {bitAddictAsOfCaption ? (
             <span className="text-xs font-light text-[var(--fg-3)]">{bitAddictAsOfCaption}</span>
@@ -258,13 +244,20 @@ export function PairedMetricCard({
         </div>
       </div>
       <p className="text-sm font-medium text-[var(--fg-2)]">
-        <DeltaPhrase tsysCount={tsysCount} bitAddictCount={bitAddictCount} />
+        <SourceDeltaPhrase
+          tsysValue={tsysCount}
+          bitAddictValue={bitAddictCount}
+          formatValue={formatValue}
+        />
       </p>
       <p className="text-xs font-light text-[var(--fg-3)]">{coverageStatement}</p>
       {drillEntity ? (
         <DrillableMetric filter={{ drill: drillEntity }} className="text-xs font-medium text-primary">
           View day by day →
         </DrillableMetric>
+      ) : null}
+      {footerCaption ? (
+        <p className="text-xs font-light text-[var(--fg-3)]">{footerCaption}</p>
       ) : null}
     </CardShell>
   );

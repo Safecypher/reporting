@@ -1,4 +1,5 @@
 import { DrillableMetric } from "@/components/dashboard/drillable-metric";
+import { SourceDeltaPhrase } from "@/components/dashboard/source-delta-phrase";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 
 const currencyFormatter = new Intl.NumberFormat("en-US", {
@@ -46,9 +47,12 @@ interface RevenueKpiCardsProps {
  * block — deliberately the SMALL (14px) size, not the 20px "paired figure"
  * size used on `/alignment`, because here TSYS is subordinate content
  * inside the Bit Addict card, not an equal (07-UI-SPEC.md Design
- * Aesthetic point 2). The TSYS variance phrase is deliberately NOT built
- * here — plan 07-03 adds it as a shared component so the phrase grammar
- * has exactly one implementation across `/revenue` and `/alignment`.
+ * Aesthetic point 2). Beneath it, the shared `SourceDeltaPhrase` (07-03)
+ * renders the which-side-is-short variance phrase — the SAME
+ * implementation `/alignment`'s cards use, formatted as currency — so the
+ * phrase grammar has exactly one implementation across both pages. It is
+ * omitted entirely when the TSYS figure could not be loaded, since a
+ * variance against a missing number is meaningless.
  */
 export function RevenueKpiCards({ actual }: RevenueKpiCardsProps) {
   const { bitAddict, tsys, tsysError } = actual;
@@ -76,9 +80,18 @@ export function RevenueKpiCards({ actual }: RevenueKpiCardsProps) {
                 TSYS revenue could not be loaded.
               </span>
             ) : (
-              <span className="font-mono text-sm font-bold tabular-nums text-[var(--fg-2)]">
-                {formatCurrency(tsys)}
-              </span>
+              <>
+                <span className="font-mono text-sm font-bold tabular-nums text-[var(--fg-2)]">
+                  {formatCurrency(tsys)}
+                </span>
+                <p className="text-sm font-medium text-[var(--fg-2)]">
+                  <SourceDeltaPhrase
+                    tsysValue={tsys}
+                    bitAddictValue={bitAddict}
+                    formatValue={formatCurrency}
+                  />
+                </p>
+              </>
             )}
           </div>
         </CardContent>
