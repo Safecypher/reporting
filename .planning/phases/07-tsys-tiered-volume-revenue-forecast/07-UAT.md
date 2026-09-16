@@ -1,21 +1,14 @@
 ---
-status: testing
+status: complete
 phase: 07-tsys-tiered-volume-revenue-forecast
 source: 07-01-SUMMARY.md, 07-02-SUMMARY.md, 07-03-SUMMARY.md, 07-04-SUMMARY.md, 07-05-SUMMARY.md, 07-06-SUMMARY.md
 started: 2026-09-15T14:05:00Z
-updated: 2026-09-15T18:15:00Z
+updated: 2026-09-16T09:30:00Z
 ---
 
 ## Current Test
 
-number: 4
-name: Audit-trail behaviour on a real settings save
-expected: |
-  Change the Revenue forecast threshold on /settings/general and save. A new
-  app_settings_audit row appears naming BOTH the old and new threshold value.
-  Then change only the financial-year start and save — that audit row's summary
-  keeps its original pre-Phase-7 wording and does not mention the threshold.
-awaiting: user response
+[testing complete]
 name: Settings — three stacked sections, pre-populated threshold, always-visible notice, inline validation
 expected: |
   /settings/general shows three vertically-stacked sections separated by a
@@ -89,8 +82,17 @@ partially_established: |
 
 ### 4. Audit-trail behaviour on a real settings save
 expected: Change the Revenue forecast threshold on /settings/general and save. A new app_settings_audit row appears naming both the old and new threshold value. Then change only the financial-year start and save — that audit row's summary keeps its original pre-Phase-7 wording and does not mention the threshold.
-result: [pending]
+result: pass
+reported: "Test 4: pass."
 source: 07-02 Task 3, deliberately deferred by the orchestrator
+significance: |
+  This closes the four audit-behaviour checks the orchestrator deliberately
+  refused to run against production (MCP execute_sql does not reliably honour a
+  begin;/rollback; wrapper, and a prior phase destroyed production rows that
+  way). Exercising them through the real settings UI was the safe route, and it
+  confirms both halves: the threshold edit names old and new, and an FY-only
+  edit keeps its pre-Phase-7 summary wording — so the widened trigger did not
+  regress Phase 5 behaviour.
 why_deferred: |
   These four checks were specified as transaction-wrapped writes. The Supabase MCP
   execute_sql path does not reliably honour a begin;/rollback; wrapper, and a prior
@@ -117,8 +119,17 @@ retest_note: |
 
 ### 6. /alignment fifth Revenue card mirrors the volume card
 expected: /alignment (current month) shows a fifth card labelled Revenue with two currency figures. Its badge is identical to the Transaction volume card's badge, its coverage sentence is word-identical to the volume card's, the status-meaning caption is visible without hovering, and the billable-basis sentence carries a working Reconciliation link. The same sentence appears exactly once on /revenue beneath the KPI row.
-result: [pending]
+result: pass
+reported: "Test 6: pass."
 source: 07-03 D4 (human_judgment)
+residual_resolved: |
+  The /alignment Revenue card reads honestly despite still coalescing
+  `tsys ?? 0` (alignment/page.tsx:264) — Phase 6's needs_review status plus its
+  coverage sentence ("TSYS covered 0 of 10 days") carry the absence signal, so
+  the card does not repeat the fabricated-shortfall pattern /revenue had. The
+  coalesce remains as latent debt: if that status/coverage signal were ever
+  removed, the card would silently regress to the /revenue defect. Worth a
+  follow-up, not a Phase 7 blocker.
 check_specifically: |
   ORCHESTRATOR NOTE — check the TSYS side of the new Revenue card deliberately.
   The 6e0af54 fix was scoped to /revenue only; /alignment's AlignmentRevenueCard
@@ -141,7 +152,20 @@ partially_established: |
 
 ### 7. Home tile projection sub-line
 expected: On the home page for the current month, the "Revenue this period" tile shows its headline figure with a smaller, muted projection sub-line beneath it. If the projection is below threshold, the tile renders exactly as it did before Phase 7 — no sub-line, no error, not visibly broken. Navigating to a past month makes the sub-line disappear.
-result: [pending]
+result: pass
+initially_reported: "Test 7: fail - There is no projection"
+resolution: |
+  Not a defect — an expectation mismatch, resolved by checking the screenshot
+  against the spec. The attached screenshot DOES show the sub-line: "Projected
+  month-end: $578.27" beneath the $179.66 headline on the Revenue this period
+  tile, matching the live RPC's projected_revenue of 578.268 exactly.
+  The user clarified: "I thought it meant that there'd be a graph with a line."
+  That expectation contradicts CONTEXT.md D-18, which deliberately scopes the
+  home tile to a text sub-line ("Home stays a one-glance summary... the canonical
+  detail is one click away on /revenue"), and D-16, which places the dashed
+  forward chart on /revenue — already confirmed working in UAT test 9.
+  Recorded as a pass against the stated expectation, with the wish for a home
+  sparkline captured below as a future-phase idea rather than a Phase 7 gap.
 source: 07-05 D4 (human_judgment)
 
 ### 8. Projected KPI card: dashed shell, band sentence, degraded and error states
@@ -187,9 +211,11 @@ partially_established: |
 ## Summary
 
 total: 9
-passed: 6
+passed: 9
 issues: 0 (2 found, both fixed in 6e0af54 and confirmed by re-test)
-pending: 3
+pending: 0
+skipped: 0
+blocked: 0
 skipped: 0
 blocked: 0
 
@@ -218,3 +244,20 @@ blocked: 0
   new_copy_signed_off: "\"TSYS has no data for this period.\" — APPROVED by the user 2026-09-15. Not lifted from 07-UI-SPEC.md's Copywriting Contract, which had wording only for the RPC-failure case (\"TSYS revenue could not be loaded.\"). 07-UI-SPEC.md should gain this string so the contract stays the single source of truth."
   residual: "/alignment's AlignmentRevenueCard still coalesces tsys ?? 0 (alignment/page.tsx:264) — deliberately out of scope for this /revenue-only gap. Flagged on UAT test 6."
   contradicts: "PROJECT.md core value — billing-vs-verification discrepancies must be immediately visible and trustworthy. A fabricated 100% shortfall is a false discrepancy."
+
+## Future-phase ideas (not Phase 7 gaps)
+
+- **Home-page revenue sparkline.** During UAT the user expected the home
+  "Revenue this period" tile to carry a small chart with a projection line, not
+  just a text sub-line. CONTEXT.md D-18 deliberately decided otherwise (home
+  stays a one-glance summary; the chart lives on /revenue per D-16). The
+  expectation is reasonable and worth revisiting, but it is a change to a locked
+  decision, not a defect — route via /gsd-capture or a future phase, never as a
+  Phase 7 fix.
+- **`/alignment` AlignmentRevenueCard's `tsys ?? 0`** (alignment/page.tsx:264).
+  Currently harmless because Phase 6's needs_review status and coverage sentence
+  carry the absence signal, but it is the same latent pattern that produced the
+  /revenue defect. Worth making coverage-aware for symmetry.
+- **WR-01 / WR-02 / IN-01** from 07-REVIEW.md remain open by explicit user
+  decision. WR-01's latent `?? 0` on the headline Bit Addict figure is the one
+  most worth closing, given what this tool is for.
