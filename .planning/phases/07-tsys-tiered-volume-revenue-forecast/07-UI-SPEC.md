@@ -142,8 +142,11 @@ contract):**
    *"Projected from {n} covered days {this month/year-to-date} at {rate}/day (as at
    {asOfDate}); {m} uncovered day(s) inferred at the same rate."*
 5. **Honest-degradation state** (D-14) replaces 2–4 above with a single 14px `--fg-2` line:
-   *"Not enough data to project yet — {n} of {threshold} covered days."* The card shell (outlined,
-   dashed `--provisional-border`) stays identical whether populated or degraded — only the inner
+   *"Not enough data to project yet — {n} of {threshold} usable days."* (07-REVIEW WR-02: both `n`
+   and `threshold` are usable-day counts — covered days after the D-02 drop of the most recent
+   covered day — not covered days; this row originally said "covered days," which mislabelled the
+   count by one day, and was corrected post-review to match the implementation.) The card shell
+   (outlined, dashed `--provisional-border`) stays identical whether populated or degraded — only the inner
    content changes, so a viewer always recognises "this is the projection card" even when it has
    nothing to show yet.
 6. **Card shell** — `border-dashed`, tinted `--provisional-border`, background `--provisional-bg`
@@ -204,7 +207,7 @@ confirmed in the shipped `PairedMetricCard`/drill-sheet code per 06-UI-SPEC.md's
 | Projected point figure | Poppins 700, brand mono, tabular-nums, `--provisional` | 20px | 1.25 | Deliberately smaller than the 48px hero — reuses 06-UI-SPEC.md's "secondary numeric" size precedent |
 | Band sentence | Poppins 500, `--fg-2` | 14px (`--fs-small`) | 1.5 | "If the rest of the month runs at our quietest day's pace: $48,200. At our busiest day's pace: $53,600." |
 | Permanent method caption | Poppins 300 (Light, inherited) | 12px (`--fs-micro`) | 1.4 | Always visible, never a tooltip (D-17) |
-| Honest-degradation message | Poppins 500, `--fg-2` | 14px (`--fs-small`) | 1.5 | "Not enough data to project yet — 4 of 7 covered days." |
+| Honest-degradation message | Poppins 500, `--fg-2` | 14px (`--fs-small`) | 1.5 | "Not enough data to project yet — 4 of 7 usable days." (07-REVIEW WR-02: corrected from "covered days" — both figures are usable-day counts) |
 | Alignment Revenue card status-meaning caption | Poppins 300 (Light, inherited), `--fg-3` | 12px (`--fs-micro`) | 1.4 | Always rendered on this card specifically (see Interaction contract) |
 | Shared billable-basis caption (D-19) | Poppins 300 (Light, inherited), `--fg-3` | 12px (`--fs-micro`) | 1.4 | Identical wording rendered from one shared constant in both places it appears |
 | Home revenue tile sub-line | Poppins 500, `--provisional` | 14px (`--fs-small`) | 1.5 | "Projected month-end: $52,340" — smaller type than the 48px headline value, per D-18 |
@@ -272,7 +275,7 @@ numbers, no silent failure.
 | Band sentence — year scope | `If the rest of the year runs at our quietest day's pace so far: {low}. At our busiest day's pace: {high}.` |
 | Permanent method caption — month scope | `Projected from {n} covered days this month at {rate}/day (as at {asOfDate}); {m} uncovered day(s) inferred at the same rate.` |
 | Permanent method caption — year scope | `Projected from {n} covered days year-to-date at {rate}/day (as at {asOfDate}); remaining months priced at this rate.` |
-| Honest-degradation message | `Not enough data to project yet — {n} of {threshold} covered days.` |
+| Honest-degradation message (07-REVIEW WR-02: `{n}`/`{threshold}` are usable days — covered days after the D-02 drop of the most recent covered day — not covered days; corrected post-review from "covered days" to match `formatForecastDegradedMessage`'s actual arguments) | `Not enough data to project yet — {n} of {threshold} usable days.` |
 | Shared billable-basis caption (D-19 — write once, render in both places) | `Revenue counts every verification, whether or not it was authenticated, so it may exceed an authorised-only TSYS invoice — see the Reconciliation page for the difference.` (with "Reconciliation" linking to `/reconciliation`) |
 | `/alignment` — new metric label | `Revenue` |
 | `/alignment` Revenue card — status-meaning caption (always rendered on this card, D-11) | `This status mirrors the Transaction volume status — a revenue difference can only come from a volume difference, since both sides price the same verified activity through the same tier ladder.` |

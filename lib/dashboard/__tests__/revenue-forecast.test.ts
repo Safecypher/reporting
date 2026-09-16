@@ -291,9 +291,9 @@ describe("formatForecastMethodCaption", () => {
 });
 
 describe("formatForecastDegradedMessage", () => {
-  it("produces the exact D-14 sentence naming the usable-day count and threshold", () => {
+  it("07-REVIEW WR-02: produces the exact D-14 sentence naming the usable-day count and threshold as USABLE days, not covered days", () => {
     expect(formatForecastDegradedMessage(4, 7)).toBe(
-      "Not enough data to project yet — 4 of 7 covered days.",
+      "Not enough data to project yet — 4 of 7 usable days.",
     );
   });
 });

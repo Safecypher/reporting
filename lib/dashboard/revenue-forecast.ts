@@ -258,9 +258,21 @@ export function formatForecastMethodCaption(
   return `Projected from ${coveredDays} covered days year-to-date at ${rate}/day (as at ${asOf}); remaining months priced at this rate.`;
 }
 
-/** Copywriting Contract — the D-14 honest-degradation message. */
+/**
+ * Copywriting Contract — the D-14 honest-degradation message.
+ *
+ * 07-REVIEW WR-02: both arguments are **usable** days (covered days after
+ * the D-02 drop of the most recent covered day, per `app_settings`'s own
+ * "minimum number of USABLE covered days" column comment,
+ * supabase/migrations/0035_app_settings_revenue_forecast.sql), not covered
+ * days — the two are deliberately distinct counts elsewhere in this
+ * codebase (compare `formatForecastMethodCaption` above, which genuinely
+ * names a covered-day count). Labelling them "usable days" here keeps the
+ * sentence accurate and keeps it from being read as one greater than it
+ * actually is.
+ */
 export function formatForecastDegradedMessage(usableDays: number, threshold: number): string {
-  return `Not enough data to project yet — ${usableDays} of ${threshold} covered days.`;
+  return `Not enough data to project yet — ${usableDays} of ${threshold} usable days.`;
 }
 
 /**
