@@ -227,8 +227,50 @@ begin
 end;
 $$;
 
+-- =============================================================================
+-- 8. IN-01 lock (07-REVIEW.md): the chart must sum to the card.
+--    sum(revenue_forecast_daily_for_period(...).revenue) over the most recent
+--    month present in v_apigee_coverage_daily must equal
+--    revenue_forecast_for_period(...).projected_revenue for the SAME
+--    arguments -- the exact user-visible contract the two RPCs' differing
+--    intra-month tier-set resolution broke (0037 -> 0038 fix). Skips (rather
+--    than fails) when the live call is degraded, naming the reason honestly.
+-- =============================================================================
+do $$
+declare
+  v_month_start date;
+  v_month_end date;
+  v_period_row record;
+  v_daily_sum numeric;
+begin
+  select date_trunc('month', max(day))::date into v_month_start from v_apigee_coverage_daily;
+
+  if v_month_start is null then
+    raise notice 'REVENUE FORECAST TEST 8 SKIPPED: v_apigee_coverage_daily has no rows yet -- nothing to anchor "most recent month" to';
+  else
+    v_month_end := (v_month_start + interval '1 month')::date;
+
+    select * into v_period_row
+      from revenue_forecast_for_period(v_month_start, v_month_end, 'bit_addict', 1);
+
+    if v_period_row.degraded then
+      raise notice 'REVENUE FORECAST TEST 8 SKIPPED: revenue_forecast_for_period(%, %, bit_addict, 1) is degraded (reason: %) -- not enough usable days yet to assert the daily-sum-equals-period invariant, not a failure', v_month_start, v_month_end, v_period_row.degraded_reason;
+    else
+      select coalesce(sum(revenue), 0) into v_daily_sum
+        from revenue_forecast_daily_for_period(v_month_start, v_month_end, 'bit_addict', 1);
+
+      if v_daily_sum is distinct from v_period_row.projected_revenue then
+        raise exception 'REVENUE FORECAST TEST FAILED (8, IN-01 chart-sum-equals-card): sum(revenue_forecast_daily_for_period(%, %, bit_addict, 1).revenue) = %, expected to equal revenue_forecast_for_period(...).projected_revenue = % -- the daily series and the period total must resolve the SAME governing tier set per calendar month (fix: 0038_revenue_forecast_daily_tier_set.sql)', v_month_start, v_month_end, v_daily_sum, v_period_row.projected_revenue;
+      end if;
+
+      raise notice 'REVENUE FORECAST TEST 8 PASSED (IN-01 chart-sum-equals-card): sum of revenue_forecast_daily_for_period''s per-day revenue (%) equals revenue_forecast_for_period''s projected_revenue (%) for the same arguments', v_daily_sum, v_period_row.projected_revenue;
+    end if;
+  end if;
+end;
+$$;
+
 do $$
 begin
-  raise notice 'REVENUE FORECAST TEST PASSED (read-only, 7 checks: MSA anchor, ten band boundaries, L-02/SC3 aggregate-ladder trap, D-06 linear-scale trap, band independence, ordering/floors, no-pre-window-inference)';
+  raise notice 'REVENUE FORECAST TEST PASSED (read-only, 8 checks: MSA anchor, ten band boundaries, L-02/SC3 aggregate-ladder trap, D-06 linear-scale trap, band independence, ordering/floors, no-pre-window-inference, IN-01 chart-sum-equals-card)';
 end;
 $$;
