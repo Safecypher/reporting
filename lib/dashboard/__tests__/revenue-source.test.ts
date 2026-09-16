@@ -4,14 +4,15 @@ import type { createClient } from "@/lib/supabase/server";
 import { fetchPerSourceRevenueTotals, type RevenueSource } from "../revenue-source";
 
 /**
- * Task 3 (07-03) + 07-UAT fix (test 2/5 gap): covers
- * `fetchPerSourceRevenueTotals`'s success path, its RPC failure paths, its
- * new `v_apigee_coverage_daily` coverage-query failure path, and the three
- * TSYS cases the coverage check exists to distinguish — absent (no
- * coverage), covered-but-zero, and covered-and-non-zero. Stubs the Supabase
- * client by hand, following `lib/settings/__tests__/alignment-settings.test.ts`'s
- * existing convention — the Supabase module itself is never module-mocked,
- * and no new mocking dependency is introduced.
+ * Task 3 (07-03) + 07-UAT fix (test 2/5 gap) + 07-REVIEW WR-01: covers
+ * `fetchPerSourceRevenueTotals`'s success path, its bit_addict (page-fatal)
+ * RPC failure path, its card-scoped TSYS RPC / TSYS coverage-query failure
+ * paths, and the three TSYS cases the coverage check exists to distinguish
+ * — absent (no coverage), covered-but-zero, and covered-and-non-zero.
+ * Stubs the Supabase client by hand, following
+ * `lib/settings/__tests__/alignment-settings.test.ts`'s existing
+ * convention — the Supabase module itself is never module-mocked, and no
+ * new mocking dependency is introduced.
  */
 
 type FakeSupabase = Awaited<ReturnType<typeof createClient>>;
@@ -87,7 +88,7 @@ describe("fetchPerSourceRevenueTotals", () => {
     const result = await fetchPerSourceRevenueTotals(supabase, { start: "2026-09-01", end: null });
 
     expect(result).toEqual({
-      data: { bitAddict: 184.9635, tsys: 180.12 },
+      data: { bitAddict: 184.9635, tsys: 180.12, tsysError: false },
       error: null,
     });
   });
@@ -134,7 +135,7 @@ describe("fetchPerSourceRevenueTotals", () => {
     expect(consoleErrorSpy).toHaveBeenCalledTimes(1);
   });
 
-  it("returns a discriminated error and logs server-side when the TSYS RPC call fails — never silently absorbed into zero", async () => {
+  it("07-REVIEW WR-01: degrades to a card-scoped tsysError result (not a whole-result error) when the TSYS RPC call fails, while still returning the already-succeeded Bit Addict figure — never silently absorbed into zero", async () => {
     const consoleErrorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
     const { supabase } = makeFakeSupabase({
       bit_addict: { data: "100", error: null },
@@ -143,11 +144,14 @@ describe("fetchPerSourceRevenueTotals", () => {
 
     const result = await fetchPerSourceRevenueTotals(supabase, { start: "2026-09-01", end: null });
 
-    expect(result).toEqual({ data: null, error: "tsys connection refused" });
+    expect(result).toEqual({
+      data: { bitAddict: 100, tsys: null, tsysError: true },
+      error: null,
+    });
     expect(consoleErrorSpy).toHaveBeenCalledTimes(1);
   });
 
-  it("returns a discriminated error and logs server-side when the TSYS coverage query fails", async () => {
+  it("07-REVIEW WR-01: degrades to a card-scoped tsysError result (not a whole-result error) when the TSYS coverage query fails, while still returning the already-succeeded Bit Addict figure", async () => {
     const consoleErrorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
     const { supabase } = makeFakeSupabase(
       {
@@ -159,8 +163,23 @@ describe("fetchPerSourceRevenueTotals", () => {
 
     const result = await fetchPerSourceRevenueTotals(supabase, { start: "2026-09-01", end: null });
 
-    expect(result).toEqual({ data: null, error: "coverage query connection refused" });
+    expect(result).toEqual({
+      data: { bitAddict: 100, tsys: null, tsysError: true },
+      error: null,
+    });
     expect(consoleErrorSpy).toHaveBeenCalledTimes(1);
+  });
+
+  it("07-REVIEW WR-01: a bit_addict RPC failure remains whole-result (page-fatal) even when TSYS would also have failed", async () => {
+    vi.spyOn(console, "error").mockImplementation(() => {});
+    const { supabase } = makeFakeSupabase({
+      bit_addict: { data: null, error: { message: "bit_addict connection refused" } },
+      tsys: { data: null, error: { message: "tsys connection refused" } },
+    });
+
+    const result = await fetchPerSourceRevenueTotals(supabase, { start: "2026-09-01", end: null });
+
+    expect(result).toEqual({ data: null, error: "bit_addict connection refused" });
   });
 
   it("never throws, in any of the above cases", async () => {
@@ -216,7 +235,7 @@ describe("fetchPerSourceRevenueTotals", () => {
       });
 
       expect(result).toEqual({
-        data: { bitAddict: 184.9635, tsys: null },
+        data: { bitAddict: 184.9635, tsys: null, tsysError: false },
         error: null,
       });
     });
@@ -236,7 +255,7 @@ describe("fetchPerSourceRevenueTotals", () => {
       });
 
       expect(result).toEqual({
-        data: { bitAddict: 184.9635, tsys: 0 },
+        data: { bitAddict: 184.9635, tsys: 0, tsysError: false },
         error: null,
       });
       expect(result.data?.tsys).not.toBeNull();
@@ -257,7 +276,7 @@ describe("fetchPerSourceRevenueTotals", () => {
       });
 
       expect(result).toEqual({
-        data: { bitAddict: 184.9635, tsys: 0.081 },
+        data: { bitAddict: 184.9635, tsys: 0.081, tsysError: false },
         error: null,
       });
     });

@@ -31,9 +31,24 @@ export interface PerSourceRevenueTotals {
    * covered days (supabase/migrations/0037_revenue_forecast.sql) — rather
    * than guessing absence from the revenue figure being zero (07-UAT gap:
    * "A period with no TSYS data is shown as absent, not as a confident
-   * $0.00 with a 100% shortfall").
+   * $0.00 with a 100% shortfall"). Also `null` whenever `tsysError` is
+   * `true` — see that field for how the two `null`-producing cases differ.
    */
   tsys: number | null;
+  /**
+   * 07-REVIEW WR-01: `true` when the TSYS RPC or the TSYS coverage query
+   * failed to load — a genuine load failure, card-scoped (the Bit Addict
+   * headline above is unaffected and still renders). Distinct from
+   * `tsys === null` with `tsysError: false`, which means the calls
+   * succeeded and TSYS genuinely has no coverage in this period. The two
+   * cases render different copy in `revenue-kpi-cards.tsx` — never merge
+   * them. A `bit_addict` RPC failure is NOT represented here: it makes this
+   * whole function return `{ data: null, error }` instead, because the
+   * headline is this page's reason to exist and there is nothing honest to
+   * show without it (page-fatal, handled by the caller's combined error
+   * gate).
+   */
+  tsysError: boolean;
 }
 
 export type PerSourceRevenueTotalsResult =
@@ -49,6 +64,14 @@ export type PerSourceRevenueTotalsResult =
  * `lib/dashboard/alignment.ts`'s `fetchAlignmentTotals` discriminated-result
  * convention: never throws, logs the raw error server-side, and returns a
  * typed error string to the caller.
+ *
+ * 07-REVIEW WR-01: only a `bit_addict` RPC failure produces `{ data: null,
+ * error }` (page-fatal — there is no honest headline to show without it). A
+ * TSYS-side failure (the `tsys` RPC or the coverage query) instead resolves
+ * to `{ data: { bitAddict, tsys: null, tsysError: true }, error: null }` —
+ * the Bit Addict figure is still returned so the headline renders, and the
+ * caller's per-card fallback ("TSYS revenue could not be loaded.") becomes
+ * reachable.
  *
  * The NUMERIC strings `revenue_total_for_period` returns are converted to
  * `number` only at this boundary — never re-summed or otherwise
@@ -92,29 +115,38 @@ export async function fetchPerSourceRevenueTotals(
     console.error("fetchPerSourceRevenueTotals: bit_addict RPC failed", {
       error: bitAddictResult.error,
     });
+    // Page-fatal: the Bit Addict headline is this page's reason to exist,
+    // so there is nothing honest to show without it (07-REVIEW WR-01).
     return { data: null, error: bitAddictResult.error.message };
   }
 
+  const bitAddict = Number(bitAddictResult.data ?? "0");
+
+  // 07-REVIEW WR-01: from here, a TSYS-side failure (RPC or coverage query)
+  // degrades to a card-scoped `tsysError: true` result instead of failing
+  // the whole page — the Bit Addict headline above is already known-good
+  // and must still render.
   if (tsysResult.error) {
     console.error("fetchPerSourceRevenueTotals: tsys RPC failed", {
       error: tsysResult.error,
     });
-    return { data: null, error: tsysResult.error.message };
+    return { data: { bitAddict, tsys: null, tsysError: true }, error: null };
   }
 
   if (tsysCoverageResult.error) {
     console.error("fetchPerSourceRevenueTotals: tsys coverage query failed", {
       error: tsysCoverageResult.error,
     });
-    return { data: null, error: tsysCoverageResult.error.message };
+    return { data: { bitAddict, tsys: null, tsysError: true }, error: null };
   }
 
   const tsysCoveredDays = tsysCoverageResult.count ?? 0;
 
   return {
     data: {
-      bitAddict: Number(bitAddictResult.data ?? "0"),
+      bitAddict,
       tsys: tsysCoveredDays > 0 ? Number(tsysResult.data ?? "0") : null,
+      tsysError: false,
     },
     error: null,
   };

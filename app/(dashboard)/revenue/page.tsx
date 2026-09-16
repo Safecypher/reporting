@@ -426,6 +426,12 @@ async function RevenueBody({ searchParams }: { searchParams: PageSearchParams })
     forecastDailyPromise,
   ]);
 
+  // 07-REVIEW WR-01: `perSourceTotalsResult.error` here can now ONLY be set
+  // by a bit_addict RPC failure (see fetchPerSourceRevenueTotals) — a
+  // TSYS-only failure resolves to a non-null `.data` with `tsysError: true`
+  // instead, so it never reaches this whole-page gate. Bit Addict failing
+  // is deliberately still page-fatal: the headline is this page's reason to
+  // exist.
   if (
     dailyResult.error ||
     tierResult.error ||
@@ -435,6 +441,21 @@ async function RevenueBody({ searchParams }: { searchParams: PageSearchParams })
     pricingTierSetsResult.error ||
     freshnessResult.error
   ) {
+    return (
+      <>
+        <PageHeader uploadedAt={null} period={null} monthOptions={[]} yearOptions={[]} />
+        <ErrorState />
+      </>
+    );
+  }
+
+  // Belt-and-braces narrowing for TS (and for defense in depth): the gate
+  // above already guarantees `perSourceTotalsResult.data` is non-null in
+  // practice (only a bit_addict failure can leave it null, and that already
+  // returned above) — this makes that guarantee explicit at the type level
+  // rather than relying on control-flow narrowing across the combined `||`
+  // check, which TypeScript does not carry through to `.data` here.
+  if (perSourceTotalsResult.data === null) {
     return (
       <>
         <PageHeader uploadedAt={null} period={null} monthOptions={[]} yearOptions={[]} />
@@ -570,13 +591,17 @@ async function RevenueBody({ searchParams }: { searchParams: PageSearchParams })
 
   // The RPCs return the exact-NUMERIC totals as strings — no arithmetic
   // over the fetched daily rows ever produces these values (Pitfall 2).
-  // Reaching here means perSourceTotalsResult.error is null (checked
-  // above), so `.data` is non-null in practice — the `?? 0`/`?? null`
-  // fallbacks and `tsysError` derivation are defensive, never load-bearing.
+  // 07-REVIEW WR-01: `perSourceTotalsResult.error` (checked in the combined
+  // error gate above) now means ONLY that the bit_addict RPC failed — that
+  // case is page-fatal and already returned ErrorState before this line. A
+  // TSYS-side failure (the tsys RPC or its coverage query) never sets
+  // `.error` here; it instead comes back as a non-null `.data` with
+  // `tsysError: true`, so `tsysError` below is genuinely derived from the
+  // fetch result, not a dead fallback that can never be reached.
   const actual: RevenueActualPair = {
-    bitAddict: perSourceTotalsResult.data?.bitAddict ?? 0,
-    tsys: perSourceTotalsResult.data?.tsys ?? null,
-    tsysError: perSourceTotalsResult.data === null,
+    bitAddict: perSourceTotalsResult.data.bitAddict,
+    tsys: perSourceTotalsResult.data.tsys,
+    tsysError: perSourceTotalsResult.data.tsysError,
   };
 
   // D-12: null whenever `projectable` is false — the absent case, never an

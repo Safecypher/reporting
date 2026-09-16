@@ -240,7 +240,18 @@ function AlignmentRevenueCard({
 }) {
   const metricLabel = "Revenue";
 
-  if (volumeResult.error !== null || revenueResult.error !== null) {
+  // 07-REVIEW WR-01: `revenueResult.error` alone no longer covers a
+  // TSYS-only load failure (that now comes back as a non-null `.data` with
+  // `tsysError: true`, so /revenue's headline can still render — see
+  // lib/dashboard/revenue-source.ts). This card has no per-source fallback
+  // UI of its own (unlike /revenue's KPI cards), so a TSYS load failure
+  // here is still treated as a whole-card error, preserving this page's
+  // existing behaviour unchanged.
+  if (
+    volumeResult.error !== null ||
+    revenueResult.error !== null ||
+    revenueResult.data.tsysError
+  ) {
     return <PairedMetricCardError metricLabel={metricLabel} />;
   }
 
