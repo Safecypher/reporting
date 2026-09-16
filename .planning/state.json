@@ -26,12 +26,12 @@
     {
       "number": "5",
       "name": "Time Periods & Financial-Year Settings",
-      "status": "in_progress"
+      "status": "complete"
     },
     {
       "number": "6",
       "name": "Dual-Source Alignment: TSYS vs Bit Addict",
-      "status": "in_progress"
+      "status": "complete"
     },
     {
       "number": "7",
@@ -40,9 +40,9 @@
     }
   ],
   "next": {
-    "command": "/gsd:progress --next",
-    "label": "Advance to the next step (plan phase 5)",
-    "reason": "Phase 5 of 7 — needs a plan"
+    "command": "/gsd-phase add",
+    "label": "Add a Phase 5 gap-closure phase for the ten open 05-REVIEW findings",
+    "reason": "All seven v1.0 phases are executed and verified. The only outstanding v1.0 work is the ten open 05-REVIEW findings (WR-02 through WR-09, IN-03, IN-04), all re-verified still live against main on 2026-09-16. Phase 5 UAT tests 3 and 4 remain skipped as data-unreachable and re-test themselves once the data window exceeds 24 months and real FY change history accumulates."
   },
-  "updated_at": "2026-09-16T08:33:38.054Z"
+  "updated_at": "2026-09-16T16:49:35.708Z"
 }
