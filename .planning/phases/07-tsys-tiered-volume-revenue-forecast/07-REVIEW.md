@@ -51,9 +51,10 @@ status: resolved
 resolution:
   critical_fixed: 2
   critical_commits: [16e8ab4, 242a63b]
-  warnings_deferred: [WR-01, WR-02]
+  warnings_fixed: [WR-01, WR-02]
+  warning_commits: [87e841e, 33a0bdd]
   info_deferred: [IN-01]
-  note: "Both criticals fixed on main; 424+3 new tests / 427 total passing, tsc clean, next build green. CR-01: added the missing .eq(\"source\", \"bit_addict\") filter to fetchRevenueTierDrillRows, matching the file's five other source-explicit reads. CR-02: fetchRevenueTierDrillRows unaffected — the drill-down fix is scoped to the query only; the dashed-chart fix synthesizes a RevenueDailyRow for every day present in the forecast daily series but absent from v_revenue_daily, with revenue: null (never \"0\") for forecast-only days, propagated honestly through rebucketRevenue's now-nullable revenue field; pricedDayUtcs (WR-03's partial-coverage check) was repointed at the narrower actual-only day set so a synthesized day is never counted as priced. WR-01/WR-02 (per-source atomic-failure model; 'covered days' mislabelling) and IN-01 (forecast RPCs' differing intra-month tier-set resolution) are explicitly deferred by the user, left open for a follow-up pass."
+  note: "Both criticals fixed on main; 424+3 new tests / 427 total passing, tsc clean, next build green. CR-01: added the missing .eq(\"source\", \"bit_addict\") filter to fetchRevenueTierDrillRows, matching the file's five other source-explicit reads. CR-02: fetchRevenueTierDrillRows unaffected — the drill-down fix is scoped to the query only; the dashed-chart fix synthesizes a RevenueDailyRow for every day present in the forecast daily series but absent from v_revenue_daily, with revenue: null (never \"0\") for forecast-only days, propagated honestly through rebucketRevenue's now-nullable revenue field; pricedDayUtcs (WR-03's partial-coverage check) was repointed at the narrower actual-only day set so a synthesized day is never counted as priced. WR-01/WR-02 were deferred at initial triage, then fixed in a follow-up pass (gsd-code-fixer, this update): WR-01 split fetchPerSourceRevenueTotals's failure model so only a bit_addict RPC failure is page-fatal, while a TSYS RPC/coverage-query failure now returns a card-scoped { bitAddict, tsys: null, tsysError: true } result, making the documented per-card 'TSYS revenue could not be loaded' fallback reachable (alignment/page.tsx's AlignmentRevenueCard, which has no per-source fallback of its own, was updated to treat tsysError as a whole-card error too, preserving its prior behaviour); WR-02 relabelled formatForecastDegradedMessage's sentence from 'covered days' to 'usable days' (matching the usable_days argument it actually receives) and updated 07-UI-SPEC.md's Copywriting Contract to match. 434/434 tests passing (29 files, +1 net new test), tsc clean, next build green. IN-01 (forecast RPCs' differing intra-month tier-set resolution) remains explicitly open/deferred — out of scope for this fix pass."
 ---
 
 # Phase 7: Code Review Report
@@ -213,7 +214,18 @@ key defect being fixed is that these days must exist as rows at all.)
 
 ## Warnings
 
-### WR-01: `fetchPerSourceRevenueTotals`'s atomic failure model makes the documented "TSYS could not be loaded" card fallback unreachable, and leaves a live `?? 0` fallback on the headline money figure
+### WR-01: `fetchPerSourceRevenueTotals`'s atomic failure model makes the documented "TSYS could not be loaded" card fallback unreachable, and leaves a live `?? 0` fallback on the headline money figure — **RESOLVED (commit 87e841e)**
+
+> Fixed by gsd-code-fixer: `fetchPerSourceRevenueTotals` now only returns `{ data: null, error }`
+> for a `bit_addict` RPC failure (page-fatal, unchanged). A `tsys` RPC or
+> `v_apigee_coverage_daily` coverage-query failure instead returns
+> `{ data: { bitAddict, tsys: null, tsysError: true }, error: null }` — card-scoped, so the
+> Bit Addict headline still renders and `tsysError` is genuinely derived rather than dead code.
+> `alignment/page.tsx`'s `AlignmentRevenueCard` (which has no per-source fallback UI of its own)
+> was updated to treat `revenueResult.data.tsysError` as a whole-card error too, preserving its
+> prior behaviour unchanged. New tests added to `revenue-source.test.ts` cover both card-scoped
+> failure paths plus the still-page-fatal bit_addict path. 434/434 tests passing, tsc clean,
+> `next build` green.
 
 **File:** `lib/dashboard/revenue-source.ts:61-73`, `app/(dashboard)/revenue/page.tsx:428-436, 561-565`
 **Issue:** `fetchPerSourceRevenueTotals` returns `{ data: null, error }` for the whole call if
@@ -251,7 +263,14 @@ whole-page failure is actually the desired behaviour for *any* source failing, r
 now-provably-dead `tsysError`/`?? 0` branch from `RevenueActualPair` and `revenue-kpi-cards.tsx` so
 the code doesn't assert a design intent it cannot deliver.
 
-### WR-02: The honest-degradation message labels `usable_days` as "covered days"
+### WR-02: The honest-degradation message labels `usable_days` as "covered days" — **RESOLVED (commit 33a0bdd)**
+
+> Fixed by gsd-code-fixer: `formatForecastDegradedMessage` now says
+> `"Not enough data to project yet — {n} of {threshold} usable days."` (the reviewer's suggested
+> wording, applied verbatim — both arguments are usable-day counts, matching `app_settings`'s own
+> "minimum number of USABLE covered days" column comment). `07-UI-SPEC.md`'s Copywriting Contract
+> was updated in the same commit (both the size/style table row and the exact-strings table row)
+> so the design contract and the implementation agree, with a note recording the change.
 
 **File:** `lib/dashboard/revenue-forecast.ts:262-264`, called from `app/(dashboard)/revenue/page.tsx:603-608`
 **Issue:**
@@ -276,7 +295,7 @@ otherwise make the label match the value it is naming).
 
 ## Info
 
-### IN-01: The two forecast RPCs can resolve different governing tier sets within the same month
+### IN-01: The two forecast RPCs can resolve different governing tier sets within the same month — **OPEN (deferred, out of scope for this fix pass)**
 
 **File:** `supabase/migrations/0037_revenue_forecast.sql:256-259` vs `:420-424`
 **Issue:** `revenue_forecast_for_period` resolves **one** tier set per calendar month, from the
