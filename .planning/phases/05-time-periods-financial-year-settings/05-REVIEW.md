@@ -16,6 +16,10 @@ findings:
   info: 2
   total: 10
 status: issues_found
+triaged: 2026-09-16
+triage_result: all 10 open findings re-verified against main (2182efb) and still live; none fixed by Phase 6/7 work. See "Round-4 triage" at the end of this file.
+open_findings: [WR-02, WR-03, WR-04, WR-05, WR-06, WR-07, WR-08, WR-09, IN-03, IN-04]
+follow_up: Phase 5 gap-closure phase — not fixed in the triage pass
 ---
 
 # Phase 05: Code Review Report (incremental re-review, plan 05-09)
@@ -341,3 +345,64 @@ but is only ever called with `report_date`.
 _Reviewed: 2026-09-10T21:10:00Z_
 _Reviewer: Claude (gsd-code-reviewer)_
 _Depth: standard_
+
+---
+
+## Round-4 triage — 2026-09-16 (no code changed)
+
+Every finding still open in this file was re-verified against current `main`
+(`2182efb`) on 2026-09-16, six days and two completed phases after round 3 was
+written. The question asked was narrow: *did Phase 6 or Phase 7 work incidentally
+fix any of these?*
+
+**It did not. All ten open findings are still live.** No finding is closed by this
+pass; no code was touched. This section records the evidence so the next reader does
+not have to repeat the triage, and so "carried forward, not re-verified" stops being
+the standing description of findings nobody has looked at since 2026-09-10.
+
+The file's `status` stays `issues_found`.
+
+| Finding | Severity | Evidence gathered 2026-09-16 | Verdict |
+|---|---|---|---|
+| WR-02 | warning | `lib/pricing/restate-scope.ts` unchanged since `e67fc84` (05-09). `resolveCreateImpact` is still byte-identical to the round-2 version. | still live |
+| WR-03 | warning | `resolveFinancialYearBounds` (`period.ts:222-243`) still applies no `DATA_WINDOW_START` clamp to the computed `start`, and `financialYearLabel` returns it unclamped. Both raw-table fetchers still use `range ? range.start : FLOOR` — a ternary *replacement* of their own floor, not an AND (`verification-drill.ts:59`, `card-inventory.ts:308`). | still live |
+| WR-04 | warning | `targetToday = of === currentUtcYearOf(today) ? today : utcDateFromParts(Number(of), 12, 31)` still at `period.ts:331`. | still live |
+| WR-05 | warning | `supabase/tests/` holds nine test files; none covers the 0025 coverage guard. No `pricing_tier_coverage_guard_test.sql`. | still live |
+| WR-06 | warning | No `for update`, advisory lock, or `pg_advisory` anywhere in `0025_pricing_tier_edit_in_place.sql`. | still live |
+| WR-07 | warning | `DATA_WINDOW_START` still duplicated across `period.ts:53`, `verification-drill.ts:15`, `card-inventory.ts:218,228`, `normalise.ts:5`. No `lib/dashboard/data-window.ts` exists. | still live |
+| WR-08 | warning | `resolveEditImpact` unchanged since `e67fc84`. `atOrBeforeProposed` still considers only sets with `effectiveFrom <= proposed`. | still live |
+| WR-09 | warning | `restate-scope.test.ts:274-282` still pins `result?.supersedes` to the colliding date; `pricing-tier-form.tsx` unchanged since `3d0e629` (05-09). | still live |
+| IN-03 | info | `types/db.ts:13` still `PostgrestVersion: "14.5"`. | still live |
+| IN-04 | info | `rowsWithin`'s doc comment (`card-inventory.ts:153-161`) still claims both `report_date` and `removed_at` callers; only `report_date` is used. | still live |
+
+### One near-miss worth naming
+
+`lib/dashboard/period.ts` *was* modified after round 3 — on 2026-09-15 by plan
+07-05, which exported the D-12 current-period gate (`isProjectablePeriod`). That
+touch is unrelated to both WR-03 and WR-04; the financial-year branch and the
+`targetToday` ternary are untouched. A file's mtime moving is not evidence a finding
+in it was addressed, which is the whole reason this pass read the code rather than
+the log.
+
+### Constraint on any future WR-07 fix
+
+`card-inventory.ts:220-227` documents a deliberate reason for its duplication: this
+repo has no vitest alias config, so a *value*-import via the `@/` path alias resolves
+fine under `next build` but breaks under `vitest run` (only type-only `@/` imports
+are safe, since esbuild strips them without resolving the module). WR-07's suggested
+`lib/dashboard/data-window.ts` must therefore stay free of `@/` value-imports, and
+the consolidation cannot be done by simply having these modules import from `@/lib/…`
+— that would turn a documented constraint into a broken test suite. The existing fix
+text already says "with no `@/` imports"; this note records *why*, so the reason
+survives the next person who wonders whether the restriction is still needed.
+
+### Status of the other Phase 5 closure gaps
+
+`05-UAT.md` remains `status: partial`. Tests 3 and 4 are skipped as data-unreachable
+(a >24-month option list needs two years of data; the 50-row audit cap needs 51+ FY
+changes against a table with 0 rows), both with the reasons recorded there. Neither
+is a defect, and the tester's refusal to seed synthetic rows into a live deployment's
+audit trail was the right call. Both re-test themselves once real data accumulates.
+
+_Triaged: 2026-09-16_
+_Triage method: read the shipped code and the test pins directly; `git log -1` per file used only to bound the search, never as evidence of a fix._
