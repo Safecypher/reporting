@@ -367,7 +367,8 @@ about which contract ends up pricing which days.
 **Mode:** gap-closure
 **Depends on**: Phase 5 (period resolver, pricing tier editor, coverage guard), Phase 7 (forecast
 RPCs read the same period bounds, so a WR-03 clamp change must not move a verified forecast figure)
-**Requirements**: PERIOD-01, PERIOD-02, FY-01, TSYS-01 (re-verification, not new scope)
+**Requirements**: PERIOD-01, PERIOD-02, FY-01, TSYS-01
+**Requirements note**: re-verification of existing requirements, not new scope
 **Source**: `05-REVIEW.md` findings WR-02 through WR-09, IN-03, IN-04; round-4 triage dated 2026-09-16
 
 **Success Criteria** (what must be TRUE):
@@ -396,11 +397,22 @@ RPCs read the same period bounds, so a WR-03 clamp change must not move a verifi
      per-month-vs-aggregate invariant) and Phase 7's check-8 chart-sums-to-card equality still
      hold after the changes.
 
-**Plans:** 0 plans
+**Plans**: 4 plans (0 executed)
 
 Plans:
 
-- [ ] TBD (run /gsd-plan-phase 8 to break down)
+**Wave 1** *(tracer — the floor proven end to end before anything else moves)*
+
+- [ ] 08-01-PLAN.md — Data-window single source of truth (TS), the financial-year clamp, both fetcher floors AND-ed, deterministic current-year bounds, and the before/after proof that no verified figure moved (WR-03, WR-04, WR-07 TS half, IN-04)
+
+**Wave 2** *(blocked on 08-01; disjoint files, so these two run in parallel)*
+
+- [ ] 08-02-PLAN.md — Tier-set supersede disclosure: name the set that absorbs the edited set's future territory, and treat an exact-date collision as a duplicate rather than a restatement (WR-08, WR-09, WR-02)
+- [ ] 08-03-PLAN.md — Migration 0039: `data_window_start()`, an advisory transaction lock on the coverage guard, and the guard's first committed regression test (WR-06, WR-05, WR-07 SQL half)
+
+**Wave 3** *(blocked on all — requires Supabase MCP; orchestrator runs this, not an executor)*
+
+- [ ] 08-04-PLAN.md — [BLOCKING] Apply 0039 live, run all ten SQL oracles, answer IN-03 against the real PostgREST version, prove the five live figures did not move, and close 05-REVIEW.md per finding (IN-03)
 
 **Notes for planning**
 

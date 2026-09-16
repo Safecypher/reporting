@@ -3,8 +3,8 @@ gsd_state_version: "1.0"
 milestone: v1.0
 current_phase: 8
 current_phase_name: Period & Pricing Correctness
-status: planning
-stopped_at: Phase 8 added 2026-09-16 to close the ten open 05-REVIEW findings. Needs a plan.
+status: planned
+stopped_at: Phase 8 planned 2026-09-16 — 4 plans in 3 waves. Ready to execute.
 last_updated: "2026-09-16T17:05:00.000Z"
 last_activity: 2026-09-16
 state_head: 01505968524bf806477aa0a6611f7e3835c61163
@@ -29,8 +29,8 @@ See: .planning/PROJECT.md (updated 2026-08-18)
 ## Current Position
 
 Phase: 8 — Period & Pricing Correctness
-Plan: Not started
-Status: Ready to plan. Phases 1-7 all executed and verified (50/50 plans); Phase 8 closes Phase 5's ten open review findings.
+Plan: 0/4 complete (planned 2026-09-16)
+Status: Planned, ready to execute. Wave 1 is the 08-01 tracer; 08-02 and 08-03 run in parallel behind it; 08-04 is BLOCKING and needs Supabase MCP, so the orchestrator must run it rather than an executor.
 Last activity: 2026-09-16
 
 Progress: [████████░░] 88%
