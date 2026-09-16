@@ -20,6 +20,7 @@ Decimal phases appear between their surrounding integers in numeric order.
 - [x] **Phase 5: Time Periods & Financial-Year Settings** - Configurable financial-year start plus a consistent month / FY-or-CY / all-time / historical period lens across every view, and the signed TSYS MSA tier table seeded (completed 2026-09-10; closed with ten open review findings — see the gap-closure note below)
 - [x] **Phase 6: Dual-Source Alignment: TSYS vs Bit Addict** - Enrolled, unenrolled, live cards and transaction volume shown for both sources side by side with variance and an explicit aligned/mismatch status
 - [x] **Phase 7: TSYS Tiered Volume & Revenue Forecast** - Stepped TSYS tiers on monthly billable volume, with actual-to-date and projected month-end shown side by side per source (completed 2026-09-16)
+- [ ] **Phase 8: Period & Pricing Correctness** - Close the ten open Phase 5 review findings: clamp the financial-year floor, make the current-year period deterministic, complete the tier-set supersede disclosure, and harden the data-window coverage guard
 
 ## Phase Details
 
@@ -351,3 +352,65 @@ Phases execute in numeric order: 1 → 2 → 3 → 4 → 5 → 6 → 7 (Phase 3 
 | 5. Time Periods & Financial-Year Settings | 8/8 | In Progress|  |
 | 6. Dual-Source Alignment: TSYS vs Bit Addict | 10/10 | In Progress|  |
 | 7. TSYS Tiered Volume & Revenue Forecast | 6/6 | Complete    | 2026-09-16 |
+
+### Phase 8: Period & Pricing Correctness
+
+**Goal**: Close the ten findings `05-REVIEW.md` left open. Phase 5 met its goal and passed
+verification 14/14, but its review closed `issues_found` and the findings were never actioned;
+all ten were re-verified against `main` on 2026-09-16 and every one is still live. Two are
+genuine correctness bugs on period boundaries — the kind that misstate a figure without
+erroring — and the rest are disclosure and hardening gaps around the tier-set pricing
+authority that Phase 5's own CR-01 was about. The point of this phase is that a financial-year
+figure is never computed over days outside the reliable data window, the same period resolves
+to the same bounds on every reload, and an operator editing a tier set is told the whole truth
+about which contract ends up pricing which days.
+**Mode:** gap-closure
+**Depends on**: Phase 5 (period resolver, pricing tier editor, coverage guard), Phase 7 (forecast
+RPCs read the same period bounds, so a WR-03 clamp change must not move a verified forecast figure)
+**Requirements**: PERIOD-01, PERIOD-02, FY-01, TSYS-01 (re-verification, not new scope)
+**Source**: `05-REVIEW.md` findings WR-02 through WR-09, IN-03, IN-04; round-4 triage dated 2026-09-16
+
+**Success Criteria** (what must be TRUE):
+
+  1. A financial year whose start precedes the data window (e.g. FY starting 6 Apr 2026) resolves
+     a period `start` clamped to 2026-08-13, and the two raw-table fetchers AND the caller's range
+     against their own floor rather than replacing it — so no fetcher can be handed a range that
+     widens its own window (WR-03).
+  2. The current year's financial-year bounds are derived the same way as every past year's, so
+     two loads of the same page in the same UTC day produce identical bounds and the dropdown
+     never shows a duplicate adjacent option (WR-04).
+  3. Editing a tier set's `effective_from` discloses every set whose governing territory changes —
+     not only the immediately-crossed neighbour — so the multi-set backdate that silently hands
+     the edited set's own future days to a further, unnamed set is named in the dialog (WR-08).
+  4. An exact-date collision (create or edit) shows a "a tier set already exists for this date"
+     hint rather than a self-referential restate confirmation for a write the UNIQUE constraint
+     will reject unconditionally (WR-02, WR-09).
+  5. The 0025 data-window coverage guard has a committed `begin; … rollback;` regression test
+     matching the convention of `revenue_boundary_test.sql`, and takes a row lock so two
+     concurrent edits cannot each observe coverage surviving and both commit (WR-05, WR-06).
+  6. `DATA_WINDOW_START` has one source of truth on each side of the wire — a TS module free of
+     `@/` value-imports (this repo has no vitest alias config, so such an import resolves under
+     `next build` but breaks under `vitest run`), and a SQL helper (WR-07).
+  7. Every existing revenue and forecast figure is unchanged by this phase, proven rather than
+     asserted: the Phase 5 live figures (the $45,450 MSA worked example, the D-06
+     per-month-vs-aggregate invariant) and Phase 7's check-8 chart-sums-to-card equality still
+     hold after the changes.
+
+**Plans:** 0 plans
+
+Plans:
+
+- [ ] TBD (run /gsd-plan-phase 8 to break down)
+
+**Notes for planning**
+
+- `IN-03` (`types/db.ts` PostgREST version string went backwards, `14.15` → `14.5`) is a
+  verification task before it is a fix: confirm the linked project's actual PostgREST version
+  and only regenerate if it genuinely disagrees.
+- `IN-04` is a one-line choice — add a `removed_at` test case for `rowsWithin`, or narrow the
+  doc comment to what it is actually exercised against.
+- Criterion 7 is the reason this is a phase and not a batch of quick fixes. WR-03 changes a
+  period `start`, and period bounds feed the revenue and forecast RPCs that Phases 5 and 7
+  verified against live figures. The clamp is correct, but it must be shown not to move a
+  verified number — or, if it does move one, the movement must be explained and the earlier
+  figure re-verified rather than quietly superseded.

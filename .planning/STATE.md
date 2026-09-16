@@ -1,19 +1,19 @@
 ---
 gsd_state_version: "1.0"
 milestone: v1.0
-current_phase: 7
-current_phase_name: TSYS Tiered Volume & Revenue Forecast
-status: milestone-complete
-stopped_at: All seven v1.0 phases executed and verified. Outstanding: the ten open 05-REVIEW findings (WR-02..WR-09, IN-03, IN-04), re-verified still live on 2026-09-16, awaiting a Phase 5 gap-closure phase.
-last_updated: "2026-09-16T11:19:48.370Z"
+current_phase: 8
+current_phase_name: Period & Pricing Correctness
+status: planning
+stopped_at: Phase 8 added 2026-09-16 to close the ten open 05-REVIEW findings. Needs a plan.
+last_updated: "2026-09-16T17:05:00.000Z"
 last_activity: 2026-09-16
 state_head: 01505968524bf806477aa0a6611f7e3835c61163
 progress:
-  total_phases: 7
+  total_phases: 8
   completed_phases: 7
   total_plans: 50
   completed_plans: 50
-  percent: 100
+  percent: 88
 milestone_name: milestone
 ---
 
@@ -24,16 +24,16 @@ milestone_name: milestone
 See: .planning/PROJECT.md (updated 2026-08-18)
 
 **Core value:** Trustworthy revenue reconciliation — billing must equal verifications, and any discrepancy must be immediately visible and traceable to source.
-**Current focus:** v1.0 phases all complete. Next: a Phase 5 gap-closure phase for the ten open 05-REVIEW findings.
+**Current focus:** Phase 8 — Period & Pricing Correctness (closes the ten open 05-REVIEW findings).
 
 ## Current Position
 
-Phase: 7 — TSYS Tiered Volume & Revenue Forecast (complete)
-Plan: 50/50 complete across all seven phases
-Status: All v1.0 phases executed and verified. Milestone not yet archived — Phase 5 closed with ten documented open review findings.
+Phase: 8 — Period & Pricing Correctness
+Plan: Not started
+Status: Ready to plan. Phases 1-7 all executed and verified (50/50 plans); Phase 8 closes Phase 5's ten open review findings.
 Last activity: 2026-09-16
 
-Progress: [██████████] 100%
+Progress: [████████░░] 88%
 
 ## Performance Metrics
 
@@ -100,6 +100,7 @@ Progress: [██████████] 100%
 - Phase 7 added (2026-09-10): TSYS Tiered Volume & Revenue Forecast — stepped tiers on monthly billable volume, actual-to-date plus projected month-end
 - Source mapping resolved (2026-09-10, Mark): "TIS" = the TSYS/APIGEE report (`apigee_calls`); "Bit Addict" supplies the other five reports. Both sides already ingested — no prerequisite ingestion phase needed.
 - Forecast semantics resolved (2026-09-10, Mark): show actual-to-date AND projected month-end side by side.
+- Phase 8 added (2026-09-16): Period & Pricing Correctness — closes the ten findings 05-REVIEW.md left open (WR-02..WR-09, IN-03, IN-04), all re-verified still live against main that day. Two are genuine period-boundary correctness bugs (WR-03 unclamped financial-year floor, WR-04 non-deterministic current-year bounds); the rest are tier-set supersede disclosure and coverage-guard hardening. Carries an explicit no-regression criterion because WR-03 changes a period start that the Phase 5 and 7 live figures were verified against.
 
 ### Decisions
 
