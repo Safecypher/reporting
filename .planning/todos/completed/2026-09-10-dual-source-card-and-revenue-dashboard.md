@@ -4,6 +4,43 @@ title: Dual-source card + revenue dashboard with period toggles
 area: ui
 severity: major
 files: []
+status: superseded
+closed: 2026-09-16
+superseded_by: Phases 5, 6 and 7
+---
+
+## Closed 2026-09-16 — superseded, not abandoned
+
+Every requirement below shipped. This todo was captured on 2026-09-10 as the
+original Richard/Mark statement of what the main dashboard had to answer; it was
+then split across three roadmap phases rather than worked as a single task.
+
+| Requirement in this todo | Delivered by |
+|---|---|
+| Enrolled / unenrolled / calculated live cards, per source, side by side with variance and an aligned-vs-mismatch status | Phase 6 — Dual-Source Alignment (verified 5/5 roadmap criteria, 7/7 ALIGN requirements) |
+| Transaction volumes for billing purposes, both sources | Phase 6 |
+| Month / current-year / all-time periods, FY-vs-CY toggle, previous months and years | Phase 5 — Time Periods & Financial-Year Settings (verified 14/14) |
+| Configurable financial-year start in settings | Phase 5 |
+| Editable TSYS MSA tier table, seeded with the six rates, contiguity validated | Phase 5 |
+| Stepped/marginal tier maths, assessed per month and summed — never the ladder over an aggregate | Phase 5, verified live at exactly `45450.0000` for the MSA's own 1,500,000-transaction worked example, with all six band boundaries correct and the per-month-vs-aggregate invariant (D-06) holding |
+| Forecasted revenue | Phase 7 — TSYS Tiered Volume & Revenue Forecast (verified 18/18), projecting volume and pricing once, never scaling a priced figure |
+
+The three open questions this todo listed were all resolved and are recorded in
+`STATE.md`:
+
+- **Source mapping** — "TIS" is the TSYS/APIGEE report (`apigee_calls`); Bit Addict
+  supplies the other five. Both were already ingested, so no prerequisite ingestion
+  phase was needed.
+- **Live-cards definition** — settled in Phase 6 and reconciled rather than merely
+  displayed.
+- **Effective-dating** — tier sets are effective-dated, with a data-window coverage
+  guard (migration 0025) preventing an edit or delete from leaving the window
+  uncovered.
+
+One caveat carried forward: the counterparty is **TSYS**, not "Thesis" — the latter
+is a voice-transcription error that seeded itself into the early planning prose,
+including the "agreed with Thesis" phrasing in the live-cards question below.
+
 ---
 
 ## Problem
