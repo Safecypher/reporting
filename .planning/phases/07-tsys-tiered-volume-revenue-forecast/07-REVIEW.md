@@ -296,7 +296,7 @@ otherwise make the label match the value it is naming).
 
 ## Info
 
-### IN-01: The two forecast RPCs can resolve different governing tier sets within the same month — **RESOLVED (commit 5129925, migration written but NOT yet applied live)**
+### IN-01: The two forecast RPCs can resolve different governing tier sets within the same month — **RESOLVED (commit 5129925; migration 0038 applied and verified live 2026-09-16)**
 
 > Fixed by gsd-code-fixer: `supabase/migrations/0038_revenue_forecast_daily_tier_set.sql`
 > (forward-only `create or replace`, identical `(date, date, text, int)` signature —

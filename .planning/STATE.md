@@ -1,19 +1,19 @@
 ---
 gsd_state_version: "1.0"
 milestone: v1.0
-current_phase: 5
-current_phase_name: Time Periods & Financial-Year Settings
-status: planning
-stopped_at: Phase 07 complete, ready to plan Phase 5
+current_phase: 7
+current_phase_name: TSYS Tiered Volume & Revenue Forecast
+status: milestone-complete
+stopped_at: All seven v1.0 phases executed and verified. Outstanding: the ten open 05-REVIEW findings (WR-02..WR-09, IN-03, IN-04), re-verified still live on 2026-09-16, awaiting a Phase 5 gap-closure phase.
 last_updated: "2026-09-16T11:19:48.370Z"
 last_activity: 2026-09-16
 state_head: 01505968524bf806477aa0a6611f7e3835c61163
 progress:
   total_phases: 7
-  completed_phases: 5
+  completed_phases: 7
   total_plans: 50
   completed_plans: 50
-  percent: 71
+  percent: 100
 milestone_name: milestone
 ---
 
@@ -24,22 +24,22 @@ milestone_name: milestone
 See: .planning/PROJECT.md (updated 2026-08-18)
 
 **Core value:** Trustworthy revenue reconciliation — billing must equal verifications, and any discrepancy must be immediately visible and traceable to source.
-**Current focus:** Phase 07 — TSYS Tiered Volume & Revenue Forecast
+**Current focus:** v1.0 phases all complete. Next: a Phase 5 gap-closure phase for the ten open 05-REVIEW findings.
 
 ## Current Position
 
-Phase: 5 — Time Periods & Financial-Year Settings
-Plan: Not started
-Status: Ready to plan
+Phase: 7 — TSYS Tiered Volume & Revenue Forecast (complete)
+Plan: 50/50 complete across all seven phases
+Status: All v1.0 phases executed and verified. Milestone not yet archived — Phase 5 closed with ten documented open review findings.
 Last activity: 2026-09-16
 
-Progress: [███████░░░] 71%
+Progress: [██████████] 100%
 
 ## Performance Metrics
 
 **Velocity:**
 
-- Total plans completed: 31
+- Total plans completed: 50
 - Average duration: —
 - Total execution time: 0 hours
 
@@ -48,9 +48,11 @@ Progress: [███████░░░] 71%
 | Phase | Plans | Total | Avg/Plan |
 |-------|-------|-------|----------|
 | 01 | 7 | - | - |
-| 2 | 7 | - | - |
+| 02 | 7 | - | - |
 | 03 | 7 | - | - |
 | 04 | 4 | - | - |
+| 05 | 9 | - | - |
+| 06 | 10 | - | - |
 | 07 | 6 | - | - |
 
 **Recent Trend:**
@@ -163,7 +165,7 @@ Recent decisions affecting current work:
 
 None pending.
 
-- `2026-09-10-dual-source-card-and-revenue-dashboard.md` — promoted 2026-09-10 into Phases 5-7; kept in pending/ as the source-of-truth capture (TSYS rate table + maths rules) until Phase 7 verification.
+- `2026-09-10-dual-source-card-and-revenue-dashboard.md` — closed 2026-09-16, moved to `todos/completed/`. Held in pending/ as the source-of-truth capture (TSYS rate table + maths rules) until Phase 7 verification, which is now done; every requirement shipped across Phases 5, 6 and 7 and all three of its open questions are resolved. The rate table and maths rules live on in the seeded tier set and `tsys_msa_tier_test.sql`.
 
 ### Blockers/Concerns
 
@@ -186,6 +188,7 @@ Carried from research (resolve during phase planning):
 | 260908-r3x | Card inventory page at `/cards` — KPI cards, enrolment-over-time (time-scaled axis with unconnected points, so the 9 sporadic snapshots over 27 days read honestly rather than as daily continuity), removals chart (full linear scale + Invex-incident callout; log axis rejected as misleading for a leadership audience), and a sortable latest-snapshot card table. No migration — shapes in TS over live schema, so it works without the held 0022. Lint baseline 7→8 (suppression removed for sibling consistency) | 2026-09-08 | 5d26ae0 | [260908-r3x-card-inventory-page-current-enrolled-car](./quick/260908-r3x-card-inventory-page-current-enrolled-car/) |
 | 260911-m2b | Corrected counterparty name "Thesis" → "TSYS" in the two highest-value locations: `CLAUDE.md` (four occurrences) and `lib/ingestion/parsers/apigee-stats.ts` (two user-visible error strings + one doc-comment). ~140 remaining prose occurrences deliberately left for a later sweep. `RECON_CHAIN_UNTOUCHED` gate, `npx tsc --noEmit`, and `npm test` (339/339) all confirmed unaffected | 2026-09-11 | a11159c | [260911-m2b-correct-counterparty-name-thesis-to-tsys](./quick/260911-m2b-correct-counterparty-name-thesis-to-tsys/) |
 | 260914-ot4 | Icon sprite glyphs rendered as solid black silhouettes app-wide — `public/icons.svg` had zero `stroke=` attributes, so its 29 stroke-style `<symbol>`s fell back to SVG's default `fill:black; stroke:none`: outlines filled solid, zero-area detail strokes (the `!` in `#alert`, the tick in `#check`) vanished, and `text-*` colour classes never reached the icons because nothing read `currentColor`. Added Lucide's own defaults (`fill="none" stroke="currentColor" stroke-width="2"` + round cap/join) to each `<symbol>` — on the symbols, not the root `<svg>`, since an external `<use>` inherits from the referencing document, not the sprite's ancestors. 5 intentional `fill="currentColor"` dots preserved. Diff is 29 lines, all `<symbol>` tags. Found during Phase 6 UAT; pre-existing, not Phase 6's doing. Visual confirmation still outstanding | 2026-09-14 | 9e55eba | [260914-ot4-fix-icon-sprite-glyphs-rendering-as-soli](./quick/260914-ot4-fix-icon-sprite-glyphs-rendering-as-soli/) |
+| 260916-orb | Reconciled Phase 5/6 planning state and recorded the 05-REVIEW round-4 triage. `state.json` had Phases 5 and 6 as `in_progress` despite both having passing VERIFICATION.md, and a `next` pointer telling an operator to re-plan Phase 5's nine executed plans. All ten open 05-REVIEW findings (WR-02..WR-09, IN-03, IN-04) re-verified against `main` and recorded as still live — none fixed incidentally by Phase 6/7 work; recorded, not fixed, pending a gap-closure phase. Superseded dual-source dashboard todo closed to `todos/completed/`. STATE.md's three contradicting progress figures reconciled against a direct artifact count (50 plans, 50 summaries, 7/7 phases). Stale IN-01 heading in 07-REVIEW.md corrected to match its own body (0038 applied and verified live). Docs/state only — no source file touched | 2026-09-16 | (see git log) | [260916-orb-reconcile-phase-5-6-planning-state-and-r](./quick/260916-orb-reconcile-phase-5-6-planning-state-and-r/) |
 
 ## Deferred Items
 

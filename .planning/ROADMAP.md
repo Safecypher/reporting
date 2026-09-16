@@ -17,7 +17,7 @@ Decimal phases appear between their surrounding integers in numeric order.
 - [x] **Phase 2: Complete the Six Sources** - Parallel fan-out of the five remaining parsers so all six report types ingest, normalise, and de-duplicate (incl. cumulative billing + Thesis XLSX) (completed 2026-08-21)
 - [x] **Phase 3: Revenue, SLA & Drill-down** - Exact tiered revenue, configurable pricing admin, SLA-vs-750ms trend, and drill-from-metric-to-source (completed 2026-08-21)
 - [x] **Phase 4: Reconciliation & Discrepancy Flagging** - The core-value centrepiece: timing-aware billing-vs-verification and inventory reconciliation with explained, traceable discrepancy flags (completed 2026-08-23)
-- [ ] **Phase 5: Time Periods & Financial-Year Settings** - Configurable financial-year start plus a consistent month / FY-or-CY / all-time / historical period lens across every view, and the signed TSYS MSA tier table seeded
+- [x] **Phase 5: Time Periods & Financial-Year Settings** - Configurable financial-year start plus a consistent month / FY-or-CY / all-time / historical period lens across every view, and the signed TSYS MSA tier table seeded (completed 2026-09-10; closed with ten open review findings — see the gap-closure note below)
 - [x] **Phase 6: Dual-Source Alignment: TSYS vs Bit Addict** - Enrolled, unenrolled, live cards and transaction volume shown for both sources side by side with variance and an explicit aligned/mismatch status
 - [x] **Phase 7: TSYS Tiered Volume & Revenue Forecast** - Stepped TSYS tiers on monthly billable volume, with actual-to-date and projected month-end shown side by side per source (completed 2026-09-16)
 
@@ -207,6 +207,39 @@ Plans:
 **Gap closure — code review** *(from 05-REVIEW.md CR-01 / 05-UAT.md `## Gaps` G-05-CR01 — run with `/gsd-execute-phase 5 --gaps-only`)*
 
 - [x] 05-09-PLAN.md — G-05-CR01: warn before an edit that moves a tier set's effective_from across another set's date silently transfers pricing authority for the days between them, replace the test pinning the wrong invariant, and make the pricing date guard actually reject impossible calendar dates
+
+**Outstanding — needs a follow-up gap-closure phase (recorded 2026-09-16, not yet scheduled)**
+
+Phase 5's goal is met and `05-VERIFICATION.md` passed 14/14, but `05-REVIEW.md` closed
+`issues_found` with ten findings that were never actioned. All ten were re-verified against
+`main` on 2026-09-16 and every one is still live — none was incidentally fixed by Phase 6 or
+Phase 7 work. They are not blockers for the current deployment, but two are genuine
+correctness bugs on period boundaries and should not be carried into a v1.1 milestone
+unexamined:
+
+- **WR-03** — the financial-year branch of `resolvePeriod` never clamps the computed `start`
+  to the 13 Aug 2026 data-window floor, and two raw-table fetchers use the caller's
+  `range.start` as a *replacement* for their own floor rather than an additional AND-ed bound.
+  An FY starting 6 April therefore resolves a `start` below the reliable-data window.
+- **WR-04** — the current year's FY bounds resolve from wall-clock `today` while every past
+  year resolves from 31 December, making the current-year period non-deterministic across
+  reloads and able to duplicate an adjacent dropdown option.
+- **WR-02, WR-08, WR-09** — tier-set supersede disclosure: a self-referential exact-date
+  collision message (both create and edit paths), and a multi-set backdate that names only the
+  immediately-crossed neighbour while a further, unnamed set silently absorbs the edited set's
+  future pricing territory.
+- **WR-05, WR-06** — the 0025 data-window coverage guard has no committed regression test and
+  no row lock (a narrow TOCTOU window under concurrent edits).
+- **WR-07** — `DATA_WINDOW_START` is duplicated as an untyped literal in five places. Any
+  consolidation must keep the shared module free of `@/` value-imports: this repo has no
+  vitest alias config, so such an import resolves under `next build` but breaks under
+  `vitest run`.
+- **IN-03, IN-04** — a `types/db.ts` PostgREST version string that went backwards, and a doc
+  comment claiming coverage the function is not exercised against.
+
+Also still open: `05-UAT.md` is `status: partial`, with tests 3 and 4 skipped as
+data-unreachable. Both re-test themselves once the data window exceeds 24 months and real FY
+change history accumulates — neither is a defect.
 
 ### Phase 6: Dual-Source Alignment: TSYS vs Bit Addict
 
