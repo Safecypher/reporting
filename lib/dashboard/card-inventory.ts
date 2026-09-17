@@ -1,5 +1,11 @@
 import type { createClient } from "@/lib/supabase/server";
 
+import {
+  DATA_WINDOW_START as DATA_WINDOW_START_DATE,
+  DATA_WINDOW_START_TS,
+  clampToDataWindow,
+} from "./data-window";
+
 /**
  * Pure shaping helpers for the card-inventory page (quick task 260908-r3x;
  * range-aware fetchers + stock/flow split added Phase 5, P-02). No Supabase
@@ -213,19 +219,24 @@ export function netChange(series: SnapshotPoint[]): SnapshotNetChange[] {
 /**
  * `card_inventory.report_date` is a plain `date` column (one row per card
  * per snapshot day) — filtered directly against the DATA-06 floor as a date
- * string, never built from a timestamptz range.
+ * string, never built from a timestamptz range. Defined once in the
+ * zero-import leaf module `./data-window` (08-01, WR-07) and re-exported
+ * here under this file's existing name/value.
  */
-export const DATA_WINDOW_START_DATE = "2026-08-13";
+export { DATA_WINDOW_START_DATE };
 
 /**
  * `removed_cards.removed_at` is a timestamptz — the same DATA-06 floor as
- * `verification-drill.ts`'s `DATA_WINDOW_START`, duplicated here (rather than
- * imported) to keep this module free of `@/` value-imports: this repo has no
- * vitest alias config, so a value-import via the `@/` path alias resolves
- * fine in `next build` but breaks under `vitest run` (only type-only `@/`
- * imports are safe, since esbuild strips them without resolving the module).
+ * `verification-drill.ts`'s `DATA_WINDOW_START`. Previously duplicated here
+ * (rather than imported) to keep this module free of `@/` value-imports:
+ * a value-import via the `@/` path alias could resolve in `next build` but
+ * not necessarily under `vitest run`, depending on this repo's alias
+ * configuration at any given time. `./data-window` is imported by RELATIVE
+ * path (never `@/`) precisely so this file can share the constant without
+ * reintroducing that risk (only type-only `@/` imports were ever provably
+ * safe, since esbuild strips them without resolving the module).
  */
-export const REMOVED_CARDS_DATA_WINDOW_START = "2026-08-13T00:00:00Z";
+export const REMOVED_CARDS_DATA_WINDOW_START = DATA_WINDOW_START_TS;
 
 export interface CardInventoryFetchResult {
   rows: CardInventoryRow[];
@@ -297,6 +308,11 @@ export async function fetchCardInventoryRowsUpTo(
  * the database to `[range.start, range.end)`, never carried forward like
  * the stock-metric KPI. Omitting `range` behaves exactly as before (the
  * DATA-06 floor with no upper bound), so existing callers are unaffected.
+ *
+ * WR-03 (08-01): the lower bound is always ANDed with the floor via
+ * `clampToDataWindow`, never replaced by `range.start` as a bare ternary —
+ * a caller-supplied range can only NARROW the window within the floor, it
+ * can never widen it below 2026-08-13, for any input.
  */
 export async function fetchRemovedCardRows(
   supabase: Awaited<ReturnType<typeof createClient>>,
@@ -305,7 +321,7 @@ export async function fetchRemovedCardRows(
   let query = supabase
     .from("removed_cards")
     .select("removed_at")
-    .gte("removed_at", range ? `${range.start}T00:00:00Z` : REMOVED_CARDS_DATA_WINDOW_START);
+    .gte("removed_at", `${clampToDataWindow(range?.start ?? DATA_WINDOW_START_DATE)}T00:00:00Z`);
 
   if (range?.end) {
     query = query.lt("removed_at", `${range.end}T00:00:00Z`);

@@ -23,6 +23,8 @@
  * — the two whitelists coexist on the same URL.
  */
 
+import { DATA_WINDOW_START, clampToDataWindow } from "./data-window";
+
 export type PeriodScope = "month" | "year" | "all";
 export type YearMode = "calendar" | "financial";
 
@@ -49,8 +51,14 @@ export interface ResolvedPeriod {
 
 type RawSearchParams = Record<string, string | string[] | undefined>;
 
-/** Mirrors bucketing.ts's DATA_WINDOW_START — the earliest reliable day. */
-export const DATA_WINDOW_START = "2026-08-13";
+/**
+ * The earliest reliable day (08-01, WR-07: TypeScript-side dashboard
+ * cluster consolidation) — the single definition now lives in the
+ * zero-import leaf module `./data-window`; re-exported here under its
+ * existing name so no import site elsewhere in this codebase needs to
+ * change.
+ */
+export { DATA_WINDOW_START };
 
 /** P-01: calendar, not financial — see 05-01-PLAN.md planner_decisions. */
 export const DEFAULT_YEAR_MODE: YearMode = "calendar";
@@ -328,10 +336,48 @@ export function resolvePeriod(
     }
 
     if (yearMode === "financial") {
-      const targetToday =
-        of === currentUtcYearOf(today) ? today : utcDateFromParts(Number(of), 12, 31);
+      // WR-04: derive the FY bounds identically for every year, past or
+      // current — always anchored to 31 December of `of`, never to the
+      // literal wall clock. The prior special case (`today` for the
+      // current year, 31 Dec of `of` for every other year) made
+      // `resolveFinancialYearBounds`'s `startYear` decision depend on
+      // which side of the FY start day `today` fell on — so the SAME `of`
+      // could silently flip to a different FY the moment the clock crossed
+      // that boundary mid-session, with no user action. Anchoring
+      // unconditionally to 31 December makes this branch a pure function of
+      // `(fyStart, of)` — `today` still matters elsewhere in this `year`
+      // branch (the `notFuture` guard above and the D-03 default `of`), it
+      // just never reaches `resolveFinancialYearBounds` directly any more.
+      const targetToday = utcDateFromParts(Number(of), 12, 31);
       const { start, end, label } = financialYearLabel(fyStart, targetToday);
-      return { scope: "year", yearMode: "financial", of, start, end, label };
+      // WR-03: clamp `start` only — `resolveFinancialYearBounds` has no
+      // notion of the data window, so an FY start earlier in the calendar
+      // year than 13 Aug 2026 would otherwise return a `start` there is no
+      // reliable data for (e.g. a 6 April FY start resolving four months
+      // below the floor). `end` is an EXCLUSIVE upper bound and is not
+      // floored by anything — only `start` is ever clamped, for any scope.
+      // The label keeps the FY's true calendar span (a fact about the
+      // financial year, not about the data) and is never rewritten to the
+      // clamped date.
+      //
+      // Copywriting Contract note (07-UI-SPEC.md convention): when the
+      // clamp actually bites — i.e. `clampToDataWindow(start) !== start`
+      // below — the figures for this period cover less than `label`'s
+      // stated span, and that gap should be surfaced the way the existing
+      // partial-coverage captions are (e.g. card-inventory's as-of/
+      // carried-forward notices), not left to imply full coverage silently.
+      // 08-01's `files_modified` has no UI component files, so wiring an
+      // actual on-screen notice is left to a future plan; this note records
+      // the intended copy so it isn't lost: "Showing data from 13 Aug 2026
+      // — {label}'s calendar start predates the earliest reliable data."
+      return {
+        scope: "year",
+        yearMode: "financial",
+        of,
+        start: clampToDataWindow(start),
+        end,
+        label,
+      };
     }
 
     const { start, end } = calendarYearBounds(of);

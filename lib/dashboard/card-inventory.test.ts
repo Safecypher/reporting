@@ -1,7 +1,9 @@
 import { describe, expect, it } from "vitest";
 
+import type { createClient } from "@/lib/supabase/server";
 import {
   DATA_WINDOW_START_DATE,
+  fetchRemovedCardRows,
   firstSeenByCard,
   latestSnapshot,
   netChange,
@@ -11,6 +13,33 @@ import {
   type CardInventoryRow,
   type RemovedCardRow,
 } from "./card-inventory";
+
+/**
+ * WR-03 (08-01): `fetchRemovedCardRows`'s `.gte("removed_at", ...)` floor.
+ * Stubs the Supabase client by hand, following
+ * `lib/settings/__tests__/alignment-settings.test.ts`'s existing convention
+ * — the Supabase module itself is never module-mocked.
+ */
+type FakeSupabase = Awaited<ReturnType<typeof createClient>>;
+
+function makeFakeSupabaseForRemovedCards(): {
+  supabase: FakeSupabase;
+  gteArgs: unknown[];
+} {
+  const gteArgs: unknown[] = [];
+  const builder = {
+    select: () => builder,
+    gte: (_col: string, val: unknown) => {
+      gteArgs.push(val);
+      return builder;
+    },
+    lt: () => builder,
+    order: () => builder,
+    returns: () => Promise.resolve({ data: [], error: null }),
+  };
+  const supabase = { from: () => builder } as unknown as FakeSupabase;
+  return { supabase, gteArgs };
+}
 
 const row = (report_date: string, external_card_reference: string): CardInventoryRow => ({
   report_date,
@@ -185,6 +214,22 @@ describe("rowsWithin", () => {
 
     expect(rowsWithin(rows, "2026-09-01", "2026-10-01", (r) => r.report_date)).toEqual([]);
   });
+
+  it("IN-04: also works for removed_cards.removed_at callers, not just report_date — its doc comment claims both, this proves it", () => {
+    const removedRows: RemovedCardRow[] = [
+      { removed_at: "2026-08-31T10:00:00+00:00" },
+      { removed_at: "2026-09-01T00:00:00+00:00" },
+      { removed_at: "2026-09-15T23:59:59+00:00" },
+      { removed_at: "2026-10-01T00:00:00+00:00" },
+    ];
+
+    expect(
+      rowsWithin(removedRows, "2026-09-01", "2026-10-01", (r) => r.removed_at),
+    ).toEqual([
+      { removed_at: "2026-09-01T00:00:00+00:00" },
+      { removed_at: "2026-09-15T23:59:59+00:00" },
+    ]);
+  });
 });
 
 describe("rowsWithin composed with latestSnapshot (P-02 as-of-period-end KPI rule)", () => {
@@ -220,5 +265,31 @@ describe("rowsWithin composed with latestSnapshot (P-02 as-of-period-end KPI rul
 
     expect(result?.day).toBe("2026-08-20");
     expect(result?.references).toHaveLength(10);
+  });
+});
+
+describe("fetchRemovedCardRows (WR-03: floor clamp, never a bare ternary)", () => {
+  it("clamps a range.start before the floor up to the floor, never emitting a lower gte bound", async () => {
+    const { supabase, gteArgs } = makeFakeSupabaseForRemovedCards();
+
+    await fetchRemovedCardRows(supabase, { start: "2026-01-01", end: null });
+
+    expect(gteArgs[0]).toBe("2026-08-13T00:00:00Z");
+  });
+
+  it("passes through a range.start at or after the floor unchanged", async () => {
+    const { supabase, gteArgs } = makeFakeSupabaseForRemovedCards();
+
+    await fetchRemovedCardRows(supabase, { start: "2026-09-01", end: null });
+
+    expect(gteArgs[0]).toBe("2026-09-01T00:00:00Z");
+  });
+
+  it("defaults to the floor when no range is given at all", async () => {
+    const { supabase, gteArgs } = makeFakeSupabaseForRemovedCards();
+
+    await fetchRemovedCardRows(supabase);
+
+    expect(gteArgs[0]).toBe("2026-08-13T00:00:00Z");
   });
 });
