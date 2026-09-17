@@ -4,16 +4,16 @@ milestone: v1.0
 current_phase: 08
 current_phase_name: Period & Pricing Correctness
 status: executing
-stopped_at: Completed 08-02-PLAN.md
-last_updated: "2026-09-17T17:41:33.052Z"
+stopped_at: Completed 08-03-PLAN.md
+last_updated: "2026-09-17T17:52:07.842Z"
 last_activity: 2026-09-17
 last_activity_desc: Phase 08 execution started
-state_head: ed0480e00eb24ef8f53a2e9efe786e2e06024cf7
+state_head: 104cbf6085f270560fc9d13e4261e8ce8e97e822
 progress:
   total_phases: 8
   completed_phases: 7
   total_plans: 54
-  completed_plans: 52
+  completed_plans: 53
 milestone_name: milestone
 ---
 
@@ -29,7 +29,7 @@ See: .planning/PROJECT.md (updated 2026-08-18)
 ## Current Position
 
 Phase: 08 (Period & Pricing Correctness) — EXECUTING
-Plan: 2 of 4
+Plan: 3 of 4
 Status: Ready to execute
 Last activity: 2026-09-17 — Phase 08 execution started
 
@@ -91,6 +91,7 @@ Progress: [████████░░] 88%
 | Phase 07 P05 | 7min | 3 tasks | 8 files |
 | Phase 07 P06 | not precisely tracked | 3 tasks | 6 files |
 | Phase 08 P02 | 30min | 2 tasks | 3 files |
+| Phase 08 P03 | 20min | 2 tasks | 2 files |
 
 ## Accumulated Context
 
@@ -164,6 +165,8 @@ Recent decisions affecting current work:
 - [Phase 07]: [Phase 07] Plan 07-06: /revenue's actual/projected KPI pair and dashed chart segment complete -- RevenueProjection interface/card, projection-aware rebucketRevenue (null-preserving), RevenueChart's second dashed provisional Line, full D-12 page wiring folding both forecast RPCs into the existing Promise.all with a card-scoped error path kept out of the page-level combined error branch
 - [Phase 08]: [Phase 08] Plan 08-02: resolveEditImpact gains an optional futureSupersededBy field (WR-08) naming the set that permanently absorbs the edited set's former future territory, distinct from the immediately-crossed supersedes neighbour -- field is optional/omitted (never null) so no pre-existing toEqual structural assertion needed to change
 - [Phase 08]: [Phase 08] Plan 08-02: WR-02/WR-09 exact-date-collision fix is UI-layer only (PricingTierForm) -- restate-scope.ts's resolver keeps reporting the collision via supersedes per its own deliberate pinned test; the duplicate-date hint reuses PRICING_DUPLICATE_EFFECTIVE_FROM's copy in both the live inline preview and the onSubmit gate (one check covers both create and edit modes)
+- [Phase 08]: 0039 takes pg_advisory_xact_lock(20260813) in both save_pricing_tier_set and delete_pricing_tier_set, serialising the coverage guard's check-write-check sequence against a concurrent save or delete (chosen over `select ... for update` since the invariant is about row absence, not row contents).
+- [Phase 08]: data_window_start() (WR-07 SQL half) is adopted going forward only in new SQL - the 20+ existing migrations containing the inline 2026-08-13 literal are applied history and are not rewritten.
 
 ### Pending Todos
 
@@ -204,6 +207,6 @@ Items acknowledged and carried forward from previous milestone close:
 
 ## Session Continuity
 
-Last session: 2026-09-17T17:41:32.827Z
-Stopped at: Completed 08-02-PLAN.md
+Last session: 2026-09-17T17:51:59.889Z
+Stopped at: Completed 08-03-PLAN.md
 Resume file: None
