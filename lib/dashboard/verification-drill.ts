@@ -1,5 +1,11 @@
 import type { createClient } from "@/lib/supabase/server";
 
+import {
+  DATA_WINDOW_START as DATA_WINDOW_START_DATE,
+  DATA_WINDOW_START_TS,
+  clampToDataWindow,
+} from "./data-window";
+
 /**
  * Shared "verification" drill-entity row shape, fetcher, and constants
  * (DASH-03/D-11). Previously duplicated verbatim between
@@ -12,7 +18,12 @@ import type { createClient } from "@/lib/supabase/server";
  * `authenticated` argument, not a second code path.
  */
 
-export const DATA_WINDOW_START = "2026-08-13T00:00:00Z";
+/**
+ * The timestamptz floor for `created_at`, defined once in `./data-window`
+ * (08-01, WR-07) and kept under this file's existing export name/value so no
+ * import site elsewhere in this codebase needs to change.
+ */
+export const DATA_WINDOW_START = DATA_WINDOW_START_TS;
 
 /** PoC-scale cap on the drilled raw-row fetch — plenty for the current data volume. */
 export const DRILL_ROW_LIMIT = 500;
@@ -45,6 +56,11 @@ export interface VerificationDrillFetchResult {
  * `ResolvedPeriod`). Omitting `range` behaves exactly as before — the
  * DATA_WINDOW_START floor with no upper bound — so existing callers/tests
  * are unaffected.
+ *
+ * WR-03 (08-01): the lower bound is always ANDed with the floor via
+ * `clampToDataWindow`, never replaced by `range.start` as a bare ternary —
+ * a caller-supplied range can only NARROW the window within the floor, it
+ * can never widen it below 2026-08-13, for any input.
  */
 export async function fetchVerificationDrillRows(
   supabase: Awaited<ReturnType<typeof createClient>>,
@@ -56,7 +72,7 @@ export async function fetchVerificationDrillRows(
     .select("created_at, external_card_reference, duration_ms, authenticated", {
       count: "exact",
     })
-    .gte("created_at", range ? `${range.start}T00:00:00Z` : DATA_WINDOW_START)
+    .gte("created_at", `${clampToDataWindow(range?.start ?? DATA_WINDOW_START_DATE)}T00:00:00Z`)
     .order("created_at", { ascending: false })
     .limit(DRILL_ROW_LIMIT);
 

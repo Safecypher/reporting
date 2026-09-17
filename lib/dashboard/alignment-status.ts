@@ -25,6 +25,8 @@
 
 import type { ReconciliationStatus } from "@/lib/dashboard/reconciliation-status";
 
+import { DATA_WINDOW_START as ALIGNMENT_DATA_WINDOW_START } from "./data-window";
+
 export type AlignmentStatus = "aligned" | "needs_review" | "mismatch";
 
 export type AlignmentShortSide = "tsys" | "bit_addict" | null;
@@ -84,8 +86,9 @@ export function addBusinessDaysUtc(day: string, n: number): string {
 /** The data-window cutoff every alignment view floors an empty maximum to
  * (`'2026-08-13'::date` in SQL). A source with no rows at all has no
  * maximum -- coalescing to this floor is what makes an absent source read
- * unsettled rather than NULL (ALIGN-03 empty edge). */
-const ALIGNMENT_DATA_WINDOW_START = "2026-08-13";
+ * unsettled rather than NULL (ALIGN-03 empty edge). Defined once in the
+ * zero-import leaf module `./data-window` (08-01, WR-07) and imported here
+ * under this file's existing local name. */
 
 /**
  * The three flow metrics `v_alignment_daily`/`alignment_counterpart_max_day`

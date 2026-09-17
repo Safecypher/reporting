@@ -1,6 +1,8 @@
 import { format, startOfMonth, startOfWeek } from "date-fns";
 import { toZonedTime } from "date-fns-tz";
 
+import { DATA_WINDOW_START } from "./data-window";
+
 /**
  * Pure re-bucketing of the `v_verifications_daily` view's daily rows into
  * daily/weekly/monthly buckets, optionally re-interpreted in one of the
@@ -26,8 +28,13 @@ export interface BucketPoint {
   failed: number;
 }
 
-/** Mirrors the 13 Aug 2026 cutoff baked into `v_verifications_daily` (DATA-06). */
-export const DATA_WINDOW_START = "2026-08-13";
+/**
+ * The 13 Aug 2026 cutoff baked into `v_verifications_daily` (DATA-06) —
+ * defined once in the zero-import leaf module `./data-window` (08-01,
+ * WR-07) and re-exported here under its existing name so no import site
+ * elsewhere in this codebase needs to change.
+ */
+export { DATA_WINDOW_START };
 
 export function bucketKeyAndLabel(
   dayUtc: string,
@@ -35,10 +42,11 @@ export function bucketKeyAndLabel(
   timeZone: BucketTimeZone,
 ): { key: string; label: string } {
   // `day_utc` is a UTC-truncated day. Supabase/Postgres returns it as a full
-  // timestamptz string ("2026-08-13 00:00:00+00"), while unit fixtures may use a
-  // bare date ("2026-08-13"). Take the first 10 chars (the YYYY-MM-DD calendar
-  // day) in both cases and reconstruct UTC midnight — the same instant — then
-  // shift into the selected zone via date-fns-tz (no hand-rolled offset math).
+  // timestamptz string (e.g. an ISO date, a space, then 00:00:00+00), while
+  // unit fixtures may use a bare YYYY-MM-DD date. Take the first 10 chars
+  // (the calendar day) in both cases and reconstruct UTC midnight — the same
+  // instant — then shift into the selected zone via date-fns-tz (no
+  // hand-rolled offset math).
   const datePart = dayUtc.slice(0, 10);
   const utcMidnight = new Date(`${datePart}T00:00:00Z`);
   const zoned = toZonedTime(utcMidnight, timeZone);
