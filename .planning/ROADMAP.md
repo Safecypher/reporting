@@ -397,13 +397,13 @@ RPCs read the same period bounds, so a WR-03 clamp change must not move a verifi
      per-month-vs-aggregate invariant) and Phase 7's check-8 chart-sums-to-card equality still
      hold after the changes.
 
-**Plans**: 4 plans (0 executed)
+**Plans**: 1/4 plans executed (0 executed)
 
 Plans:
 
 **Wave 1** *(tracer — the floor proven end to end before anything else moves)*
 
-- [ ] 08-01-PLAN.md — Data-window single source of truth (TS), the financial-year clamp, both fetcher floors AND-ed, deterministic current-year bounds, and the before/after proof that no verified figure moved (WR-03, WR-04, WR-07 TS half, IN-04)
+- [x] 08-01-PLAN.md — Data-window single source of truth (TS), the financial-year clamp, both fetcher floors AND-ed, deterministic current-year bounds, and the before/after proof that no verified figure moved (WR-03, WR-04, WR-07 TS half, IN-04)
 
 **Wave 2** *(blocked on 08-01; disjoint files, so these two run in parallel)*
 

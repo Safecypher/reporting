@@ -1,19 +1,19 @@
 ---
 gsd_state_version: "1.0"
 milestone: v1.0
-current_phase: 8
+current_phase: 08
 current_phase_name: Period & Pricing Correctness
-status: planned
+status: executing
 stopped_at: Phase 8 planned 2026-09-16 — 4 plans in 3 waves. Ready to execute.
-last_updated: "2026-09-16T17:05:00.000Z"
-last_activity: 2026-09-16
-state_head: 01505968524bf806477aa0a6611f7e3835c61163
+last_updated: "2026-09-17T17:02:44.854Z"
+last_activity: 2026-09-17
+last_activity_desc: Phase 08 execution started
+state_head: fa9652b1fd7462b9d1e997e2fc1675c68c42f458
 progress:
   total_phases: 8
   completed_phases: 7
-  total_plans: 50
+  total_plans: 54
   completed_plans: 50
-  percent: 88
 milestone_name: milestone
 ---
 
@@ -24,14 +24,14 @@ milestone_name: milestone
 See: .planning/PROJECT.md (updated 2026-08-18)
 
 **Core value:** Trustworthy revenue reconciliation — billing must equal verifications, and any discrepancy must be immediately visible and traceable to source.
-**Current focus:** Phase 8 — Period & Pricing Correctness (closes the ten open 05-REVIEW findings).
+**Current focus:** Phase 08 — Period & Pricing Correctness
 
 ## Current Position
 
-Phase: 8 — Period & Pricing Correctness
-Plan: 0/4 complete (planned 2026-09-16)
-Status: Planned, ready to execute. Wave 1 is the 08-01 tracer; 08-02 and 08-03 run in parallel behind it; 08-04 is BLOCKING and needs Supabase MCP, so the orchestrator must run it rather than an executor.
-Last activity: 2026-09-16
+Phase: 08 (Period & Pricing Correctness) — EXECUTING
+Plan: 1 of 4
+Status: Executing Phase 08
+Last activity: 2026-09-17 — Phase 08 execution started
 
 Progress: [████████░░] 88%
 
