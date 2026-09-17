@@ -158,6 +158,15 @@ non-standard closures are spelled out rather than ticked:
 `.planning/WINDOWS.md` entry 7 (`unrun-verify`, opened by 08-01 because it had no DB
 access) is resolved with the captured figures.
 
+**Correction, same day.** Task 5's first pass recorded WR-08 as "Fixed". Phase 8's own
+code review (`08-REVIEW.md` CR-01) found that wrong: `resolveEditImpact` computes
+`futureSupersededBy`, but nothing consumes it — so WR-08's operator disclosure is not
+delivered, and a two-set backdate can transfer pricing authority with no confirmation
+at all. The claim was re-verified by grep and hand-trace, then WR-08 was **reopened**
+in `05-REVIEW.md` (see "Round-5 correction" there). Phase 8 closes **9 of 10**
+findings, not 10. Recording this rather than quietly leaving the wrong tick is the
+point of the phase.
+
 ## Deviations
 
 **Executed inline rather than dispatched.** The plan anticipated this and asked for

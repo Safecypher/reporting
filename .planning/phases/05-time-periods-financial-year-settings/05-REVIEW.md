@@ -15,13 +15,13 @@ findings:
   warning: 8
   info: 2
   total: 10
-status: resolved
+status: issues_found
 triaged: 2026-09-16
-triage_result: all 10 findings closed by Phase 8 (Period & Pricing Correctness), verified live against the linked project on 2026-09-17. IN-03 closed as "not a defect"; WR-07 closed with deliberately partial scope. See "Round-5 closure" at the end of this file.
-open_findings: []
+triage_result: 9 of 10 findings closed by Phase 8 (Period & Pricing Correctness), verified live on 2026-09-17. WR-08 was initially recorded closed and has been REOPENED — Phase 8 code review (08-REVIEW.md CR-01) found the resolver computes futureSupersededBy but no UI consumes it. IN-03 closed as "not a defect"; WR-07 closed with deliberately partial scope. See "Round-5 closure" and "Round-5 correction".
+open_findings: [WR-08]
 closed_by_phase: 08-period-and-pricing-correctness
 closed: 2026-09-17
-follow_up: none — closed by Phase 8
+follow_up: WR-08 only — needs the UI half (surface futureSupersededBy and gate the save on it). See 08-REVIEW.md CR-01.
 ---
 
 # Phase 05: Code Review Report (incremental re-review, plan 05-09)
@@ -30,7 +30,7 @@ follow_up: none — closed by Phase 8
 **Depth:** standard
 **Files Reviewed:** 6 (the diff of gap-closure plan 05-09, commits `2e9ef5d`,
 `e67fc84`, `3d0e629`, `823c19e`, `da88015`)
-**Status:** resolved (all 10 findings closed by Phase 8 — see Round-5 closure)
+**Status:** issues_found — 9 of 10 closed by Phase 8; WR-08 reopened (see Round-5 correction)
 
 ## Summary
 
@@ -426,7 +426,7 @@ closures (WR-07, IN-03) are spelled out rather than ticked.
 | WR-05 | 08-03 | `6e72e6b` | Fixed. `supabase/tests/pricing_tier_coverage_guard_test.sql` is the guard's first committed test — six cases in one `begin; … rollback;` block. Run live 2026-09-17: all six pass, rollback confirmed. |
 | WR-06 | 08-03 | `deacd78` | Fixed. Both RPCs take `pg_advisory_xact_lock(20260813)` before evaluating coverage, so a concurrent save and a concurrent delete serialise against each other — not merely against same-function calls. An advisory lock was chosen over `select … for update` because the guard's predicate is about the *absence* of a covering row, which row locks cannot cover. |
 | WR-07 | 08-01 (TS) + 08-03 (SQL) | `1026b2d`, `deacd78` | **Partially closed, by design.** The TypeScript *dashboard* cluster is consolidated into `lib/dashboard/data-window.ts` (a zero-import leaf, per the round-4 constraint note above). The SQL side gained `data_window_start()`, used by migration 0039 and new SQL from here on. **Deliberately NOT done:** the six `lib/ingestion/normalise*` modules, and the 20+ applied migrations containing the literal — those are applied history and were left as history. Both exclusions are documented in the module/migration headers so the untouched literals do not read as an unfinished job. |
-| WR-08 | 08-02 | `2907f7d` | Fixed. `resolveEditImpact` gained `futureSupersededBy`, which names the set that permanently takes over the edited set's own former future territory — the review's option (b), not (a). The three-set backdate worked example (x 2026-07-01, y 2026-08-01, e 2026-09-01 → 2026-07-15) is encoded as a test, plus three non-firing regression cases. |
+| WR-08 | 08-02 | `2907f7d` | **REOPENED — see Round-5 correction below.** The resolver half landed (`futureSupersededBy`, option (b), with the three-set worked example encoded as a test). The **UI half did not**: nothing consumes the field, so the operator disclosure WR-08 exists to deliver is still absent. |
 | WR-09 | 08-02 | `ed0480e` | Fixed alongside WR-02 — one check covering both create and edit mode. |
 | IN-03 | 08-04 | `bccf2a1` | **Closed as "not a defect", verified against the live project.** `types/db.ts`'s `PostgrestVersion: "14.5"` is correct: the linked project's own generator emits exactly `14.5`. `14.5 < 14.15` only looks like a regression under semver; lexically these are just different strings, and the project is genuinely on 14.5. The version string was **not** hand-edited. The regeneration that confirmed this did pick up one genuine change — the new `data_window_start` function — which is the entire diff. |
 | IN-04 | 08-01 | `7f6f090` | Fixed. `rowsWithin`'s doc comment no longer overstates its coverage, and `removed_at` is now actually exercised. |
@@ -497,3 +497,69 @@ were taken with different arguments.
 
 _Closed: 2026-09-17_
 _Method: migration applied and every oracle run against the linked project via Supabase MCP; every figure recorded as its actual returned value._
+
+---
+
+## Round-5 correction — 2026-09-17: WR-08 reopened
+
+The Round-5 closure table above initially recorded WR-08 as "Fixed". **That was wrong,
+and this section is the correction.** Phase 8's own code review (`08-REVIEW.md`, CR-01)
+caught it, and the claim was then re-verified by hand before reopening.
+
+### What is actually true
+
+`resolveEditImpact` in `lib/pricing/restate-scope.ts` does compute
+`futureSupersededBy` correctly, and it is unit-tested at the resolver level
+(`restate-scope.test.ts`, the three-set backdate case plus three non-firing regression
+cases). That half is real.
+
+**No code consumes the field.** `grep -rn futureSupersededBy app components lib`
+returns only its declaration (`restate-scope.ts:63`), its computation
+(`:191-192, :195, :216`) and its tests. `components/pricing/pricing-tier-form.tsx`
+never reads it.
+
+WR-08 is a *disclosure* finding — the operator must be told which contract ends up
+pricing which days. Computing the fact and never showing it does not close it. The
+finding is open.
+
+### The worse variant, hand-traced
+
+The save gate at `pricing-tier-form.tsx:331` keys entirely on
+`impact.supersedes !== null`, and that branch carries the "ALWAYS open the
+confirmation, regardless of day count" guarantee (G-05-CR01). `futureSupersededBy` can
+fire while `supersedes` is `null`, which routes around that guarantee entirely.
+
+Concrete case — two tier sets, which is the common real-world shape, not an exotic one:
+
+- `y` effective 2026-08-01
+- `e` (the edited set) effective 2026-09-01
+- Operator backdates `e` to 2026-07-15
+
+Trace: `others = [y]`; `atOrBeforeProposed` is empty (`y` at 08-01 is after 07-15), so
+`candidate` is `null`, so `displaced` is `null`, so **`supersedes` is `null`**.
+Meanwhile `resolveFutureSupersession` fires — `e` was the permanent governor before the
+edit, and `y` now outranks `e`'s new earlier date — so
+**`futureSupersededBy` is `2026-08-01`**.
+
+From 2026-08-01 onward, `y` now permanently prices every day `e` exclusively owned
+before the edit, including everything from 09-01. The form takes the
+`supersedes !== null` branch as false, falls through to the day-count path, and when
+the affected-day count is zero **saves immediately with no dialog at all**. A complete
+and permanent transfer of pricing authority, with zero operator confirmation.
+
+This is the same class of defect as the original create-path incident that
+`restate-scope.ts`'s module header warns about — a confirmation gate conditioned on
+something other than "did pricing authority move".
+
+### What closing WR-08 requires
+
+1. `pricing-tier-form.tsx` must render `futureSupersededBy` as a second named
+   consequence alongside `supersedes`, in both the live inline preview and the
+   confirmation dialog body.
+2. The save gate must open the confirmation when **either** `supersedes` **or**
+   `futureSupersededBy` is non-null, keeping the "regardless of day count" guarantee on
+   both — the gate's condition should be "did pricing authority move", not "is
+   `supersedes` set".
+
+_Corrected: 2026-09-17_
+_Method: the closure claim was re-verified by grep and by hand-tracing the two-set case before reopening. The initial "Fixed" was recorded from the plan's intent rather than from the shipped UI — exactly the failure mode this phase existed to correct, and worth recording as such._
