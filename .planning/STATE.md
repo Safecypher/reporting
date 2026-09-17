@@ -4,16 +4,16 @@ milestone: v1.0
 current_phase: 08
 current_phase_name: Period & Pricing Correctness
 status: executing
-stopped_at: Phase 8 planned 2026-09-16 — 4 plans in 3 waves. Ready to execute.
-last_updated: "2026-09-17T17:02:44.854Z"
+stopped_at: Completed 08-02-PLAN.md
+last_updated: "2026-09-17T17:41:33.052Z"
 last_activity: 2026-09-17
 last_activity_desc: Phase 08 execution started
-state_head: fa9652b1fd7462b9d1e997e2fc1675c68c42f458
+state_head: ed0480e00eb24ef8f53a2e9efe786e2e06024cf7
 progress:
   total_phases: 8
   completed_phases: 7
   total_plans: 54
-  completed_plans: 50
+  completed_plans: 52
 milestone_name: milestone
 ---
 
@@ -29,8 +29,8 @@ See: .planning/PROJECT.md (updated 2026-08-18)
 ## Current Position
 
 Phase: 08 (Period & Pricing Correctness) — EXECUTING
-Plan: 1 of 4
-Status: Executing Phase 08
+Plan: 2 of 4
+Status: Ready to execute
 Last activity: 2026-09-17 — Phase 08 execution started
 
 Progress: [████████░░] 88%
@@ -90,6 +90,7 @@ Progress: [████████░░] 88%
 | Phase 07 P04 | ~4min (+2 checkpoint round-trips) | 3 tasks | 4 files |
 | Phase 07 P05 | 7min | 3 tasks | 8 files |
 | Phase 07 P06 | not precisely tracked | 3 tasks | 6 files |
+| Phase 08 P02 | 30min | 2 tasks | 3 files |
 
 ## Accumulated Context
 
@@ -161,6 +162,8 @@ Recent decisions affecting current work:
 - [Phase 07]: [Phase 07] Plan 07-05: revenue-forecast.ts fetcher converts every NUMERIC-string column to a number exactly once, preserving null (degraded) columns as null rather than coercing to zero; formatForecastMethodCaption returns null based on runRate/asOfDay being null as a degraded-state proxy, per its five-argument plan signature
 - [Phase 07]: [Phase 07] Plan 07-05: home revenue tile's projectedSubLine wired live -- isProjectablePeriod gates a single conditional fetchRevenueForecast call folded into the existing Promise.all, reusing the one already-captured clock read; absent (never zeroed) whenever the gate is false, the fetch errors, or the forecast is degraded
 - [Phase 07]: [Phase 07] Plan 07-06: /revenue's actual/projected KPI pair and dashed chart segment complete -- RevenueProjection interface/card, projection-aware rebucketRevenue (null-preserving), RevenueChart's second dashed provisional Line, full D-12 page wiring folding both forecast RPCs into the existing Promise.all with a card-scoped error path kept out of the page-level combined error branch
+- [Phase 08]: [Phase 08] Plan 08-02: resolveEditImpact gains an optional futureSupersededBy field (WR-08) naming the set that permanently absorbs the edited set's former future territory, distinct from the immediately-crossed supersedes neighbour -- field is optional/omitted (never null) so no pre-existing toEqual structural assertion needed to change
+- [Phase 08]: [Phase 08] Plan 08-02: WR-02/WR-09 exact-date-collision fix is UI-layer only (PricingTierForm) -- restate-scope.ts's resolver keeps reporting the collision via supersedes per its own deliberate pinned test; the duplicate-date hint reuses PRICING_DUPLICATE_EFFECTIVE_FROM's copy in both the live inline preview and the onSubmit gate (one check covers both create and edit modes)
 
 ### Pending Todos
 
@@ -201,6 +204,6 @@ Items acknowledged and carried forward from previous milestone close:
 
 ## Session Continuity
 
-Last session: 2026-09-15T13:07:06.670Z
-Stopped at: Phase 07 complete, ready to plan Phase 5
+Last session: 2026-09-17T17:41:32.827Z
+Stopped at: Completed 08-02-PLAN.md
 Resume file: None

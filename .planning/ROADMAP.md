@@ -397,7 +397,7 @@ RPCs read the same period bounds, so a WR-03 clamp change must not move a verifi
      per-month-vs-aggregate invariant) and Phase 7's check-8 chart-sums-to-card equality still
      hold after the changes.
 
-**Plans**: 1/4 plans executed (0 executed)
+**Plans**: 2/4 plans executed (0 executed)
 
 Plans:
 
@@ -407,7 +407,7 @@ Plans:
 
 **Wave 2** *(blocked on 08-01; disjoint files, so these two run in parallel)*
 
-- [ ] 08-02-PLAN.md — Tier-set supersede disclosure: name the set that absorbs the edited set's future territory, and treat an exact-date collision as a duplicate rather than a restatement (WR-08, WR-09, WR-02)
+- [x] 08-02-PLAN.md — Tier-set supersede disclosure: name the set that absorbs the edited set's future territory, and treat an exact-date collision as a duplicate rather than a restatement (WR-08, WR-09, WR-02)
 - [ ] 08-03-PLAN.md — Migration 0039: `data_window_start()`, an advisory transaction lock on the coverage guard, and the guard's first committed regression test (WR-06, WR-05, WR-07 SQL half)
 
 **Wave 3** *(blocked on all — requires Supabase MCP; orchestrator runs this, not an executor)*
