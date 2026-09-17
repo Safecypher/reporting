@@ -397,7 +397,7 @@ RPCs read the same period bounds, so a WR-03 clamp change must not move a verifi
      per-month-vs-aggregate invariant) and Phase 7's check-8 chart-sums-to-card equality still
      hold after the changes.
 
-**Plans**: 3/4 plans executed (0 executed)
+**Plans**: 4/4 plans executed (0 executed)
 
 Plans:
 
@@ -412,7 +412,7 @@ Plans:
 
 **Wave 3** *(blocked on all — requires Supabase MCP; orchestrator runs this, not an executor)*
 
-- [ ] 08-04-PLAN.md — [BLOCKING] Apply 0039 live, run all ten SQL oracles, answer IN-03 against the real PostgREST version, prove the five live figures did not move, and close 05-REVIEW.md per finding (IN-03)
+- [x] 08-04-PLAN.md — [BLOCKING] Apply 0039 live, run all ten SQL oracles, answer IN-03 against the real PostgREST version, prove the five live figures did not move, and close 05-REVIEW.md per finding (IN-03)
 
 **Notes for planning**
 
