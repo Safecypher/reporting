@@ -41,13 +41,13 @@
     {
       "number": "8",
       "name": "Period & Pricing Correctness",
-      "status": "planned"
+      "status": "in_progress"
     }
   ],
   "next": {
-    "command": "/gsd-execute-phase 8",
-    "label": "Execute Phase 8 — Period & Pricing Correctness",
-    "reason": "4 plans in 3 waves, planned 2026-09-16. 08-04 is BLOCKING and requires Supabase MCP, which executor subagents do not have — the orchestrator must apply migration 0039 and run the live oracles itself."
+    "command": "/gsd:progress --next",
+    "label": "Advance to the next step",
+    "reason": "Phase 08 of 8 · executing"
   },
-  "updated_at": "2026-09-16T17:30:00.000Z"
+  "updated_at": "2026-09-17T17:51:48.470Z"
 }
