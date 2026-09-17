@@ -35,7 +35,10 @@ import {
   resolveSaveImpact,
   type TierSetSaveMode,
 } from "@/lib/pricing/restate-scope";
-import type { PricingErrorTone } from "@/lib/pricing/errors";
+import {
+  PRICING_DUPLICATE_EFFECTIVE_FROM,
+  type PricingErrorTone,
+} from "@/lib/pricing/errors";
 
 const RESET_WINDOW_OPTIONS = [
   { value: "monthly", label: "Monthly" },
@@ -205,8 +208,21 @@ export function PricingTierForm({ tierSets }: PricingTierFormProps) {
     typeof watchedEffectiveFrom === "string" && watchedEffectiveFrom.length === 10
       ? resolveSaveImpact(saveMode, watchedEffectiveFrom, existingForImpact)
       : null;
+  // WR-02/WR-09 (08-02): an exact-date collision (proposedEffectiveFrom ===
+  // the displaced set's own effective_from) is a DUPLICATE, not a
+  // restatement — restate-scope.test.ts deliberately pins the resolver to
+  // still report it via `supersedes` (the resolver's job is to describe
+  // governance, and the collision genuinely changes it), so the UI layer is
+  // where the distinction is made: show the duplicate-date hint instead of
+  // the normal restate preview, reusing the server's own copy so the
+  // pre-submit hint and the post-submit error never tell two different
+  // stories about the same condition.
+  const isDuplicateEffectiveFromPreview =
+    resolvedImpactPreview !== null && resolvedImpactPreview.supersedes === watchedEffectiveFrom;
   const supersedeNotice =
-    resolvedImpactPreview && resolvedImpactPreview.supersedes !== null
+    resolvedImpactPreview &&
+    resolvedImpactPreview.supersedes !== null &&
+    !isDuplicateEffectiveFromPreview
       ? resolvedImpactPreview
       : null;
 
@@ -275,6 +291,23 @@ export function PricingTierForm({ tierSets }: PricingTierFormProps) {
     // edit never reports itself as superseding itself (belt-and-braces:
     // resolveSaveImpact's edit branch also excludes it internally by id).
     const impact = resolveSaveImpact(saveMode, data.effectiveFrom, existingForImpact);
+
+    // WR-02/WR-09 (08-02): an exact-date collision — the proposed
+    // effective_from lands exactly on the displaced set's own date — is a
+    // DUPLICATE, not a restatement. restate-scope.ts's resolver deliberately
+    // still reports this via `supersedes` (its job is to describe
+    // governance, and the collision genuinely changes it — see
+    // restate-scope.test.ts's pinned "reports a displacement even when the
+    // proposed date lands exactly on another set's date" case), so the
+    // distinction is made here, at the UI layer, for BOTH create and edit:
+    // never open a restate confirmation for a write the server's
+    // `pricing_tier_sets_effective_from_key` UNIQUE constraint will reject
+    // outright. Reuses the server error's own copy so the pre-submit and
+    // post-submit stories always match.
+    if (impact !== null && impact.supersedes === data.effectiveFrom) {
+      setBannerError({ tone: "warning", message: PRICING_DUPLICATE_EFFECTIVE_FROM });
+      return;
+    }
 
     if (impact === null) {
       // create-only: nothing active prices this date yet — the genuinely-
@@ -466,22 +499,31 @@ export function PricingTierForm({ tierSets }: PricingTierFormProps) {
                 gate — legible before the confirmation dialog, not only
                 inside it. Never destructive tokens: nothing has gone wrong
                 yet, this is informational. */}
-            {supersedeNotice && (
-              <p className="rounded-md border border-[color:var(--warning)]/30 bg-[color:var(--warning)]/10 p-2 text-xs font-light text-foreground">
-                {isCreatingNewSet ? (
-                  <>
-                    A tier set effective {supersedeNotice.supersedes} currently
-                    prices {supersedeNotice.from} onward. Saving this supersedes
-                    it from {supersedeNotice.from}.
-                  </>
-                ) : (
-                  <>
-                    A tier set effective {supersedeNotice.supersedes} currently
-                    prices some of those days. Saving moves that pricing to
-                    this set from {watchedEffectiveFrom}.
-                  </>
-                )}
+            {isDuplicateEffectiveFromPreview ? (
+              // WR-02/WR-09: an exact-date collision is a duplicate, not a
+              // restatement — same copy the server's UNIQUE constraint
+              // would produce, shown before the user even submits.
+              <p className="rounded-md border border-border bg-muted p-2 text-xs font-light text-muted-foreground">
+                {PRICING_DUPLICATE_EFFECTIVE_FROM}
               </p>
+            ) : (
+              supersedeNotice && (
+                <p className="rounded-md border border-[color:var(--warning)]/30 bg-[color:var(--warning)]/10 p-2 text-xs font-light text-foreground">
+                  {isCreatingNewSet ? (
+                    <>
+                      A tier set effective {supersedeNotice.supersedes} currently
+                      prices {supersedeNotice.from} onward. Saving this supersedes
+                      it from {supersedeNotice.from}.
+                    </>
+                  ) : (
+                    <>
+                      A tier set effective {supersedeNotice.supersedes} currently
+                      prices some of those days. Saving moves that pricing to
+                      this set from {watchedEffectiveFrom}.
+                    </>
+                  )}
+                </p>
+              )
             )}
           </div>
 
