@@ -878,6 +878,7 @@ export type Database = {
           tsys_covered_days: number
         }[]
       }
+      data_window_start: { Args: never; Returns: string }
       delete_pricing_tier_set: {
         Args: { p_tier_set_id: string }
         Returns: undefined
