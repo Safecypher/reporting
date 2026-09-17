@@ -76,42 +76,83 @@ describe("resolvePeriod", () => {
     expect(result.end).toBe("2027-01-01");
   });
 
-  it("resolves a 6 April financial year from the side BEFORE the boundary (1 March)", () => {
-    const today = new Date("2026-03-01T00:00:00Z");
-    const result = resolvePeriod({ period: "year", yearMode: "financial" }, APRIL_FY, today);
+  it("WR-04: the current-year financial year resolves identically regardless of which side of the FY start day `today` falls on", () => {
+    // Pre-fix, this exact pair of `today` values resolved to TWO DIFFERENT
+    // financial years (FY2025-26 before 6 April, FY2026-27 after it) purely
+    // because the clock crossed the FY start day between the two loads —
+    // that non-determinism is the WR-04 bug. Post-fix, both resolve to the
+    // SAME financial year: the one anchored to 31 December of the current
+    // year, exactly like every past year already resolved.
+    const beforeBoundary = new Date("2026-03-01T00:00:00Z");
+    const afterBoundary = new Date("2026-05-01T00:00:00Z");
 
-    expect(result.start).toBe("2025-04-06");
-    expect(result.end).toBe("2026-04-06");
-    expect(result.label).toContain("FY2025-26");
-    expect(result.label).toContain("5 Apr 2026");
+    const resultBefore = resolvePeriod(
+      { period: "year", yearMode: "financial" },
+      APRIL_FY,
+      beforeBoundary,
+    );
+    const resultAfter = resolvePeriod(
+      { period: "year", yearMode: "financial" },
+      APRIL_FY,
+      afterBoundary,
+    );
+
+    expect(resultBefore).toEqual(resultAfter);
+    expect(resultBefore.of).toBe("2026");
+    expect(resultBefore.label).toBe("FY2026-27 (6 Apr 2026 - 5 Apr 2027)");
+    expect(resultBefore.end).toBe("2027-04-06");
   });
 
-  it("resolves a 6 April financial year from the side AFTER the boundary (1 May) — a different FY", () => {
+  it("WR-03: an FY start before the data window clamps `start` to 2026-08-13 — the label keeps the FY's true (unclamped) calendar span", () => {
     const today = new Date("2026-05-01T00:00:00Z");
     const result = resolvePeriod({ period: "year", yearMode: "financial" }, APRIL_FY, today);
 
-    expect(result.start).toBe("2026-04-06");
+    // The raw FY start (6 Apr 2026) predates the 13 Aug 2026 data window.
+    expect(result.start).toBe("2026-08-13");
     expect(result.end).toBe("2027-04-06");
-    expect(result.label).toContain("FY2026-27");
+    expect(result.label).toBe("FY2026-27 (6 Apr 2026 - 5 Apr 2027)");
   });
 
-  it("financial-year label shows the INCLUSIVE end date, never the exclusive boundary", () => {
-    const today = new Date("2026-03-01T00:00:00Z");
-    const result = resolvePeriod({ period: "year", yearMode: "financial" }, APRIL_FY, today);
+  it("WR-03: an FY start on/after the data window resolves its own date, unclamped", () => {
+    const today = new Date("2026-10-10T00:00:00Z");
+    const result = resolvePeriod(
+      { period: "year", yearMode: "financial" },
+      { month: 9, day: 1 },
+      today,
+    );
 
-    expect(result.label).toBe("FY2025-26 (6 Apr 2025 - 5 Apr 2026)");
+    expect(result.start).toBe("2026-09-01");
   });
 
-  it("clamps a 29 February FY start (rejected at the DB layer, clamped here)", () => {
-    const today = new Date("2026-06-01T00:00:00Z"); // non-leap year
+  it("WR-04: the current-year FY option never duplicates the adjacent (previous-year) FY option", () => {
+    const today = new Date("2027-05-01T00:00:00Z");
+    const currentYearOption = resolvePeriod(
+      { period: "year", yearMode: "financial" },
+      APRIL_FY,
+      today,
+    );
+    const previousYearOption = resolvePeriod(
+      { period: "year", yearMode: "financial", of: "2026" },
+      APRIL_FY,
+      today,
+    );
+
+    expect(currentYearOption.of).toBe("2027");
+    expect(previousYearOption.of).toBe("2026");
+    expect(currentYearOption.start).not.toBe(previousYearOption.start);
+    expect(currentYearOption.end).not.toBe(previousYearOption.end);
+  });
+
+  it("clamps a 29 February FY start (rejected at the DB layer, clamped here) — a year safely clear of the data window, isolating the day-in-month clamp from WR-03's floor clamp", () => {
+    const today = new Date("2027-06-01T00:00:00Z"); // non-leap year
     const result = resolvePeriod(
       { period: "year", yearMode: "financial" },
       { month: 2, day: 29 },
       today,
     );
 
-    // 2026 is not a leap year — clamp to 28 Feb.
-    expect(result.start).toBe("2026-02-28");
+    // 2027 is not a leap year — clamp to 28 Feb.
+    expect(result.start).toBe("2027-02-28");
   });
 
   it("clamps a 29 February FY start to the 29th in an actual leap year", () => {
@@ -125,15 +166,15 @@ describe("resolvePeriod", () => {
     expect(result.start).toBe("2028-02-29");
   });
 
-  it("clamps a 31-day FY start landing in a 30-day month (April)", () => {
-    const today = new Date("2026-06-01T00:00:00Z");
+  it("clamps a 31-day FY start landing in a 30-day month (April) — a year safely clear of the data window", () => {
+    const today = new Date("2027-06-01T00:00:00Z");
     const result = resolvePeriod(
       { period: "year", yearMode: "financial" },
       { month: 4, day: 31 },
       today,
     );
 
-    expect(result.start).toBe("2026-04-30");
+    expect(result.start).toBe("2027-04-30");
   });
 
   it("keeps a leap-year 29 February inside its own month window", () => {
