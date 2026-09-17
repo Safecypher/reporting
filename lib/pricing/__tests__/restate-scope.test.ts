@@ -301,3 +301,70 @@ describe("resolveSaveImpact — edit mode displacement across another tier set (
     expect(resolveSaveImpact(mode, "2026-09-15", existing)?.supersedes).toBe("2026-09-01");
   });
 });
+
+// WR-08 (08-02, closing 05-REVIEW's round-4 triage): `atOrBeforeProposed`
+// above only ever considers sets at-or-before the proposed date, so it can
+// never see a set LATER than the proposed date — including the one that
+// ends up permanently outranking the edited set for its own former future
+// territory. The three-set worked example below is the review's own
+// scenario: backdating across the earliest of two later sets correctly
+// names the crossed one (supersedes), but silently hands the SECOND,
+// further-out set every day from 2026-09-01 onward that the edited set
+// exclusively owned before the move — forever, since nothing existed beyond
+// it. `futureSupersededBy` is the new, distinct, second consequence.
+describe("resolveSaveImpact — edit mode reports the far-future consequence too (WR-08)", () => {
+  it("a three-set backdate names both the crossed set AND the set absorbing the edited set's future territory", () => {
+    const mode: TierSetSaveMode = { kind: "edit", id: "e", effectiveFrom: "2026-09-01" };
+    const existing = [
+      { id: "x", effectiveFrom: "2026-07-01" },
+      { id: "y", effectiveFrom: "2026-08-01" },
+    ];
+    // e currently owns 2026-09-01 onward, exclusively and forever (nothing
+    // existing is later than it). Backdating to 2026-07-15 crosses x
+    // (correctly reported as `supersedes`) but ALSO permanently surrenders
+    // everything from 2026-08-01 onward — including every day from
+    // 2026-09-01 that was e's own former exclusive territory — to y, which
+    // the pre-fix resolver never named.
+    expect(resolveSaveImpact(mode, "2026-07-15", existing)).toEqual({
+      from: "2026-07-15",
+      through: null,
+      supersedes: "2026-07-01",
+      futureSupersededBy: "2026-08-01",
+    });
+  });
+
+  it("does not fire on a single-set backdate — the crossed set IS the far-future governor, nothing further out exists", () => {
+    const mode: TierSetSaveMode = { kind: "edit", id: "e", effectiveFrom: "2026-10-01" };
+    const existing = [{ id: "a", effectiveFrom: "2026-08-13" }];
+    const result = resolveSaveImpact(mode, "2026-09-01", existing);
+    expect(result).toEqual({
+      from: "2026-09-01",
+      through: null,
+      supersedes: "2026-08-13",
+    });
+    expect(result?.futureSupersededBy).toBeUndefined();
+  });
+
+  it("does not fire on a forward move — a set later than the edited set's OLD date was already the permanent governor before the edit", () => {
+    const mode: TierSetSaveMode = { kind: "edit", id: "e", effectiveFrom: "2026-08-13" };
+    const existing = [
+      { id: "a", effectiveFrom: "2026-09-01" },
+      { id: "b", effectiveFrom: "2026-10-01" },
+    ];
+    const result = resolveSaveImpact(mode, "2026-09-15", existing);
+    expect(result).toEqual({
+      from: "2026-08-13",
+      through: "2026-09-30",
+      supersedes: "2026-09-01",
+    });
+    expect(result?.futureSupersededBy).toBeUndefined();
+  });
+
+  it("does not fire on an already-governed edit — no displacement at all, so no far-future consequence either", () => {
+    const mode: TierSetSaveMode = { kind: "edit", id: "e", effectiveFrom: "2026-09-01" };
+    const existing = [{ id: "a", effectiveFrom: "2026-08-13" }];
+    const result = resolveSaveImpact(mode, "2026-10-01", existing);
+    expect(result).toEqual({ from: "2026-09-01", through: null, supersedes: null });
+    expect(result?.futureSupersededBy).toBeUndefined();
+  });
+});

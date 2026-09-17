@@ -48,6 +48,19 @@ export interface SaveImpact {
   readonly through: string | null;
   /** The effective date of the tier set being displaced, or null. */
   readonly supersedes: string | null;
+  /**
+   * WR-08 (08-02): present ONLY when this edit permanently surrenders the
+   * edited set's own former future territory — the days it exclusively
+   * governed before the move — to a DIFFERENT, already-existing tier set.
+   * Always a distinct date from `supersedes` when both are present: this
+   * field is only set for a set whose `effective_from` is strictly LATER
+   * than the proposed date (it outranks the edited set going forward),
+   * whereas `supersedes` is only set for a set at-or-before the proposed
+   * date (the immediately crossed neighbour). Omitted (never `null`) when
+   * there is no such consequence, so existing structural-equality
+   * assertions against the 3-field shape are unaffected.
+   */
+  readonly futureSupersededBy?: string;
 }
 
 /**
@@ -98,6 +111,48 @@ function decrementUtcDay(dateIso: string): string {
  * as written: it is empty for every backdate, which is the direction the
  * live incident's sibling defect actually took.
  */
+/**
+ * WR-08 (08-02): the ORIGINAL `atOrBeforeProposed` gate above only ever
+ * considers sets at-or-before the proposed date — the immediately crossed
+ * neighbour. It cannot see a set later than the proposed date, even when
+ * that set is exactly the one that ends up permanently outranking the
+ * edited set going forward (`v_revenue_tier_set_by_day`'s rule is `order by
+ * effective_from desc limit 1` — highest `effective_from` not exceeding the
+ * day wins, for every day, forever).
+ *
+ * The edited set was the PERMANENT eternal governor before this edit only
+ * when its own (current) `effective_from` was the largest of every set in
+ * play — i.e. every OTHER set's `effective_from` is less than
+ * `currentEffectiveFrom`. After the edit, whichever other set now holds the
+ * largest `effective_from` becomes the new permanent governor if that date
+ * is greater than the PROPOSED date (it now outranks the edited set for
+ * every day from its own date onward, forever). Both conditions must hold:
+ * the edited set must have been the prior permanent governor, AND the
+ * challenger must newly outrank the edited set's proposed date — otherwise
+ * either nothing changes forever, or a nearer set already had its own
+ * boundary correctly reported via `through` above without this ever being a
+ * "the far future is gone" surprise.
+ */
+function resolveFutureSupersession(
+  currentEffectiveFrom: string,
+  proposedEffectiveFrom: string,
+  others: readonly ExistingTierSet[],
+): string | null {
+  if (others.length === 0) return null;
+
+  const permanentChallenger = others.reduce(
+    (latest, set) => (set.effectiveFrom > latest.effectiveFrom ? set : latest),
+    others[0],
+  );
+
+  const editedSetWasPermanentGovernorBeforeEdit = permanentChallenger.effectiveFrom < currentEffectiveFrom;
+  const challengerNowOutranksProposedDate = permanentChallenger.effectiveFrom > proposedEffectiveFrom;
+
+  return editedSetWasPermanentGovernorBeforeEdit && challengerNowOutranksProposedDate
+    ? permanentChallenger.effectiveFrom
+    : null;
+}
+
 function resolveEditImpact(
   editedId: string,
   currentEffectiveFrom: string,
@@ -133,8 +188,11 @@ function resolveEditImpact(
 
   const displaced = alreadyGoverned ? null : candidate;
 
+  const futureSupersededBy = resolveFutureSupersession(currentEffectiveFrom, proposedEffectiveFrom, others);
+  const futureSupersededByField = futureSupersededBy !== null ? { futureSupersededBy } : {};
+
   if (displaced === null) {
-    return { from, through: null, supersedes: null };
+    return { from, through: null, supersedes: null, ...futureSupersededByField };
   }
 
   // Only reachable when a displacement was found. Mirrors the create
@@ -155,7 +213,7 @@ function resolveEditImpact(
           ),
         );
 
-  return { from, through, supersedes: displaced.effectiveFrom };
+  return { from, through, supersedes: displaced.effectiveFrom, ...futureSupersededByField };
 }
 
 function resolveCreateImpact(
