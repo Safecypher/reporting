@@ -15,11 +15,13 @@ findings:
   warning: 8
   info: 2
   total: 10
-status: issues_found
+status: resolved
 triaged: 2026-09-16
-triage_result: all 10 open findings re-verified against main (2182efb) and still live; none fixed by Phase 6/7 work. See "Round-4 triage" at the end of this file.
-open_findings: [WR-02, WR-03, WR-04, WR-05, WR-06, WR-07, WR-08, WR-09, IN-03, IN-04]
-follow_up: Phase 5 gap-closure phase — not fixed in the triage pass
+triage_result: all 10 findings closed by Phase 8 (Period & Pricing Correctness), verified live against the linked project on 2026-09-17. IN-03 closed as "not a defect"; WR-07 closed with deliberately partial scope. See "Round-5 closure" at the end of this file.
+open_findings: []
+closed_by_phase: 08-period-and-pricing-correctness
+closed: 2026-09-17
+follow_up: none — closed by Phase 8
 ---
 
 # Phase 05: Code Review Report (incremental re-review, plan 05-09)
@@ -28,7 +30,7 @@ follow_up: Phase 5 gap-closure phase — not fixed in the triage pass
 **Depth:** standard
 **Files Reviewed:** 6 (the diff of gap-closure plan 05-09, commits `2e9ef5d`,
 `e67fc84`, `3d0e629`, `823c19e`, `da88015`)
-**Status:** issues_found
+**Status:** resolved (all 10 findings closed by Phase 8 — see Round-5 closure)
 
 ## Summary
 
@@ -406,3 +408,92 @@ audit trail was the right call. Both re-test themselves once real data accumulat
 
 _Triaged: 2026-09-16_
 _Triage method: read the shipped code and the test pins directly; `git log -1` per file used only to bound the search, never as evidence of a fix._
+
+---
+
+## Round-5 closure — 2026-09-17 (Phase 8: Period & Pricing Correctness)
+
+All ten findings are closed. Each row names the commit that closed it and states
+precisely *how* it closed — a finding recorded as fully fixed when it was partly
+deferred is the failure mode this phase existed to correct, so the two non-standard
+closures (WR-07, IN-03) are spelled out rather than ticked.
+
+| Finding | Closed by | Commit | How it closed |
+|---|---|---|---|
+| WR-02 | 08-02 | `ed0480e` | Fixed. An exact-date collision now renders `PRICING_DUPLICATE_EFFECTIVE_FROM`'s duplicate hint in both create and edit mode, instead of opening a restate confirmation the server's UNIQUE constraint would reject. |
+| WR-03 | 08-01 | `1026b2d`, `7f6f090` | Fixed. Financial-year `start` is clamped to the data-window floor, and the two raw-table fetchers now AND their own floor with the requested start rather than replacing it. `fetchRemovedCardRows` included. |
+| WR-04 | 08-01 | `1026b2d`, `e2d4769` | Fixed. The current-financial-year period is now deterministic across reloads and can no longer duplicate an adjacent dropdown option. |
+| WR-05 | 08-03 | `6e72e6b` | Fixed. `supabase/tests/pricing_tier_coverage_guard_test.sql` is the guard's first committed test — six cases in one `begin; … rollback;` block. Run live 2026-09-17: all six pass, rollback confirmed. |
+| WR-06 | 08-03 | `deacd78` | Fixed. Both RPCs take `pg_advisory_xact_lock(20260813)` before evaluating coverage, so a concurrent save and a concurrent delete serialise against each other — not merely against same-function calls. An advisory lock was chosen over `select … for update` because the guard's predicate is about the *absence* of a covering row, which row locks cannot cover. |
+| WR-07 | 08-01 (TS) + 08-03 (SQL) | `1026b2d`, `deacd78` | **Partially closed, by design.** The TypeScript *dashboard* cluster is consolidated into `lib/dashboard/data-window.ts` (a zero-import leaf, per the round-4 constraint note above). The SQL side gained `data_window_start()`, used by migration 0039 and new SQL from here on. **Deliberately NOT done:** the six `lib/ingestion/normalise*` modules, and the 20+ applied migrations containing the literal — those are applied history and were left as history. Both exclusions are documented in the module/migration headers so the untouched literals do not read as an unfinished job. |
+| WR-08 | 08-02 | `2907f7d` | Fixed. `resolveEditImpact` gained `futureSupersededBy`, which names the set that permanently takes over the edited set's own former future territory — the review's option (b), not (a). The three-set backdate worked example (x 2026-07-01, y 2026-08-01, e 2026-09-01 → 2026-07-15) is encoded as a test, plus three non-firing regression cases. |
+| WR-09 | 08-02 | `ed0480e` | Fixed alongside WR-02 — one check covering both create and edit mode. |
+| IN-03 | 08-04 | `bccf2a1` | **Closed as "not a defect", verified against the live project.** `types/db.ts`'s `PostgrestVersion: "14.5"` is correct: the linked project's own generator emits exactly `14.5`. `14.5 < 14.15` only looks like a regression under semver; lexically these are just different strings, and the project is genuinely on 14.5. The version string was **not** hand-edited. The regeneration that confirmed this did pick up one genuine change — the new `data_window_start` function — which is the entire diff. |
+| IN-04 | 08-01 | `7f6f090` | Fixed. `rowsWithin`'s doc comment no longer overstates its coverage, and `removed_at` is now actually exercised. |
+
+### Live verification, 2026-09-17
+
+Migration `0039_pricing_tier_coverage_guard_lock.sql` applied to the linked project.
+Confirmed by actual returned values, not by assertion:
+
+- `data_window_start()` → `2026-08-13`
+- `save_pricing_tier_set` and `delete_pricing_tier_set` each have **exactly one**
+  overload (checked by name in the catalog, since `create or replace` cannot change
+  an argument count — a signature drift would have produced a second function, not an
+  error). Signatures unchanged.
+- Grants survived the replace on all three functions: `anon` execute `false`,
+  `authenticated` execute `true`.
+- `security definer` + `search_path=public` on both RPCs; `data_window_start()` is
+  `immutable`, `security invoker`, `search_path=public` as designed.
+- Both live function bodies contain `pg_advisory_xact_lock(20260813)` and
+  `data_window_start()`, and contain **no** remaining `date '2026-08-13'` literal.
+
+All ten SQL oracles were run live. The three transaction-wrapped ones were each sent
+as a single whole-body statement (never statement-by-statement — the recorded hazard
+that previously deleted production data), and rollback was confirmed afterwards by
+re-counting:
+
+| Oracle | Result |
+|---|---|
+| `pricing_tier_coverage_guard_test.sql` | 6/6 cases pass; rollback confirmed |
+| `revenue_boundary_test.sql` | pass; rollback confirmed |
+| `tsys_msa_tier_test.sql` | 3/3 blocks pass; rollback confirmed |
+| `revenue_forecast_test.sql` | 8/8 checks pass — **none skipped** (`degraded = false`) |
+| `revenue_source_invariants_test.sql` | 6/6 invariants pass — check 5 ran (TSYS total `0.0810` ≠ 0) |
+| `alignment_truth_table_test.sql` | 6/6 blocks pass |
+| `alignment_live_cards_test.sql` | 6/6 blocks pass |
+| `alignment_inventory_diff_rows_test.sql` | 5/5 blocks pass — Block C genuinely exercised (5 unpaired days), not the honest-skip branch |
+| `reconciliation_no_source_data_test.sql` | 6/6 invariants pass |
+| `baseline_as_of_trigger_test.sql` | 3/3 blocks pass |
+
+Row counts before and after every destructive-oracle run were identical
+(`pricing_tier_sets` 1, `pricing_tiers` 6, `verifications` 4567, `ingested_files` 72).
+
+### The no-regression proof
+
+Phase 8 moved no verified figure. Captured live after 0039 was applied and every plan
+merged, against the pre-Phase-8 expectations:
+
+| Figure | Expected | Actual | Moved? |
+|---|---|---|---|
+| MSA worked example, 1,500,000 transactions | `45450.0000` | `45450.0000` | No |
+| Same via `price_volume_through_tier_set` | `45450.0000` | `45450.0000` | No |
+| D-06 per-month-vs-aggregate invariant | `1200.0000 > 1050.0000` | asserted live (MSA oracle Block B) | No |
+| August `projected_revenue` = daily sum | `5.58661764705882352965` | `5.58661764705882352965` | No |
+| September `projected_revenue` = daily sum | `578.26799999999999999100` | `578.26799999999999999100` | No |
+| Live `pricing_tier_sets` row count | unchanged | 1, unchanged across the whole phase | No |
+
+This was a prediction to test, not a conclusion to assert: live rows start at
+2026-08-13, so the days WR-03's clamp removes hold no rows and contribute zero. The
+prediction held exactly, to the last digit of a 20-significant-figure numeric.
+
+One methodological note worth keeping. An early capture of the August/September
+figures used ad-hoc parameters (`p_min_covered_days = 3`, calendar month-end dates)
+and produced `5.0726…`/`558.3375…`, which looked like movement. It was not — those
+are different questions, not different answers. Reproducing the figures requires the
+oracle's own parameters (`p_min_covered_days = 1`, exclusive next-month start). The
+lesson generalises: a "figure moved" alarm must first rule out that the two readings
+were taken with different arguments.
+
+_Closed: 2026-09-17_
+_Method: migration applied and every oracle run against the linked project via Supabase MCP; every figure recorded as its actual returned value._
