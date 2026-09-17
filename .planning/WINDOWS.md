@@ -104,10 +104,10 @@ last_updated: 2026-09-17T17:23:34.127Z
     "file": "lib/dashboard/period.ts",
     "line": null,
     "description": "Task 4 no-regression proof (live before/after figures: 45450.00 MSA worked example, D-06 1200.0000>1050.0000, Aug/Sep revenue_forecast_daily sums) not run this session -- 08-01 executor has no Supabase MCP/DB access by design; needs orchestrator or 08-04 to capture before/after live figures once migration 0039 and this plan's clamp are both live",
-    "status": "open",
-    "reason": "",
+    "status": "resolved",
+    "reason": "Captured live by 08-04 on 2026-09-17 after migration 0039 was applied. All five figures byte-identical to the pre-Phase-8 expectations: MSA 1500000 = 45450.0000, D-06 1200.0000>1050.0000 (asserted live in tsys_msa_tier_test Block B), August projected_revenue = daily sum = 5.58661764705882352965, September = 578.26799999999999999100, pricing_tier_sets row count unchanged at 1. Nothing moved.",
     "recorded_at": "2026-09-17T17:23:34.127Z",
-    "resolved_at": null,
+    "resolved_at": "2026-09-17T19:05:00.000Z",
     "milestone": "v1.0"
   }
 ]
