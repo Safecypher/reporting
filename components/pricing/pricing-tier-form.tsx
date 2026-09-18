@@ -36,6 +36,11 @@ import {
   type TierSetSaveMode,
 } from "@/lib/pricing/restate-scope";
 import {
+  buildRestateDialogCopy,
+  resolvePricingAuthorityMove,
+  resolveRestateGate,
+} from "@/lib/pricing/restate-gate";
+import {
   PRICING_DUPLICATE_EFFECTIVE_FROM,
   type PricingErrorTone,
 } from "@/lib/pricing/errors";
@@ -70,13 +75,16 @@ export interface PricingTierSetWithTiers extends TierSetSelectorOption {
 
 /**
  * "edit" — the existing D-18/P-04 restate dialog (unchanged copy/behaviour),
- * fired when an edit changes only the selected set's OWN days.
+ * reserved strictly for an edit that moves no pricing authority at all and
+ * only restates its own days.
  * "create-supersede" — G-05-5: a NEW tier set landing on a date an existing
  * set already prices.
- * "edit-supersede" — G-05-CR01: an EDIT whose new effective date takes days
- * from a DIFFERENT, currently-active tier set, in either crossing direction.
- * `supersedes`/`proposedEffectiveFrom` are only populated for the two
- * "-supersede" variants.
+ * "edit-supersede" — G-05-CR01, widened by WR-08 (08-05): an EDIT that moves
+ * pricing authority in EITHER direction — takes days from a different,
+ * currently-active tier set (`supersedes`), permanently surrenders its own
+ * future days to one (`futureSupersededBy`), or both at once.
+ * `supersedes`/`futureSupersededBy`/`proposedEffectiveFrom` are only
+ * populated for the two "-supersede" variants.
  */
 type RestateDialogVariant = "edit" | "create-supersede" | "edit-supersede";
 
@@ -86,6 +94,7 @@ interface RestateDialogState {
   days: number;
   pendingData: PricingTierSetInput | null;
   supersedes: string | null;
+  futureSupersededBy: string | null;
   proposedEffectiveFrom: string | null;
 }
 
@@ -95,6 +104,7 @@ const CLOSED_RESTATE_DIALOG: RestateDialogState = {
   days: 0,
   pendingData: null,
   supersedes: null,
+  futureSupersededBy: null,
   proposedEffectiveFrom: null,
 };
 
@@ -219,11 +229,17 @@ export function PricingTierForm({ tierSets }: PricingTierFormProps) {
   // stories about the same condition.
   const isDuplicateEffectiveFromPreview =
     resolvedImpactPreview !== null && resolvedImpactPreview.supersedes === watchedEffectiveFrom;
+  // WR-08 (08-05): exactly ONE derivation — resolvePricingAuthorityMove —
+  // feeds both this preview and the submit gate's resolveRestateGate call
+  // below, so the pre-submit hint can never disagree with what actually
+  // blocks the write.
+  const previewMove =
+    isDuplicateEffectiveFromPreview || resolvedImpactPreview === null
+      ? null
+      : resolvePricingAuthorityMove(resolvedImpactPreview);
   const supersedeNotice =
-    resolvedImpactPreview &&
-    resolvedImpactPreview.supersedes !== null &&
-    !isDuplicateEffectiveFromPreview
-      ? resolvedImpactPreview
+    previewMove && resolvedImpactPreview
+      ? { ...previewMove, from: resolvedImpactPreview.from }
       : null;
 
   const tiersFieldError = form.formState.errors.tiers;
@@ -328,54 +344,30 @@ export function PricingTierForm({ tierSets }: PricingTierFormProps) {
       return;
     }
 
-    if (saveMode.kind === "edit") {
-      if (impact.supersedes !== null) {
-        // G-05-CR01: this edit takes days from a DIFFERENT, currently-active
-        // tier set — ALWAYS open the confirmation, regardless of day count.
-        // Conditioning this gate on activity days is exactly the mistake
-        // that let the original (create-path) incident through; see the
-        // module header of lib/pricing/restate-scope.ts.
-        setRestateDialog({
-          open: true,
-          variant: "edit-supersede",
-          days: countResult.days,
-          pendingData: data,
-          supersedes: impact.supersedes,
-          proposedEffectiveFrom: data.effectiveFrom,
-        });
-        return;
-      }
-      // D-18/P-04 verbatim: zero affected days saves immediately, one or
-      // more opens the (unchanged) restate dialog.
-      if (countResult.days === 0) {
-        await performSave(data, tierSetIdForSave);
-        return;
-      }
-      setRestateDialog({
-        ...CLOSED_RESTATE_DIALOG,
-        open: true,
-        variant: "edit",
-        days: countResult.days,
-        pendingData: data,
-      });
+    // WR-08 (08-05): the gate's question is "did pricing authority move" —
+    // read via resolveRestateGate, which checks BOTH impact.supersedes and
+    // impact.futureSupersededBy, not impact.supersedes in isolation. That
+    // single-limb condition was the defect: futureSupersededBy can fire
+    // while supersedes is null, which let a silent, zero-confirmation
+    // transfer of pricing authority through at a zero affected-day count.
+    // resolveRestateGate ALWAYS confirms whenever either limb fired —
+    // unconditionally of restatedDays — carrying forward G-05-CR01's
+    // "never condition the always-confirm guarantee on activity days"
+    // rationale, now correctly scoped to both directions of movement.
+    const decision = resolveRestateGate(saveMode.kind, impact, countResult.days);
+
+    if (decision.kind === "save-immediately") {
+      await performSave(data, tierSetIdForSave);
       return;
     }
 
-    // create: an existing set already prices this date — ALWAYS open the
-    // confirmation, regardless of day count. This is the gate the live
-    // incident needed and it must not be conditioned on activity days
-    // (see the module header of lib/pricing/restate-scope.ts).
     setRestateDialog({
       open: true,
-      variant: "create-supersede",
+      variant: decision.variant,
       days: countResult.days,
       pendingData: data,
-      // Non-null by construction: the create branch of resolveSaveImpact
-      // only returns a non-null impact when it found a superseded set.
-      supersedes: impact.supersedes as string,
-      // The submitted form value — the honest source on both the create and
-      // edit-supersede paths. For create this already equals the resolved
-      // `impact.from`, so no visible copy change here.
+      supersedes: decision.move?.supersedes ?? null,
+      futureSupersededBy: decision.move?.futureSupersededBy ?? null,
       proposedEffectiveFrom: data.effectiveFrom,
     });
   });
@@ -400,35 +392,17 @@ export function PricingTierForm({ tierSets }: PricingTierFormProps) {
   }
 
   // Copy for the three restate-dialog variants (D-18 edit, unchanged; G-05-5
-  // create-supersede; G-05-CR01 edit-supersede, new). Kept out of the JSX
-  // below so all three bodies stay easy to diff against 05-UI-SPEC.md's
-  // Copywriting Contract verbatim.
-  const restateDialogCopy =
-    restateDialog.variant === "create-supersede"
-      ? {
-          title: "Add a new tier set and supersede the current rates?",
-          body:
-            restateDialog.days > 0
-              ? `This creates a new tier set effective ${restateDialog.proposedEffectiveFrom}. From that date it replaces the tier set effective ${restateDialog.supersedes}, including ${restateDialog.days} ${restateDialog.days === 1 ? "day" : "days"} already recorded, whose revenue will be restated. This is recorded in the change history.`
-              : `This creates a new tier set effective ${restateDialog.proposedEffectiveFrom}. From that date it replaces the tier set effective ${restateDialog.supersedes} for all revenue. No day recorded so far changes. This is recorded in the change history.`,
-          confirmLabel:
-            restateDialog.days > 0 ? "Add tier set and restate revenue" : "Add tier set",
-        }
-      : restateDialog.variant === "edit-supersede"
-        ? {
-            title: "Save changes and take over pricing from another tier set?",
-            body:
-              restateDialog.days > 0
-                ? `Moving this tier set to ${restateDialog.proposedEffectiveFrom} makes it price days currently priced by the tier set effective ${restateDialog.supersedes}. This restates ${restateDialog.days} ${restateDialog.days === 1 ? "day" : "days"} already recorded — past figures shown for that period will change. This is recorded in the change history.`
-                : `Moving this tier set to ${restateDialog.proposedEffectiveFrom} makes it price days currently priced by the tier set effective ${restateDialog.supersedes}. No day recorded so far changes. This is recorded in the change history.`,
-            confirmLabel:
-              restateDialog.days > 0 ? "Save and restate revenue" : "Save changes",
-          }
-        : {
-            title: "Save changes to pricing tiers?",
-            body: `This will restate revenue for ${restateDialog.days} ${restateDialog.days === 1 ? "day" : "days"}. Past figures shown for that period will change to reflect the corrected rates. This is recorded in the change history.`,
-            confirmLabel: "Save and restate revenue",
-          };
+  // create-supersede; G-05-CR01/WR-08 edit-supersede). Delegated to
+  // buildRestateDialogCopy (lib/pricing/restate-gate.ts) — the same module
+  // the submit gate reads via resolveRestateGate — so the dialog can never
+  // tell a different story than the gate that opened it.
+  const restateDialogCopy = buildRestateDialogCopy({
+    variant: restateDialog.variant,
+    days: restateDialog.days,
+    proposedEffectiveFrom: restateDialog.proposedEffectiveFrom,
+    supersedes: restateDialog.supersedes,
+    futureSupersededBy: restateDialog.futureSupersededBy,
+  });
 
   return (
     <div className="flex flex-col gap-6">
@@ -516,10 +490,25 @@ export function PricingTierForm({ tierSets }: PricingTierFormProps) {
                       it from {supersedeNotice.from}.
                     </>
                   ) : (
+                    // WR-08 (08-05): the edit-mode preview now matches the
+                    // dialog's own three-shape sentence logic, so the
+                    // pre-submit hint and the confirmation that follows it
+                    // never tell two different stories.
                     <>
-                      A tier set effective {supersedeNotice.supersedes} currently
-                      prices some of those days. Saving moves that pricing to
-                      this set from {watchedEffectiveFrom}.
+                      {supersedeNotice.supersedes !== null && (
+                        <>
+                          A tier set effective {supersedeNotice.supersedes} currently
+                          prices some of those days. Saving moves that pricing to
+                          this set from {watchedEffectiveFrom}.{" "}
+                        </>
+                      )}
+                      {supersedeNotice.futureSupersededBy !== null && (
+                        <>
+                          From {supersedeNotice.futureSupersededBy} onward the tier
+                          set effective {supersedeNotice.futureSupersededBy} prices
+                          every day instead, permanently.
+                        </>
+                      )}
                     </>
                   )}
                 </p>
