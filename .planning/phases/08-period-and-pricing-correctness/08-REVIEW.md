@@ -1,199 +1,132 @@
 ---
 phase: 08-period-and-pricing-correctness
-reviewed: 2026-09-17T21:00:00Z
+reviewed: 2026-09-18T00:00:00Z
 depth: standard
-files_reviewed: 15
+files_reviewed: 3
 files_reviewed_list:
-  - lib/dashboard/data-window.ts
-  - lib/dashboard/period.ts
-  - lib/dashboard/bucketing.ts
-  - lib/dashboard/card-inventory.ts
-  - lib/dashboard/verification-drill.ts
-  - lib/dashboard/alignment-status.ts
-  - lib/pricing/restate-scope.ts
+  - lib/pricing/restate-gate.ts
+  - lib/pricing/__tests__/restate-gate.test.ts
   - components/pricing/pricing-tier-form.tsx
-  - lib/dashboard/__tests__/data-window.test.ts
-  - lib/dashboard/__tests__/period.test.ts
-  - lib/dashboard/__tests__/verification-drill.test.ts
-  - lib/dashboard/card-inventory.test.ts
-  - lib/pricing/__tests__/restate-scope.test.ts
-  - supabase/migrations/0039_pricing_tier_coverage_guard_lock.sql
-  - supabase/tests/pricing_tier_coverage_guard_test.sql
 findings:
-  critical: 1
+  critical: 0
   warning: 1
-  info: 0
+  info: 1
   total: 2
 status: issues_found
 ---
 
 # Phase 08: Code Review Report
 
-**Reviewed:** 2026-09-17T21:00:00Z
+**Reviewed:** 2026-09-18T00:00:00Z
 **Depth:** standard
-**Files Reviewed:** 15
+**Files Reviewed:** 3
 **Status:** issues_found
 
 ## Summary
 
-This review re-verifies the ten findings 05-REVIEW.md's Round-5 closure table claims Phase 8
-closed, by reading the shipped code directly rather than trusting the closure table or the
-plan SUMMARYs.
+This is an incremental re-review of plan 08-05, which closed the prior 08-REVIEW.md's **CR-01**
+finding (the operator-facing half of WR-08: `futureSupersededBy` was computed by
+`lib/pricing/restate-scope.ts` since 08-02 but had zero downstream consumers, letting a real
+silent-bypass path skip the mandatory restate confirmation entirely). Scope for this pass is the
+three files 08-05 touched or added: the new `lib/pricing/restate-gate.ts` gate/copy module, its
+new test file, and `components/pricing/pricing-tier-form.tsx`'s wiring of both into the submit
+path and the live inline preview.
 
-**Nine of the ten hold up under direct inspection.** WR-03 (`lib/dashboard/period.ts`'s
-financial-year `start` is now clamped via `clampToDataWindow`, and both
-`fetchVerificationDrillRows`/`fetchRemovedCardRows` AND the caller's range with their own floor
-instead of replacing it — confirmed by hand-tracing the code and by the passing
-`verification-drill.test.ts`/`card-inventory.test.ts` cases). WR-04 (the current-year financial
-year now derives from 31 December of `of` unconditionally — the wall-clock ternary is gone, and
-`period.test.ts:79-104` proves determinism across a clock crossing the FY boundary). WR-05/WR-06
-(migration `0039_pricing_tier_coverage_guard_lock.sql` adds `pg_advisory_xact_lock(20260813)`
-before the *first* coverage evaluation on every path in both RPCs, including the early-return "no
-row found" exception path, and `pricing_tier_coverage_guard_test.sql` genuinely exercises this
-guard's six cases inside one `begin;…rollback;` block, with Case 5 correctly proving the
-before-uncovered-stays-correctable rule). WR-07 (`lib/dashboard/data-window.ts` is confirmed
-zero-import — no `import` statement of any kind, not even type-only — and the dashboard cluster's
-five other modules import it by relative path only; the SQL side's `data_window_start()` is used
-consistently in place of the four inline `2026-08-13` literals in the recreated RPCs; the
-deliberately-deferred `lib/ingestion/normalise*.ts` six-file cluster is untouched and documented as
-such). WR-02/WR-09 (an exact-date collision in both create and edit mode now renders
-`PRICING_DUPLICATE_EFFECTIVE_FROM`'s hint instead of opening a doomed restate confirmation, and the
-resolver's deliberate pin at `restate-scope.test.ts:274-282` is preserved unchanged as required).
-IN-03 (the `types/db.ts` PostgREST version string is out of this review's scope, and the closure
-document's "not a defect, verified live" framing is at least self-consistent with the rest of the
-phase's evidence). IN-04 (`rowsWithin`'s doc comment claim is now backed by a real `removed_at`
-test case, `card-inventory.test.ts:218-232`). Migration `0039` also byte-matches `0025`'s
-signatures, grants, and every user-facing error string `lib/pricing/errors.ts`'s
-`isDataWindowCoverageError()` matches on — confirmed by direct comparison, not by the migration's
-own comment claiming it.
+**CR-01 is verified fixed.** I hand-traced both failure scenarios documented in the prior
+report's CR-01 write-up against the new code:
 
-**WR-08 does not hold up.** The round-5 closure table states "Fixed. `resolveEditImpact` gained
-`futureSupersededBy`, which names the set that permanently takes over the edited set's own former
-future territory." That is true of the *resolver* — `lib/pricing/restate-scope.ts` genuinely
-computes the field and the new `describe` block in `restate-scope.test.ts` genuinely proves the
-computation correct in the four scenarios required. But "names" is being used to describe an
-internal TypeScript field, not something the operator is ever shown: `futureSupersededBy` is
-computed, returned, asserted against in unit tests, and then **never read again** — not by
-`pricing-tier-form.tsx`, not by any Server Action, not by anything (confirmed by grep across
-`app/`, `components/`, and `lib/` for every other reference to the identifier: none exist outside
-the resolver and its test file). The operator-facing half of WR-08 — the actual reason the finding
-existed, per its own text ("the confirmation dialog's copy... never mentions y") — is unfixed. See
-**CR-01** below for the full trace, including a variant that is *worse* than the original WR-08
-report: a case where the edit-supersede confirmation the phase exists to guarantee is skipped
-altogether, not merely under-informative.
+- **Failure scenario 2 (the silent bypass)** — edit set `e` from `currentEffectiveFrom =
+  "2026-10-01"` to proposed `"2026-07-01"`, with one other existing set `a` at `"2026-08-13"`.
+  `resolveEditImpact` still returns `supersedes: null` (unchanged, correctly — `a`'s date isn't
+  at-or-before the proposed date) but `futureSupersededBy: "2026-08-13"`. Previously,
+  `impact.supersedes !== null` gated the always-confirm branch, so this case fell through to the
+  day-count-conditioned plain `edit` path and could save with **zero confirmation** at zero
+  affected days. `resolveRestateGate` now computes `resolvePricingAuthorityMove(impact)`, which
+  reads both `supersedes` and `futureSupersededBy` and returns non-null whenever either fires;
+  when non-null, `resolveRestateGate` returns `confirm`/`edit-supersede` **unconditionally of
+  `restatedDays`** (`restate-gate.ts:104-110`, never reads `restatedDays` on that branch). The
+  new test `"at ZERO affected days, still opens the confirmation"` (`restate-gate.test.ts:32-44`)
+  exercises exactly this fixture through the real `resolveSaveImpact` → `resolveRestateGate`
+  pipeline (not a hand-built impact object) and passes.
+- **Failure scenario 1 (under-disclosure)** — the three-set worked example (`x` at 2026-07-01,
+  `y` at 2026-08-01, edit `e` backdated to 2026-07-15) now renders both consequences as distinct
+  sentences via `buildRestateDialogCopy`'s `edit-supersede` branch (`restate-gate.ts:157-193`),
+  confirmed byte-level by `restate-gate.test.ts:186-207`'s both-limbs case, which asserts the
+  crossed-neighbour sentence and the far-future sentence are present, distinct, and both name
+  their respective dates. The live inline preview in `pricing-tier-form.tsx:494-511` was updated
+  in lockstep to the same three-shape logic, sharing `resolvePricingAuthorityMove` as its single
+  source of truth with the submit gate (`pricing-tier-form.tsx:236-239` vs `:357`), so the
+  pre-submit hint cannot disagree with what the confirmation dialog later says.
 
-This is exactly the failure mode the review brief warned about: a finding recorded as fully closed
-when the fix landed one layer short of where the finding actually lived.
+I ran the new test file and the existing `restate-scope.test.ts` (50 tests, all passing),
+`tsc --noEmit`, and `eslint` against all three files; no new type errors, lint errors, or test
+failures. The only lint output is a pre-existing `react-hooks/incompatible-library` warning on
+`form.watch` at line 193, unrelated to this diff (that line is unchanged).
 
-## Critical Issues
+Two minor findings remain, both latent robustness gaps rather than currently-reachable bugs (see
+below). Neither blocks this change.
 
-### CR-01: WR-08's disclosure gap is still open in the UI — `futureSupersededBy` is computed, tested, and never shown to the operator; one reachable path skips the mandatory confirmation entirely
-
-**File:** `components/pricing/pricing-tier-form.tsx:331-347` (submit gate), `:417-426` (dialog
-copy), `:220-227` (live preview)
-**File:** `lib/pricing/restate-scope.ts:63-64, 191-192` (the field itself)
-
-**Issue:** `resolveEditImpact` now returns an optional `futureSupersededBy` field alongside
-`supersedes` (08-02, commit `2907f7d`). Both the submit-time gate and the live inline preview in
-`pricing-tier-form.tsx` decide which dialog/notice to show using `impact.supersedes` alone;
-`futureSupersededBy` is never read by any consumer in the codebase (verified by
-`grep -rn "futureSupersededBy" app/ components/ lib/` outside `restate-scope.ts` and its test
-file: zero matches).
-
-**Failure scenario 1 — the tested worked example itself is under-disclosed.** Using
-`restate-scope.test.ts:316-334`'s own fixture: tier sets `x` (2026-07-01) and `y` (2026-08-01)
-exist; the edited set `e` is backdated from 2026-09-01 to 2026-07-15.
-`resolveSaveImpact` returns `{ from: "2026-07-15", through: null, supersedes: "2026-07-01",
-futureSupersededBy: "2026-08-01" }`. Because `supersedes !== null`, `onSubmit` (line 332) takes
-the "always confirm" branch and opens the `edit-supersede` dialog — but that dialog's copy (line
-417-426) interpolates only `restateDialog.supersedes`. The operator is told the move "makes it
-price days currently priced by the tier set effective 2026-07-01" and nothing else. They are never
-told that `y` (2026-08-01) permanently and silently absorbs every day from 2026-08-01 onward —
-including all of `e`'s own former exclusive territory from 2026-09-01 onward — which is the exact
-consequence WR-08 was opened to disclose. The `describe` block titled "reports the far-future
-consequence too (WR-08)" only proves the *resolver* reports it; nothing downstream ever reads what
-it reports.
-
-**Failure scenario 2 — worse: the "always confirm regardless of day count" guarantee is bypassed
-entirely.** Hand-traced against the shipped resolver: edit set `e` from `currentEffectiveFrom =
-"2026-10-01"` to proposed `"2026-07-01"`, with one other existing set `a` at `"2026-08-13"`.
-- `atOrBeforeProposed` = `others.filter(effectiveFrom <= "2026-07-01")` = `[]` (`a`'s
-  `"2026-08-13"` is not `<= "2026-07-01"`) → `candidate = null` → `displaced = null` →
-  `supersedes: null`.
-- `resolveFutureSupersession("2026-10-01", "2026-07-01", [a])`: `permanentChallenger = a`;
-  `editedSetWasPermanentGovernorBeforeEdit`: `"2026-08-13" < "2026-10-01"` → `true`;
-  `challengerNowOutranksProposedDate`: `"2026-08-13" > "2026-07-01"` → `true` → returns
-  `"2026-08-13"`.
-- Result: `{ from: "2026-07-01", through: null, supersedes: null, futureSupersededBy:
-  "2026-08-13" }` — a real, reachable output of the shipped code (two tier sets is enough; no
-  three-set fixture is required).
-
-In `onSubmit`, `impact.supersedes !== null` (line 332) is **false**, so the branch whose own code
-comment says *"ALWAYS open the confirmation, regardless of day count... Conditioning this gate on
-activity days is exactly the mistake that let the original incident through"* is skipped entirely.
-Execution falls through to the plain D-18 branch (line 348-361), which **is** conditioned on day
-count:
-- If `countRestatedDays("2026-07-01", null)` returns `0` (a real possibility — any range with no
-  recorded verification activity, e.g. one that starts in a sparsely-active period), `performSave`
-  runs with **no dialog at all**. A different tier set (`a`) permanently and silently takes over
-  pricing authority for every day from 2026-08-13 onward, with zero operator confirmation — the
-  precise silent-supersede defect class CR-01/WR-08 exist to prevent.
-- If the day count is non-zero, the dialog that opens is the *generic* `edit` variant (line
-  427-431): "This will restate revenue for N days... Past figures shown for that period will
-  change to reflect the corrected rates." It never names `a`, never mentions that most of the
-  restated days will now be priced by a different tier set's rates, not the edited set's own new
-  rates.
-
-Neither path is covered by any test: `restate-scope.test.ts`'s WR-08 suite only exercises fixtures
-where `supersedes` and `futureSupersededBy` are both non-null or both null together; no fixture
-isolates the `supersedes === null && futureSupersededBy !== null` combination, and there is no
-test at all (per 08-02-SUMMARY.md's own admission — "no jsdom/RTL harness in this repo") that
-exercises `pricing-tier-form.tsx`'s gating logic against any `SaveImpact` value.
-
-**Consequence for 05-REVIEW.md's Round-5 closure table:** the WR-08 row's "Fixed" verdict is not
-accurate as an operator-facing claim. The resolver-level defect is fixed; the disclosure defect the
-finding was actually about is not, and one path is a strictly *silent* regression relative to the
-"always confirm" guarantee 08-02's own code comments assert exists.
-
-**Fix:**
-1. Gate the `edit-supersede` "always confirm" branch and the live inline preview on
-   `impact.supersedes !== null || impact.futureSupersededBy !== undefined`, not `supersedes` alone.
-2. Extend the `edit-supersede` dialog copy (and the plain `edit` dialog, for the
-   `supersedes === null` case) to name `futureSupersededBy` as a second, explicit consequence —
-   per 08-02-PLAN.md's own Task 1 instruction: "surface that set as a second named consequence
-   alongside the existing `supersedes`."
-3. Add a `pricing-tier-form.tsx`-level test (or at minimum a resolver-consuming integration test)
-   for the `supersedes === null && futureSupersededBy !== undefined` combination — the exact gap
-   that let this ship.
+**Carried forward, not evaluated in this pass:** the prior 08-REVIEW.md's **WR-01** (the
+financial-year partial-coverage caption in `lib/dashboard/period.ts` was never wired into any UI
+component) is untouched by 08-05 and outside this review's file scope
+(`lib/dashboard/period.ts` is not one of the three files listed above). It should not be
+considered resolved by this report — it remains open and should be tracked until a future plan
+addresses it.
 
 ## Warnings
 
-### WR-01: The financial-year partial-coverage caption WR-03's fix promised in comments was never wired into any UI component — the label can silently overstate coverage
+### WR-01: `buildRestateDialogCopy`'s `create-supersede` branch silently drops `futureSupersededBy` if a future caller ever populates it — no compile-time or runtime guard enforces the current "create never has a far-future consequence" invariant
 
-**File:** `lib/dashboard/period.ts:362-372`
+**File:** `lib/pricing/restate-gate.ts:97-117` (gate), `:142-155` (create-supersede copy branch)
+**File:** `lib/pricing/restate-scope.ts:44-64` (shared `SaveImpact` type)
 
-**Issue:** 08-01-PLAN.md's Task 2 states: "If the clamp actually bites, the figures cover less
-than the label's span, and the UI should say so rather than silently implying full coverage —
-surface it the way the existing partial-coverage captions do." The shipped code instead leaves this
-as a code comment recording the intended copy ("Showing data from 13 Aug 2026 — {label}'s calendar
-start predates the earliest reliable data.") with an explicit note that "08-01's `files_modified`
-has no UI component files, so wiring an actual on-screen notice is left to a future plan." That
-deferral is honestly disclosed in `08-01-SUMMARY.md`'s key-decisions, so this is not a
-misrepresented closure — but it does mean the shipped behaviour today is: a financial year whose
-configured start predates 13 Aug 2026 (e.g. any 1 April–31 July FY start against live data that
-only goes back to 13 Aug 2026) resolves a `start` silently narrower than what its own `label`
-implies, with no on-screen indication anywhere in the reviewed files that the figures shown cover
-less than the stated FY span. For a tool whose stated core value is making data-completeness gaps
-"immediately visible," a clamp that changes what a KPI actually sums with no accompanying caption
-is a real, currently-shipped gap — not a hypothetical one gated behind future configuration.
+**Issue:** `SaveImpact.futureSupersededBy` is a single field shared by both the create and edit
+resolvers (`resolveCreateImpact` / `resolveEditImpact` in `restate-scope.ts`). Today,
+`resolveCreateImpact` never sets it — confirmed by reading its full body (`restate-scope.ts:219-256`,
+no `futureSupersededBy` reference at all) — so the invariant "a create impact never carries this
+field" holds in practice. But nothing in the type system enforces it: `SaveImpact` is one shape
+for both modes, and `resolveRestateGate` picks the dialog variant purely from `modeKind`
+(`"create-supersede"` vs `"edit-supersede"`, `restate-gate.ts:107`) rather than from which limbs of
+`move` are actually populated. If a future change to `resolveCreateImpact` ever computes
+`futureSupersededBy` for a create (e.g. a later phase adding "this new set will itself be
+superseded by an existing later one" detection), `resolveRestateGate` would still tag the decision
+`"create-supersede"`, and `buildRestateDialogCopy`'s `create-supersede` branch
+(`restate-gate.ts:146-155`) ignores `futureSupersededBy` entirely — the consequence would be
+computed, carried through `PricingAuthorityMove`, and then silently dropped from the copy shown to
+the operator. This is exactly the failure class 08-05 was written to close (a resolver-computed
+consequence with no consumer), reintroduced as a latent trap for the create path specifically
+because nothing couples "which limbs `move` carries" to "which copy branch renders them."
 
-**Fix:** Either wire the documented caption into the page(s) that render `ResolvedPeriod` when
-`clampToDataWindow(rawStart) !== rawStart`, or track this explicitly as an open follow-up (e.g. a
-ROADMAP/backlog item) rather than leaving it as a comment a future reader could easily read as
-already delivered.
+**Fix:** Add either a runtime assertion in `resolveRestateGate`'s create branch (`move.futureSupersededBy === null`, throw/log if violated) or a doc-comment-backed unit test in
+`restate-scope.test.ts` that pins `resolveCreateImpact` to never populate the field, so a future
+change that breaks the invariant fails loudly (a test or assertion) rather than shipping a second
+silent-disclosure gap.
+
+## Info
+
+### IN-01: `BuildRestateDialogCopyInput.proposedEffectiveFrom` is typed `string | null`, but the two "-supersede" variants' copy interpolates it directly with no null guard
+
+**File:** `lib/pricing/restate-gate.ts:125-131` (input type), `:146-193` (interpolation sites)
+
+**Issue:** The type comment for `RestateDialogState.proposedEffectiveFrom` in
+`pricing-tier-form.tsx:96-99` and the doc comment on `buildRestateDialogCopy`
+(`restate-gate.ts:133-141`) both assert `proposedEffectiveFrom` is "only populated for the two
+`-supersede` variants" — implying it is effectively non-null whenever `variant !==
+"edit"`. `buildRestateDialogCopy` doesn't encode that as a type-level guarantee, though: the
+`create-supersede` and `edit-supersede` branches interpolate `${proposedEffectiveFrom}` directly
+into user-facing sentences (`restate-gate.ts:151-152, 162-170`) with no null check. Today this is
+unreachable — `pricing-tier-form.tsx:371` always sets `proposedEffectiveFrom: data.effectiveFrom`,
+a Zod-validated required date string, whenever it opens a `-supersede` dialog — but the type
+signature permits `null`, and if it were ever passed, the confirmation dialog asking the operator
+to approve a revenue restatement would literally read "Moving this tier set to null...".
+
+**Fix:** Narrow the two "-supersede" branches' input to require `proposedEffectiveFrom: string`
+(a discriminated union keyed on `variant`, or a runtime `if (proposedEffectiveFrom === null) throw`
+guard at the top of those branches) so the type system — not just a doc comment and the current
+single caller's discipline — rules out the literal-"null"-in-copy case.
 
 ---
 
-_Reviewed: 2026-09-17T21:00:00Z_
+_Reviewed: 2026-09-18T00:00:00Z_
 _Reviewer: Claude (gsd-code-reviewer)_
 _Depth: standard_
