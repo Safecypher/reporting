@@ -397,7 +397,7 @@ RPCs read the same period bounds, so a WR-03 clamp change must not move a verifi
      per-month-vs-aggregate invariant) and Phase 7's check-8 chart-sums-to-card equality still
      hold after the changes.
 
-**Plans**: 4/4 plans executed (0 executed)
+**Plans**: 5 plans (4 executed, 1 gap-closure planned)
 
 Plans:
 
@@ -413,6 +413,10 @@ Plans:
 **Wave 3** *(blocked on all — requires Supabase MCP; orchestrator runs this, not an executor)*
 
 - [x] 08-04-PLAN.md — [BLOCKING] Apply 0039 live, run all ten SQL oracles, answer IN-03 against the real PostgREST version, prove the five live figures did not move, and close 05-REVIEW.md per finding (IN-03)
+
+**Gap closure — Wave 4** *(blocked on 08-02; closes the one failed Success Criterion)*
+
+- [ ] 08-05-PLAN.md — WR-08 consumer half: make "did pricing authority move" the save gate (closing the zero-day silent-bypass), name the far-future absorbing set in the dialog and the live preview, and pin the `supersedes === null && futureSupersededBy` case in a test (WR-08, SC3)
 
 **Notes for planning**
 
