@@ -5,12 +5,15 @@ subsystem: ui, database
 tags: [rsc, tanstack-table, nextjs-16, supabase, rpc, security-definer, pricing]
 
 requires:
+
   - phase: 3
     provides: dashboard pages (/verifications, /sla, /revenue), pricing tier settings, DrillSheet drill-down pattern
 provides:
+
   - Client-owned TanStack column definitions for all three drill-down entities (verification, sla-breach, revenue-tier), fixing an RSC "Functions cannot be passed directly to Client Components" runtime error
   - Migration 0016: nullable audit FK (ON DELETE SET NULL) + SECURITY DEFINER delete_latest_pricing_tier_set(uuid) RPC
   - Delete Server Action + confirmation-dialog UI to remove only the most recent pricing tier set
+
 affects: [phase-4, revenue-reconciliation]
 
 tech-stack:
@@ -35,6 +38,7 @@ key-files:
     - app/(dashboard)/settings/pricing/page.tsx
 
 key-decisions:
+
   - "delete_latest_pricing_tier_set is SECURITY DEFINER, not SECURITY INVOKER, deliberately deviating from save_pricing_tier_set — pricing_tier_sets has no DELETE RLS policy and pricing_tier_audit has no client INSERT policy, so an invoker call would be denied on both; running as table owner (mirroring the existing fn_pricing_tier_sets_audit trigger) keeps auth.uid() attribution correct without opening a broader delete surface."
   - "Migration 0016 was written but NOT pushed — this executor has no supabase CLI/access token. The orchestrator must apply it via Supabase MCP and regenerate types/db.ts."
   - "actions.ts calls supabase.rpc('delete_latest_pricing_tier_set', ...) via a narrowly-scoped type cast (documented inline) because types/db.ts does not yet know about the RPC. Remove the cast once types are regenerated after 0016 is pushed."
@@ -43,6 +47,10 @@ requirements-completed: [UAT-RSC-01, UAT-DELETE-01]
 
 duration: ~55min
 completed: 2026-08-21
+audit_acknowledged:
+  milestone: v1.0
+  at: 2026-09-23
+  status: unknown
 ---
 
 # Quick Task 260821-mgy: Fix Phase 3 UAT RSC bug + pricing-tier delete Summary
@@ -101,6 +109,7 @@ None beyond what the plan itself explicitly called for (the SECURITY DEFINER dev
 ### Verification method note (not a plan deviation, but worth recording)
 
 The plan's Task 1 `<human-check>` called for manually loading the three pages in a browser after logging in. Since this is an autonomous worktree executor with no interactive browser, I instead:
+
 1. Copied `.env.local` from the main repo checkout (not committed — worktree-local only, removed before finishing).
 2. Symlinked, then properly `npm install`ed, `node_modules` into the worktree (Turbopack refuses to resolve `next` through a symlinked `node_modules` that points outside the worktree's filesystem root).
 3. Used the Supabase admin API (via the project's own `@supabase/supabase-js` + `@supabase/ssr` dependencies) to generate a magic-link session for the existing user `mark.wright@safecypher.com`, exchanged it for real session cookies using the app's actual `createServerClient` cookie-writing logic, and `curl`'d the three pages with those cookies against a real `next dev` instance.

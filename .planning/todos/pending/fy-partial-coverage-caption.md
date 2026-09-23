@@ -4,9 +4,14 @@ title: Wire the financial-year partial-coverage caption into the UI
 area: ui
 severity: minor
 files:
+
   - lib/dashboard/period.ts
+
 status: pending
 source: 08-REVIEW.md WR-01 (Phase 8 code review)
+audit_acknowledged:
+  milestone: v1.0
+  at: 2026-09-23
 ---
 
 ## What
