@@ -3,6 +3,7 @@ import { redirect } from "next/navigation";
 
 import { createClient } from "@/lib/supabase/server";
 import { MobileNavBar } from "@/components/app-shell/mobile-nav-bar";
+import { SettingsNav } from "@/components/app-shell/settings-nav";
 import { SidebarNav } from "@/components/app-shell/sidebar-nav";
 import { SignOutButton } from "@/components/app-shell/sign-out-button";
 import { Separator } from "@/components/ui/separator";
@@ -48,6 +49,7 @@ export default async function DashboardLayout({
         </SidebarContent>
         <SidebarFooter className="px-2 py-2">
           <Separator className="mb-2" />
+          <SettingsNav />
           <SignOutButton />
         </SidebarFooter>
       </Sidebar>
