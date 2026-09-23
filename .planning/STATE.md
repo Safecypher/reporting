@@ -1,20 +1,19 @@
 ---
 gsd_state_version: "1.0"
 milestone: v1.0
-current_phase: 08
-status: completed
+status: Awaiting next milestone
 stopped_at: Phase 08 complete — all phases complete
-last_updated: "2026-09-23T11:49:09.430Z"
+last_updated: "2026-09-23T12:14:16.567Z"
 last_activity: 2026-09-23
-last_activity_desc: Phase 08 complete
-state_head: 9fa38ad9699f62bc9a2201500460b46e91d27af3
+last_activity_desc: Milestone v1.0 completed and archived
+state_head: f5e3e58703a2858d5f360e56bcf0ad9c4488b521
 progress:
   total_phases: 8
   completed_phases: 8
   total_plans: 55
   completed_plans: 55
-  percent: 100
 milestone_name: milestone
+current_phase: 08
 ---
 
 # Project State
@@ -28,12 +27,10 @@ See: .planning/PROJECT.md (updated 2026-09-23)
 
 ## Current Position
 
-Phase: 08 — Period & Pricing Correctness (complete)
-Plan: 5 of 5 complete
-Status: Milestone v1.0 complete — all 8 phases verified and marked done
-Last activity: 2026-09-23 — Phase 08 complete (UAT 2/2, verification passed, security threats_open 0)
-
-Progress: [██████████] 100%
+Phase: Milestone v1.0 complete
+Plan: —
+Status: Awaiting next milestone
+Last activity: 2026-09-23 — Milestone v1.0 completed and archived
 
 ## Performance Metrics
 
@@ -201,14 +198,35 @@ Carried from research (resolve during phase planning):
 
 ## Deferred Items
 
-Items acknowledged and carried forward from previous milestone close:
+Items acknowledged and deferred at milestone close, most recent first:
 
-| Category | Item | Status | Deferred At |
-|----------|------|--------|-------------|
-| *(none)* | | | |
+| Category | Item | Status | Deferred At | Milestone |
+|----------|------|--------|-------------|-----------|
+| verification_gaps | 01/01-VERIFICATION.md | human_needed | 2026-09-23 | v1.0 |
+| verification_gaps | 04/04-VERIFICATION.md | human_needed | 2026-09-23 | v1.0 |
+| uat_gaps | 01/01-HUMAN-UAT.md | partial | 2026-09-23 | v1.0 |
+| uat_gaps | 04/04-HUMAN-UAT.md | partial | 2026-09-23 | v1.0 |
+| uat_gaps | 05/05-UAT.md | partial | 2026-09-23 | v1.0 |
+| todos | fy-partial-coverage-caption.md | (presence-only) | 2026-09-23 | v1.0 |
+| quick_tasks | 260821-mgy-fix-phase-3-uat-rsc-function-passing-cra | unknown | 2026-09-23 | v1.0 |
+| quick_tasks | 260823-l9c-add-status-based-row-styling-to-reconcil | unknown | 2026-09-23 | v1.0 |
+| quick_tasks | 260901-lea-fix-supabase-invite-flow-add-auth-confir | unknown | 2026-09-23 | v1.0 |
+| quick_tasks | 260902-ksy-fix-auth-redirect-host-on-netlify-canoni | unknown | 2026-09-23 | v1.0 |
+| deferred_items | 01/deferred-items.md | acknowledged | 2026-09-23 | v1.0 |
+| deferred_items | 02/deferred-items.md | acknowledged | 2026-09-23 | v1.0 |
+| deferred_items | 03/deferred-items.md | acknowledged | 2026-09-23 | v1.0 |
+
+Acknowledgement is self-invalidating: each row's suppression lapses the moment
+that artifact's state changes again, and the item resurfaces at the next audit.
+The three `deferred_items` rows are the same stale `LayoutProps` TS2304 note
+recorded in three phases — a Next.js generated ambient type, not a defect.
 
 ## Session Continuity
 
 Last session: 2026-09-18T11:34:50.471Z
 Stopped at: Phase 08 complete — all phases complete
 Resume file: None
+
+## Operator Next Steps
+
+- Start the next milestone with /gsd-new-milestone

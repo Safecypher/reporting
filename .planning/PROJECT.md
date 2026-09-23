@@ -10,6 +10,46 @@ It is used by a small internal Safecypher team (e.g. Mark W, Richard, Andy) and 
 
 **Trustworthy revenue reconciliation:** billing must equal verifications, and the dashboard must make any discrepancy immediately visible — "we manage our own destiny" by balancing daily rather than scrambling when Thesis flags a problem. Everything else supports this.
 
+Shipping v1.0 did not shift this. If anything it sharpened it: the phases that
+mattered most were the ones defending the *trustworthiness* half — the data-window
+floor, deterministic period bounds, exact-NUMERIC tier maths, and telling an
+operator the whole truth about which contract prices which days.
+
+## Current State
+
+**Shipped: v1.0 MVP — 2026-09-23.** 8 phases, 55 plans, ~36,000 lines of
+TypeScript/SQL across 527 files, 39 migrations, 471 passing tests. Built over 36
+days (18 Aug → 23 Sep 2026).
+
+All six report types ingest, normalise and de-duplicate; verification volume,
+revenue, SLA and card-inventory views are live behind a single auth choke point;
+billing-vs-verification and inventory reconciliation flag discrepancies with
+status and delta; a configurable financial-year and period lens is shared by every
+view; TSYS and Bit Addict figures sit side by side with variance; and tiered
+revenue shows actual-to-date beside a projected month-end.
+
+**Known debt carried into the next milestone** (see
+`milestones/v1.0-MILESTONE-AUDIT.md` and STATE.md's Deferred Items):
+- Phase 1's Assumption A1 is unconfirmed — the verification report's `CreatedAt`
+  is stored as UTC on assumption. If the source is US-Central, daily boundaries
+  shift. This is an email to the counterparty, not a code change, and it is the
+  one open item with real correctness consequences.
+- Phase 4's mismatch-badge rendering has never been seen against a genuinely
+  settled-unequal day, because live data has not produced one.
+- The 2026-08-13 data-window floor is duplicated across 8 locations (one TS leaf
+  module, six ingestion normalisers, one SQL function). They agree today.
+- The FY view clamps correctly but does not caption that a shown range is narrower
+  than its label implies.
+
+**Not yet deployed.** v1.0 is tagged and complete in the repository; confirm the
+push to `origin/main` before describing any of it as live.
+
+## Next Milestone Goals
+
+Not yet scoped — run `/gsd-new-milestone`. The obvious candidates are the
+automated ingestion drop (currently Out of Scope pending agreement on a central
+file location) and closing the debt above.
+
 ## Requirements
 
 ### Validated
@@ -115,4 +155,4 @@ This document evolves at phase transitions and milestone boundaries.
 4. Update Context with current state
 
 ---
-*Last updated: 2026-09-23 after Phase 8 completion (period & pricing correctness) — closes milestone v1.0*
+*Last updated: 2026-09-23 after v1.0 milestone*
