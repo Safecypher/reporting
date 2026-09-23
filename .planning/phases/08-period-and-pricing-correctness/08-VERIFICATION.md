@@ -1,11 +1,12 @@
 ---
 phase: 08-period-and-pricing-correctness
 verified: 2026-09-18T12:50:00Z
-status: human_needed
+status: passed
 score: 7/7 must-haves verified
 behavior_unverified: 0
 overrides_applied: 0
 covered_files:
+
   - .planning/REQUIREMENTS.md
   - .planning/phases/08-period-and-pricing-correctness/08-01-PLAN.md
   - .planning/phases/08-period-and-pricing-correctness/08-01-SUMMARY.md
@@ -36,6 +37,7 @@ covered_files:
   - supabase/migrations/0039_pricing_tier_coverage_guard_lock.sql
   - supabase/tests/pricing_tier_coverage_guard_test.sql
   - types/db.ts
+
 covered_digest: "v1:sha256:e7e25fb4f2e407a52f0a277f44ba370595bcab50f312cf7066408f40cebfda39"
 re_verification:
   previous_status: gaps_found
@@ -47,6 +49,7 @@ re_verification:
 deferred: []
 advisory: []
 human_verification:
+
   - test: "Visually confirm the duplicate-date hint (WR-02/WR-09) renders with the intended neutral, non-warning tone in both the live inline preview and the submit-time banner, in both create and edit mode"
     expected: "PRICING_DUPLICATE_EFFECTIVE_FROM copy displays identically pre-submit and post-submit-rejection, with no jarring visual inconsistency"
     why_human: "No jsdom/React Testing Library harness exists in this repo (consistent with Phase 5 precedent); the gating logic is proven by unit tests and grep call-site counts, but on-screen rendering has not been visually confirmed. Carried forward unchanged from the prior verification pass — 08-05 did not touch this code path."

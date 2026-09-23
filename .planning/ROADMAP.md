@@ -20,7 +20,7 @@ Decimal phases appear between their surrounding integers in numeric order.
 - [x] **Phase 5: Time Periods & Financial-Year Settings** - Configurable financial-year start plus a consistent month / FY-or-CY / all-time / historical period lens across every view, and the signed TSYS MSA tier table seeded (completed 2026-09-10; closed with ten open review findings — see the gap-closure note below)
 - [x] **Phase 6: Dual-Source Alignment: TSYS vs Bit Addict** - Enrolled, unenrolled, live cards and transaction volume shown for both sources side by side with variance and an explicit aligned/mismatch status
 - [x] **Phase 7: TSYS Tiered Volume & Revenue Forecast** - Stepped TSYS tiers on monthly billable volume, with actual-to-date and projected month-end shown side by side per source (completed 2026-09-16)
-- [ ] **Phase 8: Period & Pricing Correctness** - Close the ten open Phase 5 review findings: clamp the financial-year floor, make the current-year period deterministic, complete the tier-set supersede disclosure, and harden the data-window coverage guard
+- [x] **Phase 8: Period & Pricing Correctness** - Close the ten open Phase 5 review findings: clamp the financial-year floor, make the current-year period deterministic, complete the tier-set supersede disclosure, and harden the data-window coverage guard (completed 2026-09-23)
 
 ## Phase Details
 

@@ -2,18 +2,18 @@
 gsd_state_version: "1.0"
 milestone: v1.0
 current_phase: 08
-current_phase_name: Period & Pricing Correctness
-status: executing
-stopped_at: Completed 08-05-PLAN.md
-last_updated: "2026-09-18T11:34:50.685Z"
-last_activity: 2026-09-18
-last_activity_desc: Phase 08 execution started
-state_head: 17c20dc923eef95ca99bf660e1422017c47f1be1
+status: completed
+stopped_at: Phase 08 complete — all phases complete
+last_updated: "2026-09-23T11:49:09.430Z"
+last_activity: 2026-09-23
+last_activity_desc: Phase 08 complete
+state_head: 9fa38ad9699f62bc9a2201500460b46e91d27af3
 progress:
   total_phases: 8
-  completed_phases: 7
+  completed_phases: 8
   total_plans: 55
   completed_plans: 55
+  percent: 100
 milestone_name: milestone
 ---
 
@@ -21,28 +21,25 @@ milestone_name: milestone
 
 ## Project Reference
 
-See: .planning/PROJECT.md (updated 2026-08-18)
+See: .planning/PROJECT.md (updated 2026-09-23)
 
 **Core value:** Trustworthy revenue reconciliation — billing must equal verifications, and any discrepancy must be immediately visible and traceable to source.
-**Current focus:** Phase 08 — Period & Pricing Correctness
+**Current focus:** Milestone v1.0 complete — ready for `/gsd-complete-milestone`
 
 ## Current Position
 
-Phase: 08 (Period & Pricing Correctness) — EXECUTING
-Plan: 5 of 5 (all plans have SUMMARYs; Rule 1 correction to the advance-plan
-counter, which had drifted from disk state during this phase)
-Status: All 5 plans executed — WR-08 gap closed (08-05); pending
-/gsd-verify-work 8 re-verification (08-VERIFICATION.md still shows the
-now-superseded gaps_found status from before this plan)
-Last activity: 2026-09-18 — Phase 08 execution started
+Phase: 08 — Period & Pricing Correctness (complete)
+Plan: 5 of 5 complete
+Status: Milestone v1.0 complete — all 8 phases verified and marked done
+Last activity: 2026-09-23 — Phase 08 complete (UAT 2/2, verification passed, security threats_open 0)
 
-Progress: [████████░░] 88%
+Progress: [██████████] 100%
 
 ## Performance Metrics
 
 **Velocity:**
 
-- Total plans completed: 50
+- Total plans completed: 55
 - Average duration: —
 - Total execution time: 0 hours
 
@@ -57,6 +54,7 @@ Progress: [████████░░] 88%
 | 05 | 9 | - | - |
 | 06 | 10 | - | - |
 | 07 | 6 | - | - |
+| 08 | 5 | - | - |
 
 **Recent Trend:**
 
@@ -212,5 +210,5 @@ Items acknowledged and carried forward from previous milestone close:
 ## Session Continuity
 
 Last session: 2026-09-18T11:34:50.471Z
-Stopped at: Completed 08-05-PLAN.md
+Stopped at: Phase 08 complete — all phases complete
 Resume file: None

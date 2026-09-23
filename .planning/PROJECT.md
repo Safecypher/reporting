@@ -18,16 +18,20 @@ It is used by a small internal Safecypher team (e.g. Mark W, Richard, Andy) and 
 - [x] Revenue view computed from verifications × configurable tiered pricing (admin settings) — *Validated in Phase 3: Revenue, SLA & Drill-down (exact-NUMERIC marginal-bracket revenue views; live boundary hand-calc = $215.00 to the cent)*
 - [x] SLA / response-time view: average verification duration vs 750ms SLA, breaches highlighted — *Validated in Phase 3 (v_sla_daily + 750ms ReferenceLine + drillable breach table)*
 - [x] Admin settings to configure pricing tiers (first 500k at rate X, next 250k at rate Y, …) — *Validated in Phase 3 (date-effective tier sets, transactional save RPC, DB integrity trigger, append-only audit trail)*
+- [x] Small internal-team login (Supabase Auth, email/password) — *Validated in Phase 1: End-to-End Spine (RLS + private Storage; session survives refresh, unauthenticated routes blocked)*
+- [x] Manual drag-and-drop upload of the six daily reports (CSV/XLSX), designed so an automated file-drop/webhook source can be added later without rework — *Validated in Phases 1–2 (source-agnostic ingestion contract in `lib/ingestion/*`; all six parsers live)*
+- [x] Verifications-over-time view (daily / weekly / monthly counts, authenticated vs failed) — *Validated in Phase 1, extended by Phase 5's period lens*
+- [x] Card-inventory reconciliation view: live cards, daily enrolled/unenrolled, inventory-vs-removed tally, and APIGEE cross-check — *Validated in Phase 4, extended by Phase 6's side-by-side dual-source alignment*
+- [x] Automated discrepancy flagging: billing vs verification, and card inventory diff vs removed-cards — *Validated in Phase 4: Reconciliation & Discrepancy Flagging — the core-value centrepiece*
+- [x] Consistent period lens (month / FY-or-CY / all-time / historical) across every view, with a configurable financial-year start — *Validated in Phase 5, corrected in Phase 8 (FY floor clamped to the data window; current-year period made deterministic)*
+- [x] Stepped TSYS tiered volume with actual-to-date and projected month-end per source — *Validated in Phase 7: TSYS Tiered Volume & Revenue Forecast*
 
 ### Active
 
 <!-- v1 = PoC dashboard shown to Mark. All are hypotheses until shipped and validated. -->
 
-- [ ] Manual drag-and-drop upload of the six daily reports (CSV/XLSX), designed so an automated file-drop/webhook source can be added later without rework
-- [ ] Verifications-over-time view (daily / weekly / monthly counts, authenticated vs failed)
-- [ ] Card-inventory reconciliation view: live cards, daily enrolled/unenrolled, inventory-vs-removed tally, and Thesis (APIGEE) cross-check
-- [ ] Automated discrepancy flagging: billing vs verification, and card inventory diff vs removed-cards
-- [ ] Small internal-team login (Supabase Auth, email/password)
+All v1.0 requirements are now validated — every roadmap phase (1–8) is complete. Next
+requirements arrive with the next milestone.
 
 <!-- Also delivered in Phase 3: drill-down from any summary metric to contributing raw records (DASH-03) — URL-synced slide-over Sheet, reused across Verifications/Revenue/SLA and available for Phase 4 reconciliation flags. -->
 
@@ -89,6 +93,8 @@ It is used by a small internal Safecypher team (e.g. Mark W, Richard, Andy) and 
 | All four views (verifications, revenue, SLA, reconciliation) in v1 | User confirmed all are must-haves for the PoC | — Pending |
 | Automated discrepancy flagging in v1 | Core value — delivers the "manage our own destiny" benefit | — Pending |
 | Pricing tiers configurable in admin settings | MSA numbers not yet received; must be adjustable | — Pending |
+| Review findings get their own gap-closure phase rather than trailing a shipped phase | Phase 5 passed verification 14/14 yet closed `issues_found`, and all ten findings were still live on `main` three weeks later. A phase that "passed" is not the same as a phase with nothing left open. | ✓ Validated — Phase 8 closed all ten; two were real period-boundary correctness bugs that would have misstated a figure without erroring |
+| A pricing-authority move always confirms, at any affected-day count including zero | Conditioning the confirmation on activity days let a permanent, silent transfer of pricing authority through with no disclosure at all (WR-08). The guarantee is now structural — the confirm branch never reads the day count. | ✓ Validated — Phase 8 |
 | Ignore Thesis `Verify Outcome` tab | Known data issue at Thesis | — Pending |
 
 ## Evolution
@@ -109,4 +115,4 @@ This document evolves at phase transitions and milestone boundaries.
 4. Update Context with current state
 
 ---
-*Last updated: 2026-08-21 after Phase 3 completion (revenue, SLA & drill-down)*
+*Last updated: 2026-09-23 after Phase 8 completion (period & pricing correctness) — closes milestone v1.0*
