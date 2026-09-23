@@ -5,9 +5,14 @@ status: human_needed
 score: 13/13 must-haves verified
 overrides_applied: 0
 human_verification:
+
   - test: "Confirm the naive CreatedAt source timezone (Assumption A1)"
     expected: "Joachim/Chris/Richard confirm whether the verification report's CreatedAt values are already UTC or a local zone (e.g. US-Central); if not UTC, created_at needs re-derivation from raw_created_at before the demo/reconciliation phases"
     why_human: "This is a business/source-system fact that cannot be determined from the codebase — it requires confirmation from the Thesis/Invex-side contacts, not a code change. raw_created_at is retained specifically so this is a cheap fix if the assumption is wrong."
+audit_acknowledged:
+  milestone: v1.0
+  at: 2026-09-23
+  status: human_needed
 ---
 
 # Phase 1: End-to-End Spine Verification Report

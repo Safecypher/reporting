@@ -12,12 +12,17 @@ re_verification:
   gaps_remaining: []
   regressions: []
 human_verification:
+
   - test: "Visually load /reconciliation and confirm 13-18 Aug render as \"OK\" (green), 19-22 Aug render as \"Needs review\" (amber, not red \"Mismatch\"), and drill into one of each to confirm row-level breakdown matches aggregate counts."
     expected: "No day shows a red \"Mismatch\" badge in the current live dataset; visual state matches the API-level data confirmed in this verification (ok for 13-18 Aug, needs_review for 19-22 Aug)."
     why_human: "Confirms the actual rendered page (badge color, layout, click-through UX) rather than just the underlying API/SQL data, which this pass confirmed via REST queries and code inspection but did not screenshot/click through in a browser."
   - test: "When live data eventually produces a genuine settled+unequal day, confirm the badge reads \"Mismatch\" (red), not \"Needs review.\""
     expected: "The mismatch branch, currently proven only by unit tests + SQL logic inspection, renders correctly when it eventually occurs live."
     why_human: "No live data currently exercises this branch; forward-looking spot-check, not a blocker for this phase's goal achievement now."
+audit_acknowledged:
+  milestone: v1.0
+  at: 2026-09-23
+  status: human_needed
 ---
 
 # Phase 4: Reconciliation & Discrepancy Flagging Verification Report

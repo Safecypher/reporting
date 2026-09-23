@@ -13,3 +13,4 @@ task's changes).
   generated type was absent. On `master` (where `next build` has run) `tsc
   --noEmit` exits 0 cleanly. **Action for CI / fresh checkouts:** run
   `next build` (or `next typegen`) before `tsc --noEmit`. No source change needed.
+  status: acknowledged

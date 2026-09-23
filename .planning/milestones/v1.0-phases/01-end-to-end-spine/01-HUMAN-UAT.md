@@ -4,6 +4,10 @@ phase: 01-end-to-end-spine
 source: [01-VERIFICATION.md]
 started: 2026-08-20
 updated: 2026-08-20
+audit_acknowledged:
+  milestone: v1.0
+  at: 2026-09-23
+  gap_snapshot: "partial::scenarios=1"
 ---
 
 ## Current Test
@@ -13,6 +17,7 @@ updated: 2026-08-20
 ## Tests
 
 ### 1. Confirm the source timezone of the verification report's `CreatedAt` (Assumption A1)
+
 expected: Joachim/Chris/Richard confirm what wall-clock zone the Invex/Thesis pipeline emits `CreatedAt` in (UTC vs US-Central/America-Chicago vs other). The code currently interprets it as **UTC** and retains `raw_created_at` on every row, so if the answer differs it is a cheap re-derivation (no re-upload). Until confirmed, the verifications-over-time chart could be systematically shifted by a fixed number of hours.
 result: [pending]
 
