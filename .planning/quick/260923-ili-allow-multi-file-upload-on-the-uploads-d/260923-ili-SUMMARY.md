@@ -244,3 +244,14 @@ confirmed present in `git log`.
 ---
 *Quick task: 260923-ili*
 *Completed: 2026-09-23*
+
+
+## UAT Closed — 2026-09-23
+
+Confirmed working in a browser by Mark W on 2026-09-23, against the deployed build (`2fc5e1c` on `origin/main`), after the change went live on Netlify.
+
+The live drag-and-drop walkthrough recorded as outstanding above — the `<human-check>` in Task 3 — has now been exercised against the real app. The batch upload path is confirmed working.
+
+**Scope of this confirmation:** the user reported the feature working as a whole. It is a genuine human-in-a-browser confirmation, not an automated result — but it was not recorded as a step-by-step attestation of each numbered item above. Treat the feature as UAT-passed; treat any single numbered step as covered by that overall confirmation rather than separately signed off.
+
+This closes the only item left outstanding on this quick task.
