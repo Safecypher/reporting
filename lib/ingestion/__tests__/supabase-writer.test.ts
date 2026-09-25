@@ -24,6 +24,11 @@ function makeFakeSupabase(overrides: {
   const uploadMock = vi.fn().mockResolvedValue({ data: { path: "some/path" }, error: null });
   const updateEqMock = vi.fn().mockResolvedValue({ error: null });
   const genericUpsertMock = vi.fn();
+  // Task 3 (09-01): capture the object handed to `.insert(...)` on
+  // ingested_files, one payload per call, so provenance assertions can
+  // inspect the exact fields the writer built — without disturbing the
+  // existing chained `select().single()` shape any current test relies on.
+  const ingestedFilesInsertPayloads: Record<string, unknown>[] = [];
 
   const from = vi.fn((table: string) => {
     if (table === "ingested_files") {
@@ -33,11 +38,14 @@ function makeFakeSupabase(overrides: {
             maybeSingle: () => Promise.resolve({ data: findFileByHashResult, error: null }),
           }),
         }),
-        insert: () => ({
-          select: () => ({
-            single: () => Promise.resolve({ data: { id: recordFileId }, error: null }),
-          }),
-        }),
+        insert: (payload: Record<string, unknown>) => {
+          ingestedFilesInsertPayloads.push(payload);
+          return {
+            select: () => ({
+              single: () => Promise.resolve({ data: { id: recordFileId }, error: null }),
+            }),
+          };
+        },
         update: () => ({
           eq: updateEqMock,
         }),
@@ -69,7 +77,14 @@ function makeFakeSupabase(overrides: {
     })),
   };
 
-  return { from, storage, updateEqMock, uploadMock, genericUpsertMock } as const;
+  return {
+    from,
+    storage,
+    updateEqMock,
+    uploadMock,
+    genericUpsertMock,
+    ingestedFilesInsertPayloads,
+  } as const;
 }
 
 const sampleRow: NormalisedVerificationRow = {
@@ -243,5 +258,85 @@ describe("createSupabaseWriter", () => {
         contentType: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
       })
     );
+  });
+
+  // --- Task 3 (09-01): AUTO-06/AUTO-07 — the manual path's provenance
+  // default is asserted explicitly, not inferred, and the writer's new
+  // provenance parameter is proved to isolate correctly per instance. ---
+
+  it("createSupabaseWriter(fake) with no options inserts provenance source 'manual' with a null reference and a null credential id — the default path, byte-identical for app/api/ingest/route.ts", async () => {
+    const fake = makeFakeSupabase();
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const writer = createSupabaseWriter(fake as any);
+    await writer.recordFile({
+      fileName: "daily-ver-report_2026-08-13.csv",
+      contentSha256: "hash-manual",
+      uploadedBy: "user-1",
+      reportType: "verification",
+      bytes: new TextEncoder().encode("a,b,c"),
+    });
+
+    expect(fake.ingestedFilesInsertPayloads).toHaveLength(1);
+    expect(fake.ingestedFilesInsertPayloads[0]).toMatchObject({
+      source: "manual",
+      source_ref: null,
+      source_credential_id: null,
+    });
+  });
+
+  it("createSupabaseWriter(fake, { source: 'push', sourceRef, sourceCredentialId }) inserts 'push', that exact key unmodified, and that credential id", async () => {
+    const fake = makeFakeSupabase();
+    const someKey = "11111111-1111-1111-1111-111111111111/20260925T060000Z-0-abcd-daily-ver-report.csv";
+    const writer = createSupabaseWriter(
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      fake as any,
+      {
+        source: "push",
+        sourceRef: someKey,
+        sourceCredentialId: "11111111-1111-1111-1111-111111111111",
+      }
+    );
+    await writer.recordFile({
+      fileName: "daily-ver-report_2026-08-13.csv",
+      contentSha256: "hash-push",
+      uploadedBy: null,
+      reportType: "verification",
+      bytes: new TextEncoder().encode("a,b,c"),
+    });
+
+    expect(fake.ingestedFilesInsertPayloads).toHaveLength(1);
+    // Exact string equality — no trimming, no encoding, no re-normalisation.
+    expect(fake.ingestedFilesInsertPayloads[0]).toMatchObject({
+      source: "push",
+      source_ref: someKey,
+      source_credential_id: "11111111-1111-1111-1111-111111111111",
+    });
+  });
+
+  it("two writers constructed from the same client with different provenance references each insert their own reference — per-file isolation the drain loop depends on", async () => {
+    const fake = makeFakeSupabase();
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const writerA = createSupabaseWriter(fake as any, { source: "push", sourceRef: "key-a" });
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const writerB = createSupabaseWriter(fake as any, { source: "push", sourceRef: "key-b" });
+
+    await writerA.recordFile({
+      fileName: "a.csv",
+      contentSha256: "hash-a",
+      uploadedBy: null,
+      reportType: "verification",
+      bytes: new TextEncoder().encode("a"),
+    });
+    await writerB.recordFile({
+      fileName: "b.csv",
+      contentSha256: "hash-b",
+      uploadedBy: null,
+      reportType: "verification",
+      bytes: new TextEncoder().encode("b"),
+    });
+
+    expect(fake.ingestedFilesInsertPayloads).toHaveLength(2);
+    expect(fake.ingestedFilesInsertPayloads[0]).toMatchObject({ source_ref: "key-a" });
+    expect(fake.ingestedFilesInsertPayloads[1]).toMatchObject({ source_ref: "key-b" });
   });
 });
