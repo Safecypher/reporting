@@ -1,7 +1,7 @@
 {
   "contract": "1.0.0",
   "flavor": "core",
-  "milestone": "v1.0",
+  "milestone": "v1.1 — Nothing Silently Missing",
   "phases": [
     {
       "number": "1",
@@ -26,23 +26,48 @@
     {
       "number": "5",
       "name": "Time Periods & Financial-Year Settings",
-      "status": "in_progress"
+      "status": "complete"
     },
     {
       "number": "6",
       "name": "Dual-Source Alignment: TSYS vs Bit Addict",
-      "status": "in_progress"
+      "status": "complete"
     },
     {
       "number": "7",
       "name": "TSYS Tiered Volume & Revenue Forecast",
       "status": "complete"
+    },
+    {
+      "number": "8",
+      "name": "Period & Pricing Correctness",
+      "status": "complete"
+    },
+    {
+      "number": "9",
+      "name": "Automated Drop-Off — Push, Credentials & Drain",
+      "status": "pending"
+    },
+    {
+      "number": "10",
+      "name": "Freshness & Loud Absence",
+      "status": "pending"
+    },
+    {
+      "number": "11",
+      "name": "Disclosure Fixes — FY Caption & Counterparty Rename",
+      "status": "pending"
+    },
+    {
+      "number": "12",
+      "name": "Verification Timezone Confirmation",
+      "status": "pending"
     }
   ],
   "next": {
-    "command": "/gsd:progress",
-    "label": "Show progress",
-    "reason": "Unsure of state — showing progress"
+    "command": "/gsd:progress --next",
+    "label": "Advance to the next step",
+    "reason": "Phase 09 of 4 · 20% · executing"
   },
-  "updated_at": "2026-09-23T12:14:16.579Z"
+  "updated_at": "2026-09-25T17:04:06.694Z"
 }
