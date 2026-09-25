@@ -33,7 +33,20 @@ export const config = {
   // unauthenticated (it's the route that establishes the session via
   // verifyOtp) — `/set-password` is deliberately NOT excluded here, since it
   // relies on the session verifyOtp just created and must stay gated.
+  //
+  // Phase 9 (AUTO-03/AUTO-05): `api/push` and `api/ingest/drain` are also
+  // excluded, anchored to full segment boundaries the same way. Neither
+  // route authenticates via the Supabase session cookie — `/api/push` uses
+  // a per-sender bearer token (D-10), `/api/ingest/drain` uses a dedicated
+  // cron secret — so without this exclusion `proxy()`'s redirect-when-no-
+  // user branch above would answer every push and every drain trigger with
+  // an HTML redirect to /login instead of running the route handler at all,
+  // and AUTO-03/AUTO-05 would silently not work. This also keeps both
+  // routes off Next 16's proxy-layer request-body buffering (10MB default),
+  // which would otherwise truncate a push request under the 25MB cap rather
+  // than reject it. `/api/ingest`, `/set-password`, `/uploads`,
+  // `/settings/*` and every other route stay gated exactly as before.
   matcher: [
-    "/((?!_next/static|_next/image|favicon.ico|login(?:/|$)|auth/confirm(?:/|$)).*)",
+    "/((?!_next/static|_next/image|favicon.ico|login(?:/|$)|auth/confirm(?:/|$)|api/push(?:/|$)|api/ingest/drain(?:/|$)).*)",
   ],
 };

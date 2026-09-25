@@ -5,7 +5,7 @@ import type { IngestDeps, NormalisedVerificationRow, RejectedRow, ReportType } f
 /** Private Storage bucket created in the 01-03 migrations (public = false). */
 const REPORTS_BUCKET = "reports";
 
-function buildSecretClient(): SupabaseClient<Database> {
+export function buildSecretClient(): SupabaseClient<Database> {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
   const secretKey = process.env.SUPABASE_SECRET_KEY;
 
@@ -28,7 +28,7 @@ function buildSecretClient(): SupabaseClient<Database> {
  * anything outside a conservative allow-list before it ever touches a Storage
  * key, so it can't escape the `<sha256>/` prefix or inject `/`/`..` segments.
  */
-function sanitiseFileName(name: string): string {
+export function sanitiseFileName(name: string): string {
   const base = name.replace(/[\\/]/g, "_").replace(/[^a-zA-Z0-9._-]/g, "_");
   return base.slice(-200) || "upload";
 }
@@ -38,7 +38,7 @@ function storagePath(contentSha256: string, fileName: string): string {
 }
 
 /** ZIP magic number — XLSX is a ZIP container; CSV/text never starts with this. */
-function isXlsx(bytes: Uint8Array): boolean {
+export function isXlsx(bytes: Uint8Array): boolean {
   return bytes.length >= 4 && bytes[0] === 0x50 && bytes[1] === 0x4b;
 }
 
@@ -48,27 +48,49 @@ function isXlsx(bytes: Uint8Array): boolean {
  * the same "detect format from bytes, never trust the client" principle
  * `extractHeaderSignature` uses for classification (T-02-01).
  */
-function detectContentType(bytes: Uint8Array): string {
+export function detectContentType(bytes: Uint8Array): string {
   return isXlsx(bytes)
     ? "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
     : "text/csv";
 }
 
 /**
+ * Provenance carried by the writer's closure for AUTO-06 — NEVER passed
+ * through `ingest()`'s `meta` argument (09-RESEARCH.md Pitfall 1). Optional
+ * on every field so `createSupabaseWriter(client)` with no second argument —
+ * the manual upload path's existing call shape — keeps defaulting to
+ * 'manual' with null reference/credential, byte-identical to today.
+ */
+export interface WriterProvenanceOptions {
+  source?: "manual" | "push" | "email";
+  sourceRef?: string;
+  sourceCredentialId?: string;
+}
+
+/**
  * Builds the Supabase-backed `IngestDeps` implementation used by the real
- * upload path (`app/api/ingest/route.ts`). Optionally accepts an injected
- * client for tests — production callers should call this with no argument
- * so it builds the secret-key client itself.
+ * upload path (`app/api/ingest/route.ts`) and, with push provenance, by the
+ * drain route (`app/api/ingest/drain/route.ts`). Optionally accepts an
+ * injected client for tests — production callers should call this with no
+ * client argument so it builds the secret-key client itself.
  *
  * Stateful per call: `recordFile` stashes the ingested_files row id in a
- * closure variable that `upsertVerifications` reads to satisfy the
- * `source_file_id` FK. This is safe because `ingest()` always calls
- * `recordFile` before `upsertVerifications` for a single file, and a fresh
- * writer is constructed per request (no cross-request sharing).
+ * closure variable that `upsertVerifications`/`upsertRows` read to satisfy
+ * the `source_file_id` FK. This is safe because `ingest()` always calls
+ * `recordFile` before those methods for a single file, and a fresh writer is
+ * constructed per file (no cross-request AND no cross-file sharing — the
+ * drain loop must construct one per object, never reuse one across a
+ * batch, per 09-RESEARCH.md Pitfall 4).
  */
-export function createSupabaseWriter(client?: SupabaseClient<Database>): IngestDeps {
+export function createSupabaseWriter(
+  client?: SupabaseClient<Database>,
+  options?: WriterProvenanceOptions
+): IngestDeps {
   const supabase = client ?? buildSecretClient();
   let currentFileId: string | null = null;
+  const source = options?.source ?? "manual";
+  const sourceRef = options?.sourceRef ?? null;
+  const sourceCredentialId = options?.sourceCredentialId ?? null;
 
   return {
     async findFileByHash(sha256) {
@@ -103,16 +125,33 @@ export function createSupabaseWriter(client?: SupabaseClient<Database>): IngestD
         });
       if (uploadError) throw uploadError;
 
-      const { data, error } = await supabase
-        .from("ingested_files")
-        .insert({
-          file_name: meta.fileName,
-          content_sha256: meta.contentSha256,
-          uploaded_by: meta.uploadedBy,
-          report_type: meta.reportType,
-          storage_path: path,
-          status: "pending",
-        })
+      // AUTO-06: the provenance fields ride in this factory's closure, never
+      // in `ingest()`'s `meta` argument (09-RESEARCH.md Pitfall 1). Built as
+      // a named local variable (not a fresh object literal) so nothing else
+      // about this insert call needs to change once `types/db.ts` is
+      // regenerated in 09-05. supabase-js's generated `.insert()` overload
+      // uses a `RejectExcessProperties` conditional type that maps any
+      // unknown key to `never` and enforces that even against a variable
+      // (not just a fresh literal, where TypeScript's own excess-property
+      // check would apply) — so `types/db.ts` not yet knowing about
+      // `source`/`source_ref`/`source_credential_id` still requires one
+      // explicit, documented cast here, mirroring the existing untyped-table
+      // escape hatch `upsertRows` already carries below.
+      const insertPayload = {
+        file_name: meta.fileName,
+        content_sha256: meta.contentSha256,
+        uploaded_by: meta.uploadedBy,
+        report_type: meta.reportType,
+        storage_path: path,
+        status: "pending",
+        source,
+        source_ref: sourceRef,
+        source_credential_id: sourceCredentialId,
+      };
+
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const { data, error } = await (supabase.from("ingested_files") as any)
+        .insert(insertPayload)
         .select("id")
         .single();
 
