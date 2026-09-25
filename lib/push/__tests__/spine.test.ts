@@ -44,6 +44,29 @@ function makeFakeCredentialStore() {
   };
 }
 
+/**
+ * An in-memory `push_rejections` recorder — plan 09-02's extension to
+ * `AcceptPushDeps`. This file's tests care only that every `AcceptPushDeps`
+ * literal satisfies the (now-extended) interface and that a rejection is
+ * recorded when one is expected; the published reason-string contract itself
+ * is covered by `lib/push/__tests__/delivery.test.ts`.
+ */
+function makeFakeRejectionRecorder() {
+  const rejections: {
+    credentialId: string;
+    sender: string;
+    filename: string;
+    reason: string;
+    byteSize: number;
+  }[] = [];
+  return {
+    rejections,
+    recordRejection: vi.fn(async (input: (typeof rejections)[number]) => {
+      rejections.push(input);
+    }),
+  };
+}
+
 /** An in-memory inbox shared between `acceptPush`'s putObject and `drainInbox`'s list/download/remove. */
 function makeFakeInbox() {
   const objects = new Map<string, { bytes: Uint8Array; contentType: string }>();
@@ -156,6 +179,7 @@ describe("Phase 9 tracer: push -> inbox -> drain -> ingest", () => {
       lookupCredentialByTokenHash: credStore.lookupCredentialByTokenHash,
       touchLastUsed: credStore.touchLastUsed,
       putObject: inbox.putObject,
+      recordRejection: makeFakeRejectionRecorder().recordRejection,
     };
 
     const pushResult = await acceptPush(deliveryDeps, {
@@ -216,7 +240,12 @@ describe("Phase 9 tracer: push -> inbox -> drain -> ingest", () => {
     const inbox = makeFakeInbox();
 
     const pushResult = await acceptPush(
-      { lookupCredentialByTokenHash: credStore.lookupCredentialByTokenHash, touchLastUsed: credStore.touchLastUsed, putObject: inbox.putObject },
+      {
+        lookupCredentialByTokenHash: credStore.lookupCredentialByTokenHash,
+        touchLastUsed: credStore.touchLastUsed,
+        putObject: inbox.putObject,
+        recordRejection: makeFakeRejectionRecorder().recordRejection,
+      },
       {
         authorizationHeader: `Bearer ${token}`,
         declaredContentLength: verificationBytes.length + otherVerificationBytes.length,
@@ -266,6 +295,7 @@ describe("acceptPush auth", () => {
         lookupCredentialByTokenHash: credStore.lookupCredentialByTokenHash,
         touchLastUsed: credStore.touchLastUsed,
         putObject: inbox.putObject,
+        recordRejection: makeFakeRejectionRecorder().recordRejection,
       } satisfies AcceptPushDeps,
     };
   }
@@ -323,6 +353,7 @@ describe("acceptPush size limits (D-09)", () => {
       lookupCredentialByTokenHash: credStore.lookupCredentialByTokenHash,
       touchLastUsed: credStore.touchLastUsed,
       putObject: inbox.putObject,
+      recordRejection: makeFakeRejectionRecorder().recordRejection,
     };
 
     const result = await acceptPush(deps, {
@@ -342,7 +373,12 @@ describe("acceptPush size limits (D-09)", () => {
     credStore.addCredential(hash, CREDENTIAL_ID, "TSYS");
 
     const result = await acceptPush(
-      { lookupCredentialByTokenHash: credStore.lookupCredentialByTokenHash, touchLastUsed: credStore.touchLastUsed, putObject: inbox.putObject },
+      {
+        lookupCredentialByTokenHash: credStore.lookupCredentialByTokenHash,
+        touchLastUsed: credStore.touchLastUsed,
+        putObject: inbox.putObject,
+        recordRejection: makeFakeRejectionRecorder().recordRejection,
+      },
       {
         authorizationHeader: `Bearer ${token}`,
         declaredContentLength: 25 * 1024 * 1024,
@@ -360,10 +396,19 @@ describe("acceptPush size limits (D-09)", () => {
     credStore.addCredential(hash, CREDENTIAL_ID, "TSYS");
 
     const tooLarge = new Uint8Array(5 * 1024 * 1024 + 1);
-    const exactlyAtCap = new Uint8Array(5 * 1024 * 1024);
+    // Filled with a printable ASCII byte, not left zero — an all-zero buffer
+    // would trip the 09-02 NUL-in-leading-kilobyte unrecognised-format check,
+    // which is not what this boundary test exercises.
+    const exactlyAtCap = new Uint8Array(5 * 1024 * 1024).fill(0x41);
 
+    const rejectionRecorder = makeFakeRejectionRecorder();
     const result = await acceptPush(
-      { lookupCredentialByTokenHash: credStore.lookupCredentialByTokenHash, touchLastUsed: credStore.touchLastUsed, putObject: inbox.putObject },
+      {
+        lookupCredentialByTokenHash: credStore.lookupCredentialByTokenHash,
+        touchLastUsed: credStore.touchLastUsed,
+        putObject: inbox.putObject,
+        recordRejection: rejectionRecorder.recordRejection,
+      },
       {
         authorizationHeader: `Bearer ${token}`,
         declaredContentLength: tooLarge.length + exactlyAtCap.length,
@@ -375,11 +420,14 @@ describe("acceptPush size limits (D-09)", () => {
     );
 
     expect(result.results).toHaveLength(2);
-    expect(result.results[0]).toEqual({ filename: "too-large.csv", accepted: false });
+    expect(result.results[0].accepted).toBe(false);
+    expect(result.results[0].reason).toBeTruthy();
+    expect(rejectionRecorder.rejections).toHaveLength(1);
+    expect(rejectionRecorder.rejections[0].filename).toBe("too-large.csv");
     expect(result.results[1].accepted).toBe(true);
     expect(result.results[1].reference).toBeTruthy();
-    // Not every file accepted -> 400 per this plan's status matrix (09-02 adds 207).
-    expect(result.status).toBe(400);
+    // Some accepted, some refused -> 207 Multi-Status (D-07, extended by 09-02).
+    expect(result.status).toBe(207);
   });
 });
 
@@ -394,7 +442,12 @@ describe("acceptPush ordering, adjacency and empty requests (D-06/D-07)", () => 
     const fileB = new TextEncoder().encode("a,b,c\n4,5,6\n");
 
     const result = await acceptPush(
-      { lookupCredentialByTokenHash: credStore.lookupCredentialByTokenHash, touchLastUsed: credStore.touchLastUsed, putObject: inbox.putObject },
+      {
+        lookupCredentialByTokenHash: credStore.lookupCredentialByTokenHash,
+        touchLastUsed: credStore.touchLastUsed,
+        putObject: inbox.putObject,
+        recordRejection: makeFakeRejectionRecorder().recordRejection,
+      },
       {
         authorizationHeader: `Bearer ${token}`,
         declaredContentLength: fileA.length + fileB.length,
@@ -420,7 +473,12 @@ describe("acceptPush ordering, adjacency and empty requests (D-06/D-07)", () => 
     credStore.addCredential(hash, CREDENTIAL_ID, "TSYS");
 
     const result = await acceptPush(
-      { lookupCredentialByTokenHash: credStore.lookupCredentialByTokenHash, touchLastUsed: credStore.touchLastUsed, putObject: inbox.putObject },
+      {
+        lookupCredentialByTokenHash: credStore.lookupCredentialByTokenHash,
+        touchLastUsed: credStore.touchLastUsed,
+        putObject: inbox.putObject,
+        recordRejection: makeFakeRejectionRecorder().recordRejection,
+      },
       { authorizationHeader: `Bearer ${token}`, declaredContentLength: 0, files: [] }
     );
 
