@@ -10,6 +10,27 @@ export const runtime = "nodejs";
 /** Mirrors D-09's 25MB-per-request cap — same pre-buffer discipline as app/api/ingest/route.ts's 5MB check. */
 const MAX_REQUEST_BYTES = 25 * 1024 * 1024;
 
+/**
+ * Published response body shape (D-07/D-08) — this is what TSYS and Bit
+ * Addict integrate against:
+ *
+ *   {
+ *     "results": [
+ *       { "filename": "daily-ver-report_2026-08-13.csv", "accepted": true, "reference": "<credential-id>/<...>-daily-ver-report_2026-08-13.csv" },
+ *       { "filename": "empty.csv", "accepted": false, "reason": "Empty file. This file has no content and was not accepted." }
+ *     ]
+ *   }
+ *
+ * `results` carries one entry per file part, in the order the parts arrived
+ * (D-07). An accepted entry carries `reference`, never `reason`; a refused
+ * entry carries `reason`, never `reference`. The HTTP status is the D-07
+ * matrix: 202 when every entry is accepted, 207 Multi-Status when the array
+ * is mixed, 400 when none are accepted (including a request with zero file
+ * parts, whose `results` is `[]`). A request-level refusal (missing/invalid
+ * Authorization, or a declared Content-Length over 25MB) also answers 400
+ * with `results: []` — there is no per-file breakdown to report before a
+ * credential has been resolved.
+ */
 export async function POST(request: Request) {
   // Defence-in-depth beyond acceptPush's own declaredContentLength check:
   // refuse before Next's Route Handler runtime buffers the multipart body
@@ -47,6 +68,24 @@ export async function POST(request: Request) {
         upsert: false,
       });
       if (error) throw error;
+    },
+    async recordRejection(input) {
+      // T-09-16: a failed insert here degrades to a server-side log, never
+      // to a 500 for the sender — losing this one audit row is bad, but
+      // losing the sender's honest per-file answer over it would be worse.
+      // The insert itself can never be reached by an unauthenticated caller
+      // (T-09-13): acceptPush only calls this after a successful credential
+      // lookup, per its own recordRejection doc comment.
+      const { error } = await pushTable(supabase, "push_rejections").insert({
+        credential_id: input.credentialId,
+        sender: input.sender,
+        file_name: input.filename,
+        reason: input.reason,
+        byte_size: input.byteSize,
+      });
+      if (error) {
+        console.error("Failed to record push_rejections row", error);
+      }
     },
   };
 

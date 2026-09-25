@@ -18,6 +18,22 @@ import {
 } from "../delivery";
 import { generateToken } from "../tokens";
 
+// Task 3: the route's own dependencies are mocked so POST /api/push's real
+// handler (app/api/push/route.ts) can be exercised directly, not just
+// acceptPush — buildSecretClient is swapped for a fake in-memory client;
+// every other export of lib/ingestion/supabase-writer (isXlsx,
+// detectContentType, sanitiseFileName) stays the real implementation, since
+// lib/push/delivery.ts itself imports those from the same module.
+let routeSupabaseClient: unknown;
+vi.mock("@/lib/ingestion/supabase-writer", async (importOriginal) => {
+  const actual =
+    await importOriginal<typeof import("@/lib/ingestion/supabase-writer")>();
+  return {
+    ...actual,
+    buildSecretClient: () => routeSupabaseClient,
+  };
+});
+
 const CREDENTIAL_ID = "22222222-2222-2222-2222-222222222222";
 const SENDER = "TSYS";
 
@@ -359,6 +375,281 @@ describe("acceptPush duplicate acceptance (D-13)", () => {
     expect(second.results[0].accepted).toBe(true);
     expect(first.results[0].reference).not.toBe(second.results[0].reference);
     expect(rejectionRecorder.rejections).toHaveLength(0);
+  });
+});
+
+/**
+ * A fake `SupabaseClient` surface for exercising `app/api/push/route.ts`'s
+ * real POST handler directly (Task 3) — the `push_credentials` /
+ * `push_rejections` table shapes and the `inbox` Storage bucket, all
+ * in-memory. `buildSecretClient` is mocked to return this (see the
+ * `vi.mock` above); `pushTable`'s `(client as any).from(table)` escape
+ * hatch works unmodified against it.
+ */
+function makeFakeRouteSupabase(opts: { failRejectionInsert?: boolean } = {}) {
+  const credentials = new Map<string, { id: string; sender: string; revoked: boolean }>();
+  const touchedIds: string[] = [];
+  const rejectionRows: Record<string, unknown>[] = [];
+  const uploadedKeys: string[] = [];
+
+  return {
+    addCredential(hash: string, id: string, sender: string) {
+      credentials.set(hash, { id, sender, revoked: false });
+    },
+    revoke(hash: string) {
+      const entry = credentials.get(hash);
+      if (entry) entry.revoked = true;
+    },
+    touchedIds,
+    rejectionRows,
+    uploadedKeys,
+    client: {
+      from(table: string) {
+        if (table === "push_credentials") {
+          return {
+            select: () => ({
+              eq: (_col: string, tokenHash: string) => ({
+                is: (_col2: string, _val: null) => ({
+                  maybeSingle: async () => {
+                    const entry = credentials.get(tokenHash);
+                    if (!entry || entry.revoked) return { data: null, error: null };
+                    return { data: { id: entry.id, sender: entry.sender }, error: null };
+                  },
+                }),
+              }),
+            }),
+            update: (_patch: Record<string, unknown>) => ({
+              eq: async (_col: string, id: string) => {
+                touchedIds.push(id);
+                return { error: null };
+              },
+            }),
+          };
+        }
+        if (table === "push_rejections") {
+          return {
+            insert: async (row: Record<string, unknown>) => {
+              if (opts.failRejectionInsert) {
+                return { error: new Error("simulated push_rejections insert failure") };
+              }
+              rejectionRows.push(row);
+              return { error: null };
+            },
+          };
+        }
+        throw new Error(`unexpected table in route test fake: ${table}`);
+      },
+      storage: {
+        from: (_bucket: string) => ({
+          upload: async (key: string) => {
+            uploadedKeys.push(key);
+            return { error: null };
+          },
+        }),
+      },
+    },
+  };
+}
+
+function buildPushRequest(opts: {
+  authorization?: string | null;
+  files?: { filename: string; bytes: Uint8Array }[];
+}): Request {
+  const formData = new FormData();
+  for (const f of opts.files ?? []) {
+    // BlobPart's typed-array overload wants an ArrayBuffer-backed view;
+    // Uint8Array's generic buffer type is ArrayBufferLike (which also
+    // admits SharedArrayBuffer), so a cast is needed here purely for the
+    // type checker — every array in this test file is freshly allocated
+    // with a real ArrayBuffer.
+    formData.append("file", new File([f.bytes as unknown as BlobPart], f.filename));
+  }
+  const headers = new Headers();
+  if (opts.authorization) headers.set("authorization", opts.authorization);
+  return new Request("http://localhost/api/push", {
+    method: "POST",
+    body: formData,
+    headers,
+  });
+}
+
+describe("POST /api/push route — the five auth cases (D-10)", () => {
+  it("a valid token is accepted and the credential's last-used timestamp is stamped", async () => {
+    const { POST } = await import("@/app/api/push/route");
+    const routeSupabase = makeFakeRouteSupabase();
+    routeSupabaseClient = routeSupabase.client;
+    const { token, hash } = generateToken();
+    routeSupabase.addCredential(hash, CREDENTIAL_ID, SENDER);
+
+    const response = await POST(
+      buildPushRequest({
+        authorization: `Bearer ${token}`,
+        files: [{ filename: "a.csv", bytes: csvBytes("a,b\n1,2\n") }],
+      })
+    );
+
+    expect(response.status).toBe(202);
+    const body = await response.json();
+    expect(body.results).toHaveLength(1);
+    expect(body.results[0].accepted).toBe(true);
+    expect(routeSupabase.touchedIds).toEqual([CREDENTIAL_ID]);
+  });
+
+  it("a mixed batch through the route answers 207 with the documented per-file body shape, and a rejection row is durably recorded", async () => {
+    const { POST } = await import("@/app/api/push/route");
+    const routeSupabase = makeFakeRouteSupabase();
+    routeSupabaseClient = routeSupabase.client;
+    const { token, hash } = generateToken();
+    routeSupabase.addCredential(hash, CREDENTIAL_ID, SENDER);
+
+    const response = await POST(
+      buildPushRequest({
+        authorization: `Bearer ${token}`,
+        files: [
+          { filename: "good.csv", bytes: csvBytes("a,b\n1,2\n") },
+          { filename: "empty.csv", bytes: new Uint8Array(0) },
+        ],
+      })
+    );
+
+    expect(response.status).toBe(207);
+    const body = await response.json();
+    expect(body).toEqual({
+      results: [
+        { filename: "good.csv", accepted: true, reference: expect.any(String) },
+        { filename: "empty.csv", accepted: false, reason: REJECTION_REASON_EMPTY_FILE },
+      ],
+    });
+    expect(routeSupabase.rejectionRows).toHaveLength(1);
+    expect(routeSupabase.rejectionRows[0]).toMatchObject({
+      credential_id: CREDENTIAL_ID,
+      sender: SENDER,
+      file_name: "empty.csv",
+      reason: REJECTION_REASON_EMPTY_FILE,
+      byte_size: 0,
+    });
+  });
+
+  it("a revoked token answers 401 and never stamps last-used", async () => {
+    const { POST } = await import("@/app/api/push/route");
+    const routeSupabase = makeFakeRouteSupabase();
+    routeSupabaseClient = routeSupabase.client;
+    const { token, hash } = generateToken();
+    routeSupabase.addCredential(hash, CREDENTIAL_ID, SENDER);
+    routeSupabase.revoke(hash);
+
+    const response = await POST(
+      buildPushRequest({
+        authorization: `Bearer ${token}`,
+        files: [{ filename: "a.csv", bytes: csvBytes("a,b\n1,2\n") }],
+      })
+    );
+
+    expect(response.status).toBe(401);
+    expect(await response.json()).toEqual({ results: [] });
+    expect(routeSupabase.touchedIds).toEqual([]);
+  });
+
+  it("an unknown token answers 401 and never stamps last-used", async () => {
+    const { POST } = await import("@/app/api/push/route");
+    const routeSupabase = makeFakeRouteSupabase();
+    routeSupabaseClient = routeSupabase.client;
+
+    const response = await POST(
+      buildPushRequest({
+        authorization: "Bearer sc_live_totally-unknown-token",
+        files: [{ filename: "a.csv", bytes: csvBytes("a,b\n1,2\n") }],
+      })
+    );
+
+    expect(response.status).toBe(401);
+    expect(await response.json()).toEqual({ results: [] });
+    expect(routeSupabase.touchedIds).toEqual([]);
+  });
+
+  it("a missing Authorization header answers 401", async () => {
+    const { POST } = await import("@/app/api/push/route");
+    routeSupabaseClient = makeFakeRouteSupabase().client;
+
+    const response = await POST(
+      buildPushRequest({ files: [{ filename: "a.csv", bytes: csvBytes("a,b\n1,2\n") }] })
+    );
+
+    expect(response.status).toBe(401);
+    expect(await response.json()).toEqual({ results: [] });
+  });
+
+  it("a malformed Authorization header answers 401", async () => {
+    const { POST } = await import("@/app/api/push/route");
+    routeSupabaseClient = makeFakeRouteSupabase().client;
+
+    const response = await POST(
+      buildPushRequest({
+        authorization: "Basic not-a-bearer-token",
+        files: [{ filename: "a.csv", bytes: csvBytes("a,b\n1,2\n") }],
+      })
+    );
+
+    expect(response.status).toBe(401);
+    expect(await response.json()).toEqual({ results: [] });
+  });
+
+  it("a revoked token and an unknown token answer byte-identically — status, body and headers alike (D-10)", async () => {
+    const { POST } = await import("@/app/api/push/route");
+
+    const revokedRoute = makeFakeRouteSupabase();
+    const { token: revokedToken, hash: revokedHash } = generateToken();
+    revokedRoute.addCredential(revokedHash, CREDENTIAL_ID, SENDER);
+    revokedRoute.revoke(revokedHash);
+    routeSupabaseClient = revokedRoute.client;
+    const revokedResponse = await POST(
+      buildPushRequest({
+        authorization: `Bearer ${revokedToken}`,
+        files: [{ filename: "a.csv", bytes: csvBytes("a,b\n1,2\n") }],
+      })
+    );
+
+    const unknownRoute = makeFakeRouteSupabase();
+    routeSupabaseClient = unknownRoute.client;
+    const unknownResponse = await POST(
+      buildPushRequest({
+        authorization: "Bearer sc_live_totally-unknown-token",
+        files: [{ filename: "a.csv", bytes: csvBytes("a,b\n1,2\n") }],
+      })
+    );
+
+    expect(revokedResponse.status).toBe(unknownResponse.status);
+    expect(await revokedResponse.json()).toEqual(await unknownResponse.json());
+    // No header distinguishes the two — an enumerating attacker learns
+    // nothing by comparing them (D-10).
+    const revokedHeaders = [...revokedResponse.headers.entries()].sort();
+    const unknownHeaders = [...unknownResponse.headers.entries()].sort();
+    expect(revokedHeaders).toEqual(unknownHeaders);
+  });
+
+  it("a failed push_rejections insert degrades to a server-side log, never a 500 for the sender", async () => {
+    const { POST } = await import("@/app/api/push/route");
+    const routeSupabase = makeFakeRouteSupabase({ failRejectionInsert: true });
+    routeSupabaseClient = routeSupabase.client;
+    const { token, hash } = generateToken();
+    routeSupabase.addCredential(hash, CREDENTIAL_ID, SENDER);
+    const consoleErrorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+
+    const response = await POST(
+      buildPushRequest({
+        authorization: `Bearer ${token}`,
+        files: [{ filename: "empty.csv", bytes: new Uint8Array(0) }],
+      })
+    );
+
+    expect(response.status).toBe(400);
+    expect(await response.json()).toEqual({
+      results: [{ filename: "empty.csv", accepted: false, reason: REJECTION_REASON_EMPTY_FILE }],
+    });
+    expect(consoleErrorSpy).toHaveBeenCalled();
+    expect(routeSupabase.rejectionRows).toHaveLength(0); // the simulated insert never actually landed a row
+
+    consoleErrorSpy.mockRestore();
   });
 });
 
