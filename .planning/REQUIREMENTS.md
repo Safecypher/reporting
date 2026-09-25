@@ -19,7 +19,7 @@ v1.0 and is delivered by the union of AUTO-03..AUTO-07 below. `AUTO-02` remains 
 
 ### Ingestion Automation
 
-- [ ] **AUTO-03**: A sender with a valid credential can push a report file over HTTPS and receive an acceptance response, with no user session
+- [x] **AUTO-03**: A sender with a valid credential can push a report file over HTTPS and receive an acceptance response, with no user session
 - [ ] **AUTO-04**: A push credential can be issued and revoked per sender; a revoked credential is refused
 - [ ] **AUTO-05**: Pushed files are ingested automatically on a daily schedule through the existing `ingest()` path, with no manual step
 - [ ] **AUTO-06**: Every ingested file records which source it came from and a reference to the originating object
@@ -71,7 +71,7 @@ Deferred to a later milestone. Tracked but not in this roadmap.
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| AUTO-03 | Phase 9 | Pending |
+| AUTO-03 | Phase 9 | Complete |
 | AUTO-04 | Phase 9 | Pending |
 | AUTO-05 | Phase 9 | Pending |
 | AUTO-06 | Phase 9 | Pending |
@@ -86,6 +86,7 @@ Deferred to a later milestone. Tracked but not in this roadmap.
 | DATA-08 | Phase 12 | Pending |
 
 **Coverage:**
+
 - v1.1 requirements: 13 total
 - Mapped to phases: 13 (roadmap complete)
 - Unmapped: 0 ✓

@@ -58,12 +58,12 @@ doc; freshness evaluation (D-4's other half) is layered on in Phase 10.
   4. Every ingested file's record (manual or pushed) shows which source delivered it, and a pushed file's record additionally references the originating inbox object it came from.
   5. Manual drag-and-drop upload on `/uploads` still accepts a file and ingests it exactly as it did before v1.1, including multi-file sequential upload (260923-ili).
 
-**Plans**: 1/5 plans executed
+**Plans**: 2/5 plans executed
 
 Plans:
 
 - [x] 09-01-PLAN.md — Tracer: a pushed file reaches the normalised tables with provenance (wave 1)
-- [ ] 09-02-PLAN.md — Delivery-time validation, rejection records and the 202/207/400 contract (wave 2)
+- [x] 09-02-PLAN.md — Delivery-time validation, rejection records and the 202/207/400 contract (wave 2)
 - [ ] 09-03-PLAN.md — `/settings/senders`: mint, show once, revoke (wave 2)
 - [ ] 09-04-PLAN.md — Uploads history: sender provenance, interleaved rejections, source_ref drill (wave 3)
 - [ ] 09-05-PLAN.md — [BLOCKING] Apply live, schedule the daily job, prove nothing moved (wave 4)
@@ -152,7 +152,7 @@ order or in parallel with 9–11 without blocking them.
 | 6. Dual-Source Alignment: TSYS vs Bit Addict | v1.0 | 10/10 | Complete | 2026-09-15 |
 | 7. TSYS Tiered Volume & Revenue Forecast | v1.0 | 6/6 | Complete | 2026-09-16 |
 | 8. Period & Pricing Correctness | v1.0 | 5/5 | Complete | 2026-09-23 |
-| 9. Automated Drop-Off — Push, Credentials & Drain | v1.1 | 1/5 | In Progress|  |
+| 9. Automated Drop-Off — Push, Credentials & Drain | v1.1 | 2/5 | In Progress|  |
 | 10. Freshness & Loud Absence | v1.1 | 0/TBD | Not started | - |
 | 11. Disclosure Fixes — FY Caption & Counterparty Rename | v1.1 | 0/TBD | Not started | - |
 | 12. Verification Timezone Confirmation | v1.1 | 0/TBD | Not started | - |

@@ -5,17 +5,17 @@ milestone_name: Nothing Silently Missing
 current_phase: 09
 current_phase_name: Automated Drop-Off — Push, Credentials & Drain
 status: executing
-stopped_at: Completed 09-01-PLAN.md
-last_updated: "2026-09-25T17:04:34.137Z"
+stopped_at: Completed 09-02-PLAN.md
+last_updated: "2026-09-25T19:11:19.724Z"
 last_activity: 2026-09-25
 last_activity_desc: Phase 09 execution started
-state_head: 64bf0a6319bc216263abc56374f1f2c6d4fc3db9
+state_head: f1feec0f17cf62e765b207682eb9c4a3611011d6
 progress:
   total_phases: 4
   completed_phases: 8
   total_plans: 5
-  completed_plans: 1
-  percent: 20
+  completed_plans: 2
+  percent: 40
 ---
 
 # Project State
@@ -30,7 +30,7 @@ See: .planning/PROJECT.md (updated 2026-09-25)
 ## Current Position
 
 Phase: 09 (Automated Drop-Off — Push, Credentials & Drain) — EXECUTING
-Plan: 2 of 5
+Plan: 3 of 5
 Status: Ready to execute
 Last activity: 2026-09-25 — Phase 09 execution started
 
@@ -94,6 +94,7 @@ Last activity: 2026-09-25 — Phase 09 execution started
 | Phase 08 P03 | 20min | 2 tasks | 2 files |
 | Phase 08 P05 | ~20min | 2 tasks | 3 files |
 | Phase 09 P01 | 14min | 3 tasks | 11 files |
+| Phase 09 P02 | 11 min | 3 tasks | 5 files |
 
 ## Accumulated Context
 
@@ -172,6 +173,8 @@ Recent decisions affecting current work:
 - [Phase 08]: data_window_start() (WR-07 SQL half) is adopted going forward only in new SQL - the 20+ existing migrations containing the inline 2026-08-13 literal are applied history and are not rewritten.
 - [Phase 09]: Confirmed CONTEXT.md D-02: push_credentials.sender carries no UNIQUE constraint. Task 1 checkpoint resolved no-unique-constraint.
 - [Phase 09]: supabase-js's generated .insert() overload rejects excess properties via a RejectExcessProperties conditional type even against a named variable, not just a fresh literal -- required one documented cast on the ingested_files insert (mirrors the existing upsertRows escape hatch).
+- [Phase 09]: Delivery rejections recorded in a new push_rejections table (D-14, confirmed): keeps ingested_files.content_sha256's unique constraint intact and avoids zero-byte-file hash collisions.
+- [Phase 09]: Route-handler testing via vi.mock's importOriginal merge: buildSecretClient swapped for an in-memory fake, every other supabase-writer export left real, letting POST /api/push's real handler run under test with no live database.
 
 ### Pending Todos
 
@@ -232,8 +235,8 @@ recorded in three phases — a Next.js generated ambient type, not a defect.
 
 ## Session Continuity
 
-Last session: 2026-09-25T17:04:34.123Z
-Stopped at: Completed 09-01-PLAN.md
+Last session: 2026-09-25T19:11:19.709Z
+Stopped at: Completed 09-02-PLAN.md
 Resume file: None
 
 ## Operator Next Steps
