@@ -69,28 +69,27 @@ Deferred to a later milestone. Tracked but not in this roadmap.
 
 ## Traceability
 
-Populated during roadmap creation.
-
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| AUTO-03 | TBD | Pending |
-| AUTO-04 | TBD | Pending |
-| AUTO-05 | TBD | Pending |
-| AUTO-06 | TBD | Pending |
-| AUTO-07 | TBD | Pending |
-| FRESH-01 | TBD | Pending |
-| FRESH-02 | TBD | Pending |
-| FRESH-03 | TBD | Pending |
-| FRESH-04 | TBD | Pending |
-| FRESH-05 | TBD | Pending |
-| FY-02 | TBD | Pending |
-| DATA-08 | TBD | Pending |
-| DOC-01 | TBD | Pending |
+| AUTO-03 | Phase 9 | Pending |
+| AUTO-04 | Phase 9 | Pending |
+| AUTO-05 | Phase 9 | Pending |
+| AUTO-06 | Phase 9 | Pending |
+| AUTO-07 | Phase 9 | Pending |
+| FRESH-01 | Phase 10 | Pending |
+| FRESH-02 | Phase 10 | Pending |
+| FRESH-03 | Phase 10 | Pending |
+| FRESH-04 | Phase 10 | Pending |
+| FRESH-05 | Phase 10 | Pending |
+| FY-02 | Phase 11 | Pending |
+| DOC-01 | Phase 11 | Pending |
+| DATA-08 | Phase 12 | Pending |
 
 **Coverage:**
 - v1.1 requirements: 13 total
-- Mapped to phases: 0 (roadmap pending)
-- Unmapped: 13 ⚠
+- Mapped to phases: 13 (roadmap complete)
+- Unmapped: 0 ✓
 
 ---
 *Requirements defined: 2026-09-25*
+*Mapped to roadmap: 2026-09-25*

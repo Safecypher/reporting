@@ -3,10 +3,10 @@ gsd_state_version: "1.0"
 milestone: v1.1
 milestone_name: Nothing Silently Missing
 status: planning
-last_updated: "2026-09-25T14:25:54.905Z"
+last_updated: "2026-09-25T15:00:00.000Z"
 last_activity: 2026-09-25
 progress:
-  total_phases: 0
+  total_phases: 4
   completed_phases: 0
   total_plans: 0
   completed_plans: 0
@@ -17,17 +17,17 @@ progress:
 
 ## Project Reference
 
-See: .planning/PROJECT.md (updated 2026-09-23)
+See: .planning/PROJECT.md (updated 2026-09-25)
 
 **Core value:** Trustworthy revenue reconciliation — billing must equal verifications, and any discrepancy must be immediately visible and traceable to source.
-**Current focus:** Milestone v1.0 complete — ready for `/gsd-complete-milestone`
+**Current focus:** Milestone v1.1 roadmap complete — ready to plan Phase 9
 
 ## Current Position
 
-Phase: Not started (defining requirements)
-Plan: —
-Status: Defining requirements
-Last activity: 2026-09-25 — Milestone v1.1 started
+Phase: 9 of 12 (Automated Drop-Off — Push, Credentials & Drain) — first of 4 v1.1 phases
+Plan: — (not yet planned)
+Status: Roadmap complete — ready for `/gsd-plan-phase 9`
+Last activity: 2026-09-25 — v1.1 ROADMAP.md created; 13/13 requirements mapped, phases 9-12
 
 ## Performance Metrics
 
@@ -99,6 +99,7 @@ Last activity: 2026-09-25 — Milestone v1.1 started
 - Source mapping resolved (2026-09-10, Mark): "TIS" = the TSYS/APIGEE report (`apigee_calls`); "Bit Addict" supplies the other five reports. Both sides already ingested — no prerequisite ingestion phase needed.
 - Forecast semantics resolved (2026-09-10, Mark): show actual-to-date AND projected month-end side by side.
 - Phase 8 added (2026-09-16): Period & Pricing Correctness — closes the ten findings 05-REVIEW.md left open (WR-02..WR-09, IN-03, IN-04), all re-verified still live against main that day. Two are genuine period-boundary correctness bugs (WR-03 unclamped financial-year floor, WR-04 non-deterministic current-year bounds); the rest are tier-set supersede disclosure and coverage-guard hardening. Carries an explicit no-regression criterion because WR-03 changes a period start that the Phase 5 and 7 live figures were verified against.
+- v1.1 roadmap created (2026-09-25): Phases 9-12, numbering continuing from v1.0's Phase 8. Phase 9 (Automated Drop-Off) and Phase 10 (Freshness & Loud Absence) split along the design doc's own seam — "files arrive" vs "absence is loud" — with Phase 10 depending on Phase 9's `ingested_files` provenance columns and drain job. Phase 11 (FY-02 + DOC-01) bundles two small independent disclosure fixes that touch neither ingestion path. Phase 12 (DATA-08) is deliberately isolated with no downstream dependents per explicit constraint, since it blocks on an external counterparty email reply — its position last in the numbering does not imply it must run last; nothing in the milestone depends on it. 13/13 v1.1 requirements mapped, zero orphans.
 
 ### Decisions
 
@@ -177,6 +178,8 @@ Carried from research (resolve during phase planning):
 - [Phase 2] Source timezone per report type must be established (not guessed) before finalising UTC normalisation — confirm with Joachim/Chris; store raw timestamp strings.
 - [Phase 4] 6am/8am billing/others delivery offset — design reconciliation to tolerate the offset regardless of Joachim's alignment effort; event-timestamp + settling window.
 - [Phase 06] RESOLVED 2026-09-14 (Plan 06-10 Task 3): the human walkthrough deferred since 06-06 is complete -- 06-UAT.md is status: complete, approved, with all eleven tests plus four 06-10 re-checks recorded (honestly, with no fabricated per-test observed values -- see 06-10-SUMMARY.md "Known Gaps in the UAT Record"). One new out-of-scope finding was raised and logged rather than fixed: public/icons.svg renders every glyph solid black regardless of applied status colour (WINDOWS.md id 6, app-wide, pre-existing, does not corrupt any figure). Formal `/gsd-verify-work 6` has still not been run -- recommended before ROADMAP.md's Phase 6 row flips to Complete.
+- [Phase 9 planning] Whether push-credential issuance (AUTO-04) is a `/settings`-style admin UI page or an operator-run script is unresolved — `push_credentials` has no client RLS policies by design (server-side secret-key client only), so a UI page would itself need a new server-only admin path. Resolve during Phase 9 planning/discussion.
+- [Phase 12 planning] DATA-08 blocks on an email reply from TSYS/Bit Addict about the verification report's `CreatedAt` source timezone (carried from v1.0 Assumption A1). No phase in v1.1 depends on Phase 12, so this cannot stall the rest of the milestone — but the reply itself is outside this repo's control and has no owner-side ETA.
 
 ### Quick Tasks Completed
 
@@ -221,10 +224,11 @@ recorded in three phases — a Next.js generated ambient type, not a defect.
 
 ## Session Continuity
 
-Last session: 2026-09-18T11:34:50.471Z
-Stopped at: Phase 08 complete — all phases complete
+Last session: 2026-09-25T15:00:00.000Z
+Stopped at: v1.1 ROADMAP.md created (Phases 9-12, 13/13 requirements mapped)
 Resume file: None
 
 ## Operator Next Steps
 
-- Start the next milestone with /gsd-new-milestone
+- Review the v1.1 roadmap in .planning/ROADMAP.md
+- Start Phase 9 with `/gsd-plan-phase 9`
