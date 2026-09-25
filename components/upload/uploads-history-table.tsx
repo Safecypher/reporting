@@ -1,3 +1,5 @@
+"use client";
+
 import { Badge } from "@/components/ui/badge";
 import {
   Table,
@@ -7,18 +9,21 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import {
+  DELIVERY_REJECTED_STATUS_LABEL,
+  FAILED_STATUS_LABEL,
+  REJECTED_STATUS,
+  formatCount,
+  type CombinedHistoryRow,
+} from "@/lib/upload/history";
 
-export type IngestedFileRow = {
-  id: string;
-  file_name: string;
-  uploaded_at: string;
-  uploaded_by: string | null;
-  status: string;
-  rows_accepted: number | null;
-  rows_duplicate: number | null;
-  rows_rejected: number | null;
-};
-
+/**
+ * Local 4-state badge for the ingestion domain (done/failed/pending/
+ * rejected) — deliberately NOT `components/dashboard/status-badge.tsx`,
+ * which is typed to `ReconciliationStatus` (a different domain: ok/
+ * needs_review/mismatch/no_source_data) and must not be widened to cover
+ * ingestion states.
+ */
 function StatusBadge({ status }: { status: string }) {
   if (status === "done") {
     return (
@@ -33,7 +38,17 @@ function StatusBadge({ status }: { status: string }) {
   if (status === "failed") {
     return (
       <Badge variant="outline" className="border-destructive/30 bg-destructive/10 text-destructive">
-        Failed
+        {FAILED_STATUS_LABEL}
+      </Badge>
+    );
+  }
+  if (status === REJECTED_STATUS) {
+    // Same destructive tokens as the "Failed" branch (D-16's "existing
+    // failed-state styling") but a distinct label — a refusal at the door
+    // is never conflated with a file that was parsed and broke.
+    return (
+      <Badge variant="outline" className="border-destructive/30 bg-destructive/10 text-destructive">
+        {DELIVERY_REJECTED_STATUS_LABEL}
       </Badge>
     );
   }
@@ -44,13 +59,29 @@ function StatusBadge({ status }: { status: string }) {
   );
 }
 
+/** A present count renders as its number; an absent one renders as a muted
+ * em dash (`formatCount`) rather than a zero. */
+function CountCell({ count }: { count: number | null }) {
+  const isAbsent = count === null || count === undefined;
+  return (
+    <TableCell
+      className={`text-right tabular-nums${isAbsent ? " text-muted-foreground" : ""}`}
+    >
+      {formatCount(count)}
+    </TableCell>
+  );
+}
+
 /**
- * Audit-trail table (INGEST-05) reading `ingested_files` ordered by
- * uploaded_at desc. Server-Component-fed — the caller queries the rows and
- * passes them in, keeping this component a pure presentational table.
+ * Uploads-history table (D-15/D-16/D-17). Server-Component-fed — the caller
+ * (`app/(dashboard)/uploads/page.tsx`) merges `ingested_files` and
+ * `push_rejections` via `mergeHistory` and passes the combined rows in;
+ * this component fetches nothing. The empty state is gated on the combined
+ * length: a morning where every delivery was refused and no real upload
+ * exists must show those rejection rows, never "No uploads yet".
  */
-export function UploadsHistoryTable({ files }: { files: IngestedFileRow[] }) {
-  if (files.length === 0) {
+export function UploadsHistoryTable({ rows }: { rows: CombinedHistoryRow[] }) {
+  if (rows.length === 0) {
     return (
       <div className="flex flex-col items-center justify-center gap-2 rounded-lg border border-dashed border-border p-12 text-center">
         <p className="text-sm font-light text-muted-foreground">
@@ -65,6 +96,7 @@ export function UploadsHistoryTable({ files }: { files: IngestedFileRow[] }) {
       <TableHeader>
         <TableRow>
           <TableHead>File</TableHead>
+          <TableHead>Source</TableHead>
           <TableHead>Uploaded</TableHead>
           <TableHead>Status</TableHead>
           <TableHead className="text-right">Accepted</TableHead>
@@ -73,27 +105,29 @@ export function UploadsHistoryTable({ files }: { files: IngestedFileRow[] }) {
         </TableRow>
       </TableHeader>
       <TableBody>
-        {files.map((file) => (
-          <TableRow key={file.id}>
-            <TableCell className="font-mono text-xs">{file.file_name}</TableCell>
+        {rows.map((row) => (
+          <TableRow key={`${row.kind}-${row.id}`}>
+            <TableCell className="font-mono text-xs">
+              {row.fileName}
+              {row.kind === "rejection" && (
+                <p className="mt-1 font-sans text-xs font-light text-muted-foreground">
+                  {row.reason}
+                </p>
+              )}
+            </TableCell>
+            <TableCell className="text-sm font-light text-foreground">{row.source}</TableCell>
             <TableCell className="text-sm font-light text-muted-foreground">
-              {new Date(file.uploaded_at).toLocaleString("en-GB", {
+              {new Date(row.timestamp).toLocaleString("en-GB", {
                 dateStyle: "medium",
                 timeStyle: "short",
               })}
             </TableCell>
             <TableCell>
-              <StatusBadge status={file.status} />
+              <StatusBadge status={row.status} />
             </TableCell>
-            <TableCell className="text-right tabular-nums">
-              {file.rows_accepted ?? 0}
-            </TableCell>
-            <TableCell className="text-right tabular-nums">
-              {file.rows_duplicate ?? 0}
-            </TableCell>
-            <TableCell className="text-right tabular-nums">
-              {file.rows_rejected ?? 0}
-            </TableCell>
+            <CountCell count={row.accepted} />
+            <CountCell count={row.duplicate} />
+            <CountCell count={row.rejected} />
           </TableRow>
         ))}
       </TableBody>
