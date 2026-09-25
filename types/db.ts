@@ -12,31 +12,6 @@ export type Database = {
   __InternalSupabase: {
     PostgrestVersion: "14.5"
   }
-  graphql_public: {
-    Tables: {
-      [_ in never]: never
-    }
-    Views: {
-      [_ in never]: never
-    }
-    Functions: {
-      graphql: {
-        Args: {
-          extensions?: Json
-          operationName?: string
-          query?: string
-          variables?: Json
-        }
-        Returns: Json
-      }
-    }
-    Enums: {
-      [_ in never]: never
-    }
-    CompositeTypes: {
-      [_ in never]: never
-    }
-  }
   public: {
     Tables: {
       apigee_calls: {
@@ -296,6 +271,24 @@ export type Database = {
           },
         ]
       }
+      drain_lock: {
+        Row: {
+          id: number
+          running: boolean
+          started_at: string | null
+        }
+        Insert: {
+          id?: number
+          running?: boolean
+          started_at?: string | null
+        }
+        Update: {
+          id?: number
+          running?: boolean
+          started_at?: string | null
+        }
+        Relationships: []
+      }
       ingested_files: {
         Row: {
           content_sha256: string
@@ -307,6 +300,9 @@ export type Database = {
           rows_duplicate: number | null
           rows_excluded: number | null
           rows_rejected: number | null
+          source: string
+          source_credential_id: string | null
+          source_ref: string | null
           status: string
           storage_path: string | null
           uploaded_at: string
@@ -322,6 +318,9 @@ export type Database = {
           rows_duplicate?: number | null
           rows_excluded?: number | null
           rows_rejected?: number | null
+          source?: string
+          source_credential_id?: string | null
+          source_ref?: string | null
           status?: string
           storage_path?: string | null
           uploaded_at?: string
@@ -337,12 +336,23 @@ export type Database = {
           rows_duplicate?: number | null
           rows_excluded?: number | null
           rows_rejected?: number | null
+          source?: string
+          source_credential_id?: string | null
+          source_ref?: string | null
           status?: string
           storage_path?: string | null
           uploaded_at?: string
           uploaded_by?: string | null
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "ingested_files_source_credential_id_fkey"
+            columns: ["source_credential_id"]
+            isOneToOne: false
+            referencedRelation: "push_credentials"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       pricing_tier_audit: {
         Row: {
@@ -471,6 +481,107 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "v_revenue_window_counts"
             referencedColumns: ["tier_set_id"]
+          },
+        ]
+      }
+      push_credentials: {
+        Row: {
+          created_at: string
+          created_by: string | null
+          id: string
+          last_used_at: string | null
+          revoked_at: string | null
+          sender: string
+          token_prefix: string
+          token_sha256: string
+        }
+        Insert: {
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          last_used_at?: string | null
+          revoked_at?: string | null
+          sender: string
+          token_prefix: string
+          token_sha256: string
+        }
+        Update: {
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          last_used_at?: string | null
+          revoked_at?: string | null
+          sender?: string
+          token_prefix?: string
+          token_sha256?: string
+        }
+        Relationships: []
+      }
+      push_credentials_audit: {
+        Row: {
+          action: string
+          changed_at: string
+          changed_by: string | null
+          id: number
+          sender: string
+          summary: string
+          token_prefix: string
+        }
+        Insert: {
+          action: string
+          changed_at?: string
+          changed_by?: string | null
+          id?: never
+          sender: string
+          summary: string
+          token_prefix: string
+        }
+        Update: {
+          action?: string
+          changed_at?: string
+          changed_by?: string | null
+          id?: never
+          sender?: string
+          summary?: string
+          token_prefix?: string
+        }
+        Relationships: []
+      }
+      push_rejections: {
+        Row: {
+          byte_size: number | null
+          credential_id: string | null
+          file_name: string
+          id: string
+          reason: string
+          rejected_at: string
+          sender: string
+        }
+        Insert: {
+          byte_size?: number | null
+          credential_id?: string | null
+          file_name: string
+          id?: string
+          reason: string
+          rejected_at?: string
+          sender: string
+        }
+        Update: {
+          byte_size?: number | null
+          credential_id?: string | null
+          file_name?: string
+          id?: string
+          reason?: string
+          rejected_at?: string
+          sender?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "push_rejections_credential_id_fkey"
+            columns: ["credential_id"]
+            isOneToOne: false
+            referencedRelation: "push_credentials"
+            referencedColumns: ["id"]
           },
         ]
       }
@@ -883,6 +994,8 @@ export type Database = {
         Args: { p_tier_set_id: string }
         Returns: undefined
       }
+      fn_release_drain_lock: { Args: never; Returns: undefined }
+      fn_try_acquire_drain_lock: { Args: never; Returns: boolean }
       price_volume_through_tier_set: {
         Args: { p_tier_set_id: string; p_volume: number }
         Returns: number
@@ -1071,9 +1184,6 @@ export type CompositeTypes<
     : never
 
 export const Constants = {
-  graphql_public: {
-    Enums: {},
-  },
   public: {
     Enums: {},
   },
