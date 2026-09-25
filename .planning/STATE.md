@@ -2,20 +2,20 @@
 gsd_state_version: "1.0"
 milestone: v1.1
 milestone_name: Nothing Silently Missing
-current_phase: 9
-current_phase_name: first of 4 v1.1 phases
-status: planning
-stopped_at: Phase 9 planned (5 plans, 4 waves)
-last_updated: "2026-09-25T16:08:00.891Z"
+current_phase: 09
+current_phase_name: Automated Drop-Off — Push, Credentials & Drain
+status: executing
+stopped_at: Completed 09-01-PLAN.md
+last_updated: "2026-09-25T17:04:34.137Z"
 last_activity: 2026-09-25
-last_activity_desc: v1.1 ROADMAP.md created; 13/13 requirements mapped, phases 9-12
-state_head: 83ef33ba48be0201ecaddc4cc67c72e5a7d41f18
+last_activity_desc: Phase 09 execution started
+state_head: 64bf0a6319bc216263abc56374f1f2c6d4fc3db9
 progress:
   total_phases: 4
   completed_phases: 8
   total_plans: 5
-  completed_plans: 0
-  percent: 0
+  completed_plans: 1
+  percent: 20
 ---
 
 # Project State
@@ -25,14 +25,14 @@ progress:
 See: .planning/PROJECT.md (updated 2026-09-25)
 
 **Core value:** Trustworthy revenue reconciliation — billing must equal verifications, and any discrepancy must be immediately visible and traceable to source.
-**Current focus:** Milestone v1.1 roadmap complete — ready to plan Phase 9
+**Current focus:** Phase 09 — Automated Drop-Off — Push, Credentials & Drain
 
 ## Current Position
 
-Phase: 9 of 12 (Automated Drop-Off — Push, Credentials & Drain) — first of 4 v1.1 phases
-Plan: — (not yet planned)
-Status: Roadmap complete — ready for `/gsd-plan-phase 9`
-Last activity: 2026-09-25 — v1.1 ROADMAP.md created; 13/13 requirements mapped, phases 9-12
+Phase: 09 (Automated Drop-Off — Push, Credentials & Drain) — EXECUTING
+Plan: 2 of 5
+Status: Ready to execute
+Last activity: 2026-09-25 — Phase 09 execution started
 
 ## Performance Metrics
 
@@ -93,6 +93,7 @@ Last activity: 2026-09-25 — v1.1 ROADMAP.md created; 13/13 requirements mapped
 | Phase 08 P02 | 30min | 2 tasks | 3 files |
 | Phase 08 P03 | 20min | 2 tasks | 2 files |
 | Phase 08 P05 | ~20min | 2 tasks | 3 files |
+| Phase 09 P01 | 14min | 3 tasks | 11 files |
 
 ## Accumulated Context
 
@@ -169,6 +170,8 @@ Recent decisions affecting current work:
 - [Phase 08]: [Phase 08] Plan 08-02: WR-02/WR-09 exact-date-collision fix is UI-layer only (PricingTierForm) -- restate-scope.ts's resolver keeps reporting the collision via supersedes per its own deliberate pinned test; the duplicate-date hint reuses PRICING_DUPLICATE_EFFECTIVE_FROM's copy in both the live inline preview and the onSubmit gate (one check covers both create and edit modes)
 - [Phase 08]: 0039 takes pg_advisory_xact_lock(20260813) in both save_pricing_tier_set and delete_pricing_tier_set, serialising the coverage guard's check-write-check sequence against a concurrent save or delete (chosen over `select ... for update` since the invariant is about row absence, not row contents).
 - [Phase 08]: data_window_start() (WR-07 SQL half) is adopted going forward only in new SQL - the 20+ existing migrations containing the inline 2026-08-13 literal are applied history and are not rewritten.
+- [Phase 09]: Confirmed CONTEXT.md D-02: push_credentials.sender carries no UNIQUE constraint. Task 1 checkpoint resolved no-unique-constraint.
+- [Phase 09]: supabase-js's generated .insert() overload rejects excess properties via a RejectExcessProperties conditional type even against a named variable, not just a fresh literal -- required one documented cast on the ingested_files insert (mirrors the existing upsertRows escape hatch).
 
 ### Pending Todos
 
@@ -229,9 +232,9 @@ recorded in three phases — a Next.js generated ambient type, not a defect.
 
 ## Session Continuity
 
-Last session: 2026-09-25T16:08:00.875Z
-Stopped at: Phase 9 planned (5 plans, 4 waves)
-Resume file: .planning/phases/09-automated-drop-off-push-credentials-drain/09-01-PLAN.md
+Last session: 2026-09-25T17:04:34.123Z
+Stopped at: Completed 09-01-PLAN.md
+Resume file: None
 
 ## Operator Next Steps
 
