@@ -6,8 +6,14 @@ import { Separator } from "@/components/ui/separator";
 import { createClient } from "@/lib/supabase/server";
 import { pushTable } from "@/lib/push/tables";
 import { CredentialsTable } from "@/components/settings/credentials-table";
+import { MintCredentialForm } from "@/components/settings/mint-credential-form";
+import { RevokeCredential } from "@/components/settings/revoke-credential";
 import { AuditLog, type AuditLogEntry } from "@/components/pricing/audit-log";
-import type { PushCredentialRow } from "@/lib/push/credentials";
+import {
+  distinctSenders,
+  isSoleLiveCredential,
+  type PushCredentialRow,
+} from "@/lib/push/credentials";
 
 export const metadata: Metadata = {
   title: "Push credentials — Safecypher Reporting",
@@ -125,9 +131,7 @@ async function SendersBody() {
     <>
       <PageHeader />
 
-      {/* Mint form region — placeholder in Task 2, filled by Task 3 with
-          MintCredentialForm (distinct existing senders passed for the
-          suggestion-chip row) and its token-reveal dialog. */}
+      <MintCredentialForm existingSenders={distinctSenders(credentialRows)} />
 
       <Separator />
 
@@ -141,7 +145,17 @@ async function SendersBody() {
             more than one live credential during a rotation.
           </p>
         </div>
-        <CredentialsTable rows={credentialRows} />
+        <CredentialsTable
+          rows={credentialRows}
+          renderAction={(credential) => (
+            <RevokeCredential
+              credentialId={credential.id}
+              sender={credential.sender}
+              prefix={credential.token_prefix}
+              isSoleLive={isSoleLiveCredential(credentialRows, credential.id)}
+            />
+          )}
+        />
       </div>
 
       <Separator />
