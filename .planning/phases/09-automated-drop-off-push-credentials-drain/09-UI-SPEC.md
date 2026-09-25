@@ -1,7 +1,8 @@
 ---
 phase: "9"
 slug: "automated-drop-off-push-credentials-drain"
-status: draft
+status: verified
+reviewed_at: "2026-09-25"
 shadcn_initialized: true
 preset: "https://ui.shadcn.com/create?preset=b2fA (style: radix-nova, base: radix, baseColor: neutral, iconLibrary: lucide, font: geist)"
 created: "2026-09-25"
@@ -274,6 +275,9 @@ silent gap this milestone exists to eliminate.
   `components/app-shell/settings-nav.tsx`'s collapsible-chevron treatment
   (`transition-transform motion-reduce:transition-none [state]:rotate-90`) — do not add a new
   chevron/caret icon.
+- The chevron button carries `aria-label="Show source reference"` and `aria-expanded` reflecting
+  its state (checker Dimension 2 FLAG — an icon-only column gives a keyboard or screen-reader user
+  no other way to know what it does; the clickable row is a mouse-only fallback).
 - Clicking the chevron (or the row) toggles a detail sub-row directly beneath it, inset with
   `bg-muted/50`, containing a single labelled field: "Source reference" + the `source_ref` value
   in monospace with a "Copy" button (same clipboard pattern as the token-reveal dialog). This is
@@ -286,7 +290,12 @@ silent gap this milestone exists to eliminate.
 
 ## UI Considerations
 
-Applicable state considerations resolved: 13 covered, 2 backstop, 1 unresolved.
+Probe run post-verification (`ui-consideration-probe.cjs`, 7 elements): **51 applicable**
+considerations across 8 categories. 48 resolved, 3 unresolved (2 out of scope, 1 pre-existing).
+
+Rows added by the probe pass are marked **[probe]**; the remainder were authored during spec
+research. Four considerations the probe surfaced were genuinely unanswered and were resolved by
+the user — they are binding, not suggestions.
 
 | Category | Element(s) | Status | Resolution / Reason |
 |----------|------------|--------|---------------------|
@@ -306,6 +315,15 @@ Applicable state considerations resolved: 13 covered, 2 backstop, 1 unresolved.
 | long-text | sender name (mint form input, list cell) | ✅ covered | List cell: `truncate max-w-[200px]` + `title` tooltip. Input: unconstrained (Zod caps at 100 chars) |
 | long-text | token string in reveal dialog | ✅ covered | Read-only `Input`, monospace, full width, no truncation — must remain fully selectable/copyable |
 | long-text | delivery-rejection reason | 🧪 backstop | No character cap specified by D-14; render as wrapping `text-xs` beneath the filename (no truncation) — verify readability against a real long TSYS/Bit Addict rejection reason string during phase UAT |
+| error | **[probe]** clipboard write rejection (token reveal, `source_ref` copy) | ✅ covered | `navigator.clipboard.writeText` rejects in insecure contexts and on denied permission. On rejection: destructive toast — "Copy failed — select the token and copy manually" — AND **the reveal dialog stays open**. Binding: the token is still on screen and selectable, so a failed copy is recoverable without re-minting. A silent failure here loses a show-once secret. |
+| error | **[probe]** mint Server Action failure | ✅ covered | Destructive toast carrying the error; the form **keeps the typed sender name** so it can be retried without re-typing. Matches `/settings/pricing`'s failed-save treatment. |
+| error | **[probe]** revoke Server Action failure | ✅ covered | Destructive toast carrying the error; the confirmation dialog **stays open** so the revoke can be retried. |
+| loading | **[probe]** mint submit pending | ✅ covered | `useTransition` pending state disables the submit button, same pattern as `delete-tier-set.tsx`. Previously specified for revoke only. |
+| overflow | **[probe]** credentials list row count | ✅ covered | **No cap, deliberately.** Two senders rotating occasionally means years before length matters, and any cap on this table could hide a Live credential — the one row an operator must never miss. Unlike the audit log, where a cap is safe because old rows are inert. |
+| empty | **[probe]** sender-name chip row, no existing senders | ✅ covered | On first use `push_credentials` is empty, so no chips render — the input alone is the whole control. No placeholder or hint row. |
+| partial | **[probe]** mint form partially typed | ✅ covered | Standard input behaviour; Zod validates on submit, not per keystroke. |
+| zero-one-many | **[probe]** remaining per-element state permutations (E1–E7) | ✅ covered | Each element's 0/1/many behaviour is fixed by the Screen Contracts above — list rendering, badge logic, and affordance presence are all stated per row type. |
+| long-text | **[probe]** sender name in chip row | 🧪 backstop | A 100-char sender name would stretch its chip. Not truncated in the contract; spot-check during UAT alongside the rejection-reason row above. |
 
 ---
 
@@ -322,12 +340,12 @@ empty, and nothing above requires `npx shadcn view --registry`.
 
 ## Checker Sign-Off
 
-- [ ] Dimension 1 Copywriting: PASS
-- [ ] Dimension 2 Visuals: PASS
-- [ ] Dimension 3 Color: PASS
-- [ ] Dimension 4 Typography: PASS
-- [ ] Dimension 5 Spacing: PASS
-- [ ] Dimension 6 Registry Safety: PASS
-- [ ] Dimension 7 Inventory Provenance: PASS
+- [x] Dimension 1 Copywriting: PASS
+- [x] Dimension 2 Visuals: PASS (one non-blocking FLAG — chevron `aria-label`, resolved above)
+- [x] Dimension 3 Color: PASS
+- [x] Dimension 4 Typography: PASS
+- [x] Dimension 5 Spacing: PASS
+- [x] Dimension 6 Registry Safety: PASS
+- [x] Dimension 7 Inventory Provenance: PASS
 
 **Approval:** pending
