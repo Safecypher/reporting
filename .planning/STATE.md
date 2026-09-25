@@ -169,9 +169,8 @@ Recent decisions affecting current work:
 
 ### Pending Todos
 
-None pending.
-
-- `2026-09-10-dual-source-card-and-revenue-dashboard.md` — closed 2026-09-16, moved to `todos/completed/`. Held in pending/ as the source-of-truth capture (TSYS rate table + maths rules) until Phase 7 verification, which is now done; every requirement shipped across Phases 5, 6 and 7 and all three of its open questions are resolved. The rate table and maths rules live on in the seeded tier set and `tsys_msa_tier_test.sql`.
+- [2026-09-25] [ingestion] Automated report drop-off — ingest daily reports without manual upload — [todo file](.planning/todos/pending/2026-09-25-automated-report-drop-off.md)
+- [2026-09-17] [ui] Wire the financial-year partial-coverage caption into the UI — [todo file](.planning/todos/pending/fy-partial-coverage-caption.md)
 
 ### Blockers/Concerns
 
