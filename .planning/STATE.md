@@ -5,17 +5,17 @@ milestone_name: Nothing Silently Missing
 current_phase: 09
 current_phase_name: Automated Drop-Off — Push, Credentials & Drain
 status: executing
-stopped_at: Completed 09-03-PLAN.md
-last_updated: "2026-09-25T19:27:10.413Z"
+stopped_at: Completed 09-04-PLAN.md
+last_updated: "2026-09-25T19:38:28.383Z"
 last_activity: 2026-09-25
 last_activity_desc: Phase 09 execution started
-state_head: 8bbcc848e886de0aa4c0216565ed2e0818811c23
+state_head: e5e51a367fe3aa03decab365d0ffcb07d0fe01ed
 progress:
   total_phases: 4
   completed_phases: 8
   total_plans: 5
-  completed_plans: 3
-  percent: 60
+  completed_plans: 4
+  percent: 80
 ---
 
 # Project State
@@ -30,7 +30,7 @@ See: .planning/PROJECT.md (updated 2026-09-25)
 ## Current Position
 
 Phase: 09 (Automated Drop-Off — Push, Credentials & Drain) — EXECUTING
-Plan: 4 of 5
+Plan: 5 of 5
 Status: Ready to execute
 Last activity: 2026-09-25 — Phase 09 execution started
 
@@ -96,6 +96,7 @@ Last activity: 2026-09-25 — Phase 09 execution started
 | Phase 09 P01 | 14min | 3 tasks | 11 files |
 | Phase 09 P02 | 11 min | 3 tasks | 5 files |
 | Phase 09 P03 | 45min | 3 tasks | 10 files |
+| Phase 09 P04 | 25min | 3 tasks | 4 files |
 
 ## Accumulated Context
 
@@ -178,6 +179,7 @@ Recent decisions affecting current work:
 - [Phase 09]: Route-handler testing via vi.mock's importOriginal merge: buildSecretClient swapped for an in-memory fake, every other supabase-writer export left real, letting POST /api/push's real handler run under test with no live database.
 - [Phase 09]: [Phase 09] /settings/senders (D-01/D-04/D-05) shipped: mint/show-once-reveal/revoke through session-scoped, Zod-validated Server Actions; distinctSenders deliberately includes revoked-only sender names to strengthen the typo-mitigation chip row.
 - [Phase 09]: [Phase 09] CredentialsTable takes an optional renderAction prop rather than importing RevokeCredential directly, decoupling Task 2's table build from Task 3's not-yet-written revoke control.
+- [Phase 09]: [Phase 09] Plan 09-04: uploads-history extended with Source column (D-15), interleaved delivery-rejection rows (D-16), and the one-click source_ref drill (D-17) via a pure lib/upload/history.ts merge module; manual upload path pinned unchanged.
 
 ### Pending Todos
 
@@ -238,8 +240,8 @@ recorded in three phases — a Next.js generated ambient type, not a defect.
 
 ## Session Continuity
 
-Last session: 2026-09-25T19:27:10.396Z
-Stopped at: Completed 09-03-PLAN.md
+Last session: 2026-09-25T19:38:28.366Z
+Stopped at: Completed 09-04-PLAN.md
 Resume file: None
 
 ## Operator Next Steps

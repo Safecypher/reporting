@@ -22,7 +22,7 @@ v1.0 and is delivered by the union of AUTO-03..AUTO-07 below. `AUTO-02` remains 
 - [x] **AUTO-03**: A sender with a valid credential can push a report file over HTTPS and receive an acceptance response, with no user session
 - [x] **AUTO-04**: A push credential can be issued and revoked per sender; a revoked credential is refused
 - [ ] **AUTO-05**: Pushed files are ingested automatically on a daily schedule through the existing `ingest()` path, with no manual step
-- [ ] **AUTO-06**: Every ingested file records which source it came from and a reference to the originating object
+- [x] **AUTO-06**: Every ingested file records which source it came from and a reference to the originating object
 - [ ] **AUTO-07**: Manual drag-and-drop upload continues to work unchanged as the fallback and low-latency path
 
 ### Data Freshness
@@ -74,7 +74,7 @@ Deferred to a later milestone. Tracked but not in this roadmap.
 | AUTO-03 | Phase 9 | Complete |
 | AUTO-04 | Phase 9 | Complete |
 | AUTO-05 | Phase 9 | Pending |
-| AUTO-06 | Phase 9 | Pending |
+| AUTO-06 | Phase 9 | Complete |
 | AUTO-07 | Phase 9 | Pending |
 | FRESH-01 | Phase 10 | Pending |
 | FRESH-02 | Phase 10 | Pending |
