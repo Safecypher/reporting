@@ -41,14 +41,30 @@ revenue shows actual-to-date beside a projected month-end.
 - The FY view clamps correctly but does not caption that a shown range is narrower
   than its label implies.
 
-**Not yet deployed.** v1.0 is tagged and complete in the repository; confirm the
-push to `origin/main` before describing any of it as live.
+**Deployed.** v1.0 is pushed to `origin/main`; Netlify builds from there.
 
-## Next Milestone Goals
+## Current Milestone: v1.1 Nothing Silently Missing
 
-Not yet scoped — run `/gsd-new-milestone`. The obvious candidates are the
-automated ingestion drop (currently Out of Scope pending agreement on a central
-file location) and closing the debt above.
+**Goal:** The six daily reports arrive without anyone touching email, and anything
+incomplete — a report that never came, a file that failed to parse, a financial year
+showing four months — says so on screen instead of quietly looking fine.
+
+**Target features:**
+- Automated drop-off: `inbox` bucket, per-sender push credentials, one daily job that
+  drains then checks freshness (design approved:
+  `docs/superpowers/specs/2026-09-25-automated-report-drop-off-design.md`)
+- Freshness and absence alarm: `v_source_freshness`, a dashboard/uploads strip, and a
+  Slack message posted only when something is wrong
+- FY partial-coverage caption: render the disclosure `lib/dashboard/period.ts` has only
+  ever described in a comment
+- A1 timezone resolution: get the `CreatedAt` UTC-vs-US-Central answer from the
+  counterparty and act on it, rather than carrying the assumption into a third milestone
+- Thesis → TSYS rename: prose-only correction across planning docs and CLAUDE.md
+
+**The success criterion is loudness, not convenience.** Automation that hides a missing
+day is worse than the manual process it replaces. Manual drag-and-drop stays working
+throughout as the fallback and the low-latency path, and `ingest()` stays the single
+ingestion entry point — the automated path adds no new parsing code.
 
 ## Requirements
 
@@ -70,15 +86,14 @@ file location) and closing the debt above.
 
 <!-- v1 = PoC dashboard shown to Mark. All are hypotheses until shipped and validated. -->
 
-All v1.0 requirements are now validated — every roadmap phase (1–8) is complete. Next
-requirements arrive with the next milestone.
+All v1.0 requirements are validated. v1.1's requirements are defined in
+`.planning/REQUIREMENTS.md` and mapped to phases in `.planning/ROADMAP.md`.
 
 <!-- Also delivered in Phase 3: drill-down from any summary metric to contributing raw records (DASH-03) — URL-synced slide-over Sheet, reused across Verifications/Revenue/SLA and available for Phase 4 reconciliation flags. -->
 
 
 ### Out of Scope
 
-- Automated ingestion (FTP / Dropbox / webhook / Joachim job drop) — v2; pending agreement on a central file drop, but the ingestion layer is designed to accept it
 - Data before 13 Aug 2026 — system was still being stood up; earlier data is unreliable
 - The Thesis `Verify Outcome` tab — known data issue at Thesis; ignore until resolved
 - Company SSO / Microsoft 365 login — email/password sufficient for v1
@@ -116,7 +131,7 @@ requirements arrive with the next milestone.
 ## Constraints
 
 - **Tech stack**: Next.js (React) + Supabase (Postgres + Auth + Storage) — single deployable, strong charting ecosystem, matches the Supabase preference
-- **Ingestion (v1)**: Manual drag-and-drop upload only; ingestion layer designed to accept an automated source later — Because a central programmatic drop isn't agreed yet (email today)
+- **Ingestion**: Manual drag-and-drop remains the fallback and low-latency path; v1.1 adds an automated drop target alongside it. The drop mechanism Bit Addict/TSYS will agree to is still unknown, so v1.1 ships an adapter seam plus one adapter Safecypher controls end-to-end
 - **Data window**: 13 Aug 2026 onward — earlier data unreliable
 - **Timeline**: PoC prioritised — Richard wants something to show Mark within the week
 - **Auth**: Small internal-team email/password (Supabase Auth) — internal-only tool
@@ -155,4 +170,4 @@ This document evolves at phase transitions and milestone boundaries.
 4. Update Context with current state
 
 ---
-*Last updated: 2026-09-23 after v1.0 milestone*
+*Last updated: 2026-09-25 after starting milestone v1.1*
