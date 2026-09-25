@@ -2,6 +2,7 @@
 created: 2026-09-25T10:50:13.827Z
 title: Automated report drop-off — ingest daily reports without manual upload
 area: ingestion
+resolves_phase: 9
 severity: major
 files:
   - app/api/ingest/route.ts

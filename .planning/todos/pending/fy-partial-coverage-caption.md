@@ -2,6 +2,7 @@
 created: 2026-09-17T22:30:00.000Z
 title: Wire the financial-year partial-coverage caption into the UI
 area: ui
+resolves_phase: 11
 severity: minor
 files:
 
