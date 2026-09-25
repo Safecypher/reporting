@@ -84,9 +84,9 @@ function LoadingState() {
  * (plan 09-05's task), so both reads go through `lib/push/tables.ts`'s
  * `pushTable` escape hatch rather than `supabase.from(...)` directly.
  *
- * The mint-form section below is a placeholder in this task — Task 3 fills
- * it with `MintCredentialForm`, passing the distinct existing sender names
- * for the suggestion-chip row, and wires each live row's Revoke control.
+ * `MintCredentialForm` receives the distinct existing sender names for its
+ * suggestion-chip row; each live row's `RevokeCredential` control receives
+ * that credential's sole-live flag from Task 1's `isSoleLiveCredential`.
  */
 async function SendersBody() {
   const supabase = await createClient();
