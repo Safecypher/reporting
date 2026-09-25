@@ -5,17 +5,17 @@ milestone_name: Nothing Silently Missing
 current_phase: 09
 current_phase_name: Automated Drop-Off — Push, Credentials & Drain
 status: executing
-stopped_at: Completed 09-02-PLAN.md
-last_updated: "2026-09-25T19:11:19.724Z"
+stopped_at: Completed 09-03-PLAN.md
+last_updated: "2026-09-25T19:27:10.413Z"
 last_activity: 2026-09-25
 last_activity_desc: Phase 09 execution started
-state_head: f1feec0f17cf62e765b207682eb9c4a3611011d6
+state_head: 8bbcc848e886de0aa4c0216565ed2e0818811c23
 progress:
   total_phases: 4
   completed_phases: 8
   total_plans: 5
-  completed_plans: 2
-  percent: 40
+  completed_plans: 3
+  percent: 60
 ---
 
 # Project State
@@ -30,7 +30,7 @@ See: .planning/PROJECT.md (updated 2026-09-25)
 ## Current Position
 
 Phase: 09 (Automated Drop-Off — Push, Credentials & Drain) — EXECUTING
-Plan: 3 of 5
+Plan: 4 of 5
 Status: Ready to execute
 Last activity: 2026-09-25 — Phase 09 execution started
 
@@ -95,6 +95,7 @@ Last activity: 2026-09-25 — Phase 09 execution started
 | Phase 08 P05 | ~20min | 2 tasks | 3 files |
 | Phase 09 P01 | 14min | 3 tasks | 11 files |
 | Phase 09 P02 | 11 min | 3 tasks | 5 files |
+| Phase 09 P03 | 45min | 3 tasks | 10 files |
 
 ## Accumulated Context
 
@@ -175,6 +176,8 @@ Recent decisions affecting current work:
 - [Phase 09]: supabase-js's generated .insert() overload rejects excess properties via a RejectExcessProperties conditional type even against a named variable, not just a fresh literal -- required one documented cast on the ingested_files insert (mirrors the existing upsertRows escape hatch).
 - [Phase 09]: Delivery rejections recorded in a new push_rejections table (D-14, confirmed): keeps ingested_files.content_sha256's unique constraint intact and avoids zero-byte-file hash collisions.
 - [Phase 09]: Route-handler testing via vi.mock's importOriginal merge: buildSecretClient swapped for an in-memory fake, every other supabase-writer export left real, letting POST /api/push's real handler run under test with no live database.
+- [Phase 09]: [Phase 09] /settings/senders (D-01/D-04/D-05) shipped: mint/show-once-reveal/revoke through session-scoped, Zod-validated Server Actions; distinctSenders deliberately includes revoked-only sender names to strengthen the typo-mitigation chip row.
+- [Phase 09]: [Phase 09] CredentialsTable takes an optional renderAction prop rather than importing RevokeCredential directly, decoupling Task 2's table build from Task 3's not-yet-written revoke control.
 
 ### Pending Todos
 
@@ -235,8 +238,8 @@ recorded in three phases — a Next.js generated ambient type, not a defect.
 
 ## Session Continuity
 
-Last session: 2026-09-25T19:11:19.709Z
-Stopped at: Completed 09-02-PLAN.md
+Last session: 2026-09-25T19:27:10.396Z
+Stopped at: Completed 09-03-PLAN.md
 Resume file: None
 
 ## Operator Next Steps
