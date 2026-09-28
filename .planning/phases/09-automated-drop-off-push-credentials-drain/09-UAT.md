@@ -1,0 +1,81 @@
+---
+status: testing
+phase: 09-automated-drop-off-push-credentials-drain
+source: [09-VERIFICATION.md]
+started: 2026-09-28T13:45:00Z
+updated: 2026-09-28T13:45:00Z
+---
+
+## Current Test
+
+number: 1
+name: Manual drag-and-drop still works, single file
+expected: |
+  Dragging one report file onto /uploads ingests it exactly as it did before v1.1 —
+  per-file progress, a success outcome, and a new row in the uploads history reading
+  Source "Manual". The resulting ingested_files row has source = 'manual' with a null
+  source_ref and null source_credential_id.
+awaiting: user response
+
+## Tests
+
+### 1. Manual drag-and-drop still works, single file
+expected: Dragging one report file onto /uploads ingests it as before. The uploads-history row reads Source "Manual", and the underlying row has source = 'manual', source_ref null, source_credential_id null.
+why_it_matters: This is AUTO-07 and the phase goal's second half — "the existing manual path keeps working exactly as before". The five pinned blob hashes prove `ingest()`, its types, the manual route, the dropzone and the batch module are byte-identical. But the manual path still traverses `lib/ingestion/supabase-writer.ts`, which WAS modified (additively) this phase, and now writes into a table with a new NOT NULL defaulted column. That is the gap a hash check cannot close.
+result: [pending]
+
+### 2. Manual drag-and-drop still works, two files at once
+expected: Dragging two files together shows the sequential continue-on-failure behaviour from quick task 260923-ili — per-file progress, per-file outcomes, and the summary toast. If one file fails the other still completes.
+why_it_matters: Batch behaviour is the part most likely to regress silently, and it has its own prior quick-task history.
+result: [pending]
+
+### 3. /uploads shows push provenance
+expected: The uploads history lists the two pushed proof files with `phase-09-live-proof` and `phase-09-cr01-recheck` in the Source column (not "Manual"), and expanding a row reveals the source_ref — the inbox object key returned to the sender.
+why_it_matters: D-15/D-16. The whole thesis is that one string traces a sender's claim to a dashboard figure; this is where a human actually sees it.
+result: [pending]
+
+### 4. Rejections render as "Delivery rejected", not "Failed"
+expected: The two zero-byte rejections appear in the /uploads list, interleaved by time with the ingested files, labelled "Delivery rejected" — a distinct label from "Failed". Both appear: two separate rows, not one.
+why_it_matters: D-14's reason for existing. A refused delivery is not a failed parse, and two identical refusals must not collapse into one — that is what makes "this sender has failed every morning this week" visible.
+result: [pending]
+
+### 5. /settings/senders mint → reveal-once → revoke
+expected: The page renders (it showed an error state until migration 0040 was applied). Minting a credential for a named sender reveals the full token exactly once, with a copy affordance; the token is not retrievable afterwards. The list shows every credential — including two live ones for the same sender name, since sender is deliberately not unique. Revoking one marks it revoked without deleting it.
+why_it_matters: AUTO-04, and D-05's show-once rule. The credentials used in the live proof were minted by SQL because this environment has no browser session, so the UI mint path itself is unproven.
+result: [pending]
+
+### 6. Visual pass against the UI spec
+expected: /settings/senders and the extended /uploads table match 09-UI-SPEC.md — spacing rhythm, badge neutrality, the token-reveal dialog's treatment, and the disclosure chevron behaviour.
+why_it_matters: Deferred from plans 09-03 and 09-04, whose executors correctly routed browser-only visual checks to end-of-phase UAT.
+result: [pending]
+
+## Summary
+
+total: 6
+passed: 0
+issues: 0
+pending: 6
+skipped: 0
+blocked: 0
+
+## Gaps
+
+None found by automated verification — 5/5 ROADMAP success criteria are backed by code read in
+full, with `npm test` 587/587, `tsc` clean, `lint` 0 errors and the five pinned manual-path blob
+hashes all matching, each independently re-measured by the verifier rather than taken from the
+summaries.
+
+## Decision also needed
+
+The live proof exercise left real rows in production, all accounted for:
+
+- `ingested_files` 138 → 140 (the two pushed proof files)
+- `verifications` 4705 → 4710 (5 rows, all matching `525346PH09PROOF%` or `525346CR01RECHK%`)
+- `push_rejections` 2 rows (the two zero-byte refusals)
+- a new `v_reconciliation_billing_daily` row for 2026-09-27 reading `no_source_data`, unsettled —
+  the settling window correctly saying "counterpart not yet arrived", not a false mismatch
+
+Both proof credentials are revoked; 0 remain live; the inbox is empty.
+
+Keep them as an audit trail of the live proof, or remove them before Mark next looks at the
+dashboard? Either is fine — say which.
