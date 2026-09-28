@@ -58,7 +58,7 @@ doc; freshness evaluation (D-4's other half) is layered on in Phase 10.
   4. Every ingested file's record (manual or pushed) shows which source delivered it, and a pushed file's record additionally references the originating inbox object it came from.
   5. Manual drag-and-drop upload on `/uploads` still accepts a file and ingests it exactly as it did before v1.1, including multi-file sequential upload (260923-ili).
 
-**Plans**: 5/7 plans executed (2 gap-closure plans added for G-09-1)
+**Plans**: 6/7 plans executed (2 gap-closure plans added for G-09-1)
 
 Plans:
 
@@ -67,7 +67,7 @@ Plans:
 - [x] 09-03-PLAN.md — `/settings/senders`: mint, show once, revoke (wave 2)
 - [x] 09-04-PLAN.md — Uploads history: sender provenance, interleaved rejections, source_ref drill (wave 3)
 - [x] 09-05-PLAN.md — [BLOCKING] Apply live, schedule the daily job, prove nothing moved (wave 4)
-- [ ] 09-06-PLAN.md — [GAP G-09-1] profiles table + id→email resolver; manual uploads attribute to the signed-in user (wave 1)
+- [x] 09-06-PLAN.md — [GAP G-09-1] profiles table + id→email resolver; manual uploads attribute to the signed-in user (wave 1)
 - [ ] 09-07-PLAN.md — [GAP G-09-1] the three settings change-history lists stop rendering raw actor UUIDs (wave 2)
 
 ### Phase 10: Freshness & Loud Absence
@@ -154,7 +154,7 @@ order or in parallel with 9–11 without blocking them.
 | 6. Dual-Source Alignment: TSYS vs Bit Addict | v1.0 | 10/10 | Complete | 2026-09-15 |
 | 7. TSYS Tiered Volume & Revenue Forecast | v1.0 | 6/6 | Complete | 2026-09-16 |
 | 8. Period & Pricing Correctness | v1.0 | 5/5 | Complete | 2026-09-23 |
-| 9. Automated Drop-Off — Push, Credentials & Drain | v1.1 | 5/5 | In Progress|  |
+| 9. Automated Drop-Off — Push, Credentials & Drain | v1.1 | 6/7 | In Progress|  |
 | 10. Freshness & Loud Absence | v1.1 | 0/TBD | Not started | - |
 | 11. Disclosure Fixes — FY Caption & Counterparty Rename | v1.1 | 0/TBD | Not started | - |
 | 12. Verification Timezone Confirmation | v1.1 | 0/TBD | Not started | - |

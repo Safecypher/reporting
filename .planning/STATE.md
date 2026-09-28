@@ -5,17 +5,17 @@ milestone_name: Nothing Silently Missing
 current_phase: 09
 current_phase_name: Automated Drop-Off — Push, Credentials & Drain
 status: executing
-stopped_at: Completed 09-04-PLAN.md
-last_updated: "2026-09-25T19:38:28.383Z"
-last_activity: 2026-09-25
+stopped_at: Completed 09-06-PLAN.md
+last_updated: "2026-09-28T15:16:51.935Z"
+last_activity: 2026-09-28
 last_activity_desc: Phase 09 execution started
-state_head: e5e51a367fe3aa03decab365d0ffcb07d0fe01ed
+state_head: 2254824fc91b7c1fb073c238099c4e19130b38de
 progress:
   total_phases: 4
   completed_phases: 8
-  total_plans: 5
-  completed_plans: 4
-  percent: 80
+  total_plans: 7
+  completed_plans: 6
+  percent: 86
 ---
 
 # Project State
@@ -30,9 +30,9 @@ See: .planning/PROJECT.md (updated 2026-09-25)
 ## Current Position
 
 Phase: 09 (Automated Drop-Off — Push, Credentials & Drain) — EXECUTING
-Plan: 5 of 5
+Plan: 2 of 7
 Status: Ready to execute
-Last activity: 2026-09-25 — Phase 09 execution started
+Last activity: 2026-09-28 — Phase 09 execution started
 
 ## Performance Metrics
 
@@ -97,6 +97,7 @@ Last activity: 2026-09-25 — Phase 09 execution started
 | Phase 09 P02 | 11 min | 3 tasks | 5 files |
 | Phase 09 P03 | 45min | 3 tasks | 10 files |
 | Phase 09 P04 | 25min | 3 tasks | 4 files |
+| Phase 09 P06 | 44min | 3 tasks | 8 files |
 
 ## Accumulated Context
 
@@ -180,6 +181,8 @@ Recent decisions affecting current work:
 - [Phase 09]: [Phase 09] /settings/senders (D-01/D-04/D-05) shipped: mint/show-once-reveal/revoke through session-scoped, Zod-validated Server Actions; distinctSenders deliberately includes revoked-only sender names to strengthen the typo-mitigation chip row.
 - [Phase 09]: [Phase 09] CredentialsTable takes an optional renderAction prop rather than importing RevokeCredential directly, decoupling Task 2's table build from Task 3's not-yet-written revoke control.
 - [Phase 09]: [Phase 09] Plan 09-04: uploads-history extended with Source column (D-15), interleaved delivery-rejection rows (D-16), and the one-click source_ref drill (D-17) via a pure lib/upload/history.ts merge module; manual upload path pinned unchanged.
+- [Phase 09]: pg_cron resync over an auth.users trigger (09-06): the planned trigger was refused live (42501: must be owner of relation users) since auth.users is owned by supabase_auth_admin. Mark chose an hourly pg_cron job calling the same SECURITY DEFINER function instead. Accepted cost: a new/changed identity resolves at the next hourly tick, not instantly.
+- [Phase 09]: UNKNOWN_ACTOR_LABEL exported from lib/identity/profiles.ts but the three settings pages (general/pricing/senders) that duplicate the bare "Unknown user" string, and /settings/pricing's raw-UUID render, are deliberately left unmigrated -- that is 09-07's job.
 
 ### Pending Todos
 
@@ -240,8 +243,8 @@ recorded in three phases — a Next.js generated ambient type, not a defect.
 
 ## Session Continuity
 
-Last session: 2026-09-25T19:38:28.366Z
-Stopped at: Completed 09-04-PLAN.md
+Last session: 2026-09-28T15:16:51.909Z
+Stopped at: Completed 09-06-PLAN.md
 Resume file: None
 
 ## Operator Next Steps
