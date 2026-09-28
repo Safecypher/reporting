@@ -26,8 +26,19 @@ Internal tool for a small Safecypher team. Not public-facing.
   settling window that distinguishes a *pending counterpart report* from a *confirmed
   mismatch*, plus an APIGEE endpoint cross-check. Each flag shows status + signed delta +
   which side is short, and drills to the contributing rows and their source file.
+- **Automated drop-off** (`POST /api/push`) — senders deliver reports directly instead of
+  emailing them. Each sender holds a per-sender credential issued at `/settings/senders`
+  (shown once, stored only as a SHA-256 digest) and pushes files over HTTPS with a bearer
+  token. Pushed files land in a private `inbox` bucket, and a daily job drains them through
+  exactly the same ingestion path as a manual upload — so a pushed file and a dragged one
+  produce the same normalised rows, distinguished only by their provenance. Every accepted
+  file carries the object key back to the sender as a reference, and that same string is
+  stored on the row, so one identifier traces a sender's claim to a dashboard figure.
+  Refusals are recorded too, and appear in `/uploads` alongside successful ingests.
 - **Pricing admin** (`/settings/pricing`) — edit tiered-pricing configuration.
-- **Auth** — Supabase email/password; every route behind an auth gate (`proxy.ts`).
+- **Sender credentials** (`/settings/senders`) — mint, inspect and revoke push credentials.
+- **Auth** — Supabase email/password; every route behind an auth gate (`proxy.ts`), except
+  `POST /api/push` (bearer token) and `POST /api/ingest/drain` (shared cron secret).
 
 ## Tech stack
 
@@ -79,10 +90,23 @@ SUPABASE_SECRET_KEY=
 # Supabase Auth -> URL Configuration. Required on Netlify — request.url
 # reports Netlify's deploy-unique host, not the public one.
 NEXT_PUBLIC_SITE_URL=
+
+# Server-only. The shared secret the scheduled drain job presents to
+# POST /api/ingest/drain. The SAME value must exist in three places: Supabase
+# Vault under the name DRAIN_CRON_SECRET (where the pg_cron job reads it at
+# execution time), the deployed site's environment variables, and here. Names
+# in Vault are case-sensitive and a missed lookup fails silently as a daily
+# 401 — keep all three spellings identical. Never expose to the browser.
+DRAIN_CRON_SECRET=
 ```
 
 > `SUPABASE_SECRET_KEY` bypasses RLS and is used only in server-side ingestion. It must never
 > reach the browser. `.env.local` is gitignored — never commit real keys.
+
+> `DRAIN_CRON_SECRET` is server-only too. It lives in three places that must agree: Supabase
+> Vault (secret name `DRAIN_CRON_SECRET`), the deployed site's environment variables, and
+> `.env.local`. The scheduled job reads it from Vault by name at execution time, so it never
+> appears in the readable `cron.job` table.
 
 ### 3. Database
 
