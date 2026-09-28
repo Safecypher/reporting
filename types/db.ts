@@ -484,6 +484,24 @@ export type Database = {
           },
         ]
       }
+      profiles: {
+        Row: {
+          email: string | null
+          id: string
+          updated_at: string
+        }
+        Insert: {
+          email?: string | null
+          id: string
+          updated_at?: string
+        }
+        Update: {
+          email?: string | null
+          id?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       push_credentials: {
         Row: {
           created_at: string
@@ -995,6 +1013,7 @@ export type Database = {
         Returns: undefined
       }
       fn_release_drain_lock: { Args: never; Returns: undefined }
+      fn_sync_profile_from_auth_user: { Args: never; Returns: undefined }
       fn_try_acquire_drain_lock: { Args: never; Returns: boolean }
       price_volume_through_tier_set: {
         Args: { p_tier_set_id: string; p_volume: number }
