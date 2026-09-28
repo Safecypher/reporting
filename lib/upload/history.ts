@@ -86,8 +86,9 @@ type SourceInput =
  * by the hourly `refresh-profiles` cron job, a null email, or a failed
  * `fetchActorEmails` read — and this function's job is only to render
  * whichever of those two outcomes the caller already determined, exactly as
- * `/settings/pricing`'s audit log falls back (`changed_by ?? "Unknown
- * user"`) for the same reason.
+ * the three `/settings` change-history surfaces fall back to
+ * `UNKNOWN_ACTOR_LABEL` for the same reason (09-07 moved them onto the
+ * shared constant; they no longer carry their own literal).
  */
 export function sourceLabel(input: SourceInput): string {
   switch (input.kind) {

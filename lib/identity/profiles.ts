@@ -27,11 +27,12 @@ export type ActorEmailMap = ReadonlyMap<string, string>;
  * construct one of its own. */
 export const EMPTY_ACTOR_EMAILS: ActorEmailMap = new Map();
 
-/** The single home for the unresolved-actor copy, today a bare string
- * literal duplicated across `/settings/general`, `/settings/pricing` and
- * `/settings/senders` (`row.changed_by ?? "Unknown user"`). Those three
- * call sites are not touched by this plan -- migrating them is 09-07's
- * job. */
+/** The single home for the unresolved-actor copy. It was once a bare
+ * string literal duplicated across `/settings/general`,
+ * `/settings/pricing` and `/settings/senders` (`row.changed_by ??
+ * "Unknown user"`); 09-07 migrated all three onto this constant, so this
+ * is now the only place the wording lives. Change it here and every
+ * surface follows. */
 export const UNKNOWN_ACTOR_LABEL = "Unknown user";
 
 type ProfileRow = {
