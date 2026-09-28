@@ -8,6 +8,7 @@ import {
   type PricingTierSetWithTiers,
 } from "@/components/pricing/pricing-tier-form";
 import { AuditLog, type AuditLogEntry } from "@/components/pricing/audit-log";
+import { actorLabel, fetchActorEmails } from "@/lib/identity/profiles";
 
 export const metadata: Metadata = {
   title: "Pricing tiers — Safecypher Reporting",
@@ -89,10 +90,10 @@ function LoadingState() {
  * Async Server Component reading pricing_tier_audit + every pricing_tier_sets
  * row (with its tiers) via the session-scoped client (RLS: authenticated
  * select-only) so change history and the full tier-set-to-edit list are
- * visible to any logged-in user (L-06/D-06/D-17). No email-resolving view
- * exists yet (auth.users is not otherwise exposed in this codebase) — the
- * acting user's id is shown verbatim as a documented, non-blocking gap; see
- * SUMMARY "Known Stubs".
+ * visible to any logged-in user (L-06/D-06/D-17). Each audit row's actor id
+ * is resolved to an email via `lib/identity/profiles.ts` (migration 0045,
+ * plan 09-06) — a failed resolution degrades to the unresolved label rather
+ * than taking this page to its error state (see `fetchActorEmails` below).
  */
 async function PricingBody() {
   const supabase = await createClient();
@@ -127,9 +128,23 @@ async function PricingBody() {
   }
 
   const auditRows = auditResult.data ?? [];
+
+  // A necessary fourth round trip rather than a fourth Promise.all entry —
+  // the actor ids aren't known until auditRows is derived above. Its error
+  // deliberately does NOT join the combined error branch above: losing an
+  // email is not losing a row, so the audit list still renders with the
+  // unresolved fallback rather than the whole page's error state.
+  const { emails: actorEmails, error: emailsError } = await fetchActorEmails(
+    supabase,
+    auditRows.map((row) => row.changed_by),
+  );
+  if (emailsError) {
+    console.error("PricingBody: fetchActorEmails failed", emailsError);
+  }
+
   const entries: AuditLogEntry[] = auditRows.map((row) => ({
     id: row.id,
-    actor: row.changed_by ?? "Unknown user",
+    actor: actorLabel(row.changed_by, actorEmails),
     summary: row.summary,
     changedAt: row.changed_at,
   }));
