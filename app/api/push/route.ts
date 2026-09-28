@@ -7,6 +7,7 @@ import {
   type AcceptPushDeps,
   type PushCredentialLookup,
 } from "@/lib/push/delivery";
+import { hashToken } from "@/lib/push/tokens";
 
 // node:crypto (token hashing) and the writer's magic-byte detection require
 // the Node runtime, not Edge — the manual route already sets this.
@@ -38,14 +39,56 @@ const MAX_REQUEST_BYTES = 25 * 1024 * 1024;
  *
  *   401 — Authorization missing, malformed, unknown, or revoked. All four
  *         are indistinguishable by design (D-10).
- *   400 — declared Content-Length over 25MB, or a body that is not
- *         well-formed multipart.
+ *   400 — request body over 25MB (whether or not Content-Length declared it),
+ *         or a body that is not well-formed multipart.
  */
+
+/**
+ * Read the body while COUNTING, refusing past `max`. Returns null if the cap
+ * was exceeded (the stream is cancelled at that point, so the remainder is
+ * never pulled into memory).
+ *
+ * This exists because the declared-Content-Length check below cannot be
+ * trusted on its own: `Number(null ?? "")` is `0`, so a request that simply
+ * OMITS Content-Length — trivially, via chunked transfer-encoding — produced
+ * a finite, under-cap `0` and sailed past both that guard and acceptPush's
+ * own `declaredContentLength` check. The 25MB cap was therefore advisory
+ * against any caller who chose not to declare a length. Found by the Phase 9
+ * code review (CR-01).
+ */
+async function readBodyWithinCap(
+  request: Request,
+  max: number
+): Promise<Uint8Array | null> {
+  const reader = request.body?.getReader();
+  if (!reader) return new Uint8Array(0);
+
+  const chunks: Uint8Array[] = [];
+  let total = 0;
+  for (;;) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    total += value.byteLength;
+    if (total > max) {
+      await reader.cancel();
+      return null;
+    }
+    chunks.push(value);
+  }
+
+  const body = new Uint8Array(total);
+  let offset = 0;
+  for (const chunk of chunks) {
+    body.set(chunk, offset);
+    offset += chunk.byteLength;
+  }
+  return body;
+}
+
 export async function POST(request: Request) {
-  // Defence-in-depth beyond acceptPush's own declaredContentLength check:
-  // refuse before Next's Route Handler runtime buffers the multipart body
-  // via `request.formData()` at all, mirroring app/api/ingest/route.ts's
-  // existing pre-buffer pattern.
+  // Fast path only — a declared length over the cap is refused before the
+  // socket is drained at all. Its absence proves nothing, so the real
+  // enforcement is readBodyWithinCap below.
   const contentLength = Number(request.headers.get("content-length") ?? "");
   if (Number.isFinite(contentLength) && contentLength > MAX_REQUEST_BYTES) {
     return NextResponse.json({ results: [] }, { status: 400 });
@@ -99,27 +142,53 @@ export async function POST(request: Request) {
     },
   };
 
-  // Reject a request with no usable bearer token BEFORE buffering the body.
-  // Two reasons, both found when this route was first exercised against the
-  // deployed site:
-  //   1. `request.formData()` THROWS on a request that is not well-formed
-  //      multipart (including one with no body at all), and an uncaught throw
-  //      in a Route Handler is a 500. An unauthenticated caller could get a
-  //      500 out of the published contract just by omitting the body.
-  //   2. T-09-31 accepts unauthenticated flooding on the stated premise that
-  //      each call is "a cheap 401 before any Storage or database work".
-  //      Parsing up to 25MB of multipart and calling arrayBuffer() on every
-  //      part before checking the token is not cheap, so the premise did not
-  //      hold until this check existed.
-  // acceptPush still performs its own token check — this is defence-in-depth
-  // and does not change the contract.
-  if (extractBearerToken(request.headers.get("authorization")) === null) {
+  // AUTHENTICATE BEFORE TOUCHING THE BODY.
+  //
+  // T-09-31 accepts unauthenticated flooding on the stated premise that each
+  // call is "a cheap 401 before any Storage or database work". Honouring that
+  // premise takes BOTH checks below, in this order:
+  //
+  //   1. The shape check. Costs nothing and turns away anything without a
+  //      syntactically usable bearer token.
+  //   2. The real credential lookup. A shape check alone is not authentication
+  //      — `Authorization: Bearer x` passes it — so without this an attacker
+  //      with no credential at all still reached the body read. One indexed
+  //      lookup on token_sha256 is far cheaper than buffering 25MB.
+  //
+  // Only after BOTH does this route consent to read the request body.
+  // acceptPush repeats the lookup for its own contract (its unit tests own
+  // that behaviour); the duplicate query is one indexed hit on an
+  // already-authenticated request and is worth the unchanged contract.
+  const presentedToken = extractBearerToken(request.headers.get("authorization"));
+  if (presentedToken === null) {
     return NextResponse.json({ results: [] }, { status: 401 });
+  }
+  if ((await deps.lookupCredentialByTokenHash(hashToken(presentedToken))) === null) {
+    // Unknown and revoked are indistinguishable here, as D-10 requires.
+    return NextResponse.json({ results: [] }, { status: 401 });
+  }
+
+  // Enforce the cap while reading — see readBodyWithinCap. A caller that omits
+  // Content-Length gets the same 25MB ceiling as one that declares it.
+  const rawBody = await readBodyWithinCap(request, MAX_REQUEST_BYTES);
+  if (rawBody === null) {
+    return NextResponse.json({ results: [] }, { status: 400 });
   }
 
   let formData: FormData;
   try {
-    formData = await request.formData();
+    // Re-wrap the already-bounded bytes so the multipart parser sees a body
+    // that cannot exceed the cap. `request.formData()` is deliberately NOT
+    // called: it would re-read the original unbounded stream.
+    const contentType = request.headers.get("content-type");
+    // `BodyInit` wants an ArrayBuffer-backed view; Uint8Array's generic buffer
+    // type is ArrayBufferLike (which also admits SharedArrayBuffer), so this
+    // cast is for the type checker only — readBodyWithinCap allocates
+    // `new Uint8Array(total)`, which is always ArrayBuffer-backed. Same
+    // narrowing the delivery tests already apply to their fixture arrays.
+    formData = await new Response(rawBody as unknown as BodyInit, {
+      headers: contentType ? { "content-type": contentType } : undefined,
+    }).formData();
   } catch {
     // A body that is not well-formed multipart is a bad request, not a
     // server error. Never surface the parser's own message — it can carry
@@ -141,7 +210,12 @@ export async function POST(request: Request) {
 
   const result = await acceptPush(deps, {
     authorizationHeader: request.headers.get("authorization"),
-    declaredContentLength: Number.isFinite(contentLength) ? contentLength : null,
+    // The MEASURED body size, not the declared one. A caller that omits
+    // Content-Length previously handed acceptPush `0` here, making its own
+    // over-size branch unreachable for exactly the callers most worth
+    // checking (CR-01). rawBody has already been bounded to the cap, so this
+    // is now a true figure.
+    declaredContentLength: rawBody.byteLength,
     files: filesWithBytes,
   });
 

@@ -748,3 +748,126 @@ describe("POST /api/push route — request-level refusals never 500 (09-05 Task 
     expect(routeSupabase.touchedIds).toEqual([]);
   });
 });
+
+/**
+ * CR-01 (Phase 9 code review, Critical). The 25MB request cap was enforced
+ * only from a client-supplied Content-Length header, and `Number(null ?? "")`
+ * is `0` — so a request that simply OMITS the header (trivially, via chunked
+ * transfer-encoding) produced a finite, under-cap `0` and skipped BOTH the
+ * route's pre-buffer guard and acceptPush's own declaredContentLength check.
+ *
+ * Worse, the credential lookup ran only AFTER the body was buffered, so a
+ * caller with no valid credential at all could force unbounded buffering
+ * before receiving its 401 — contradicting T-09-31's stated premise that an
+ * unauthenticated call is "a cheap 401 before any Storage or database work".
+ *
+ * These pin the two halves of the fix: the cap is now measured while reading,
+ * and authentication completes before the body is touched at all.
+ */
+describe("POST /api/push route — the request cap and auth ordering (CR-01)", () => {
+  it("an over-cap body with NO Content-Length is refused 400, not silently accepted", async () => {
+    const { POST } = await import("@/app/api/push/route");
+    const routeSupabase = makeFakeRouteSupabase();
+    routeSupabaseClient = routeSupabase.client;
+    const { token, hash } = generateToken();
+    routeSupabase.addCredential(hash, CREDENTIAL_ID, SENDER);
+
+    // A streamed body with no Content-Length, deliberately over the 25MB cap.
+    const CHUNK = new Uint8Array(1024 * 1024);
+    let emitted = 0;
+    const body = new ReadableStream<Uint8Array>({
+      pull(controller) {
+        if (emitted >= 26) {
+          controller.close();
+          return;
+        }
+        emitted += 1;
+        controller.enqueue(CHUNK);
+      },
+    });
+
+    const request = new Request("http://localhost/api/push", {
+      method: "POST",
+      headers: {
+        authorization: `Bearer ${token}`,
+        "content-type": "multipart/form-data; boundary=----cr01",
+      },
+      body,
+      // @ts-expect-error duplex is required for a streaming body in undici
+      duplex: "half",
+    });
+
+    expect(request.headers.get("content-length")).toBeNull();
+
+    const response = await POST(request);
+
+    expect(response.status).toBe(400);
+    expect((await response.json()).results).toEqual([]);
+    // Nothing was stored — the cap tripped before any Storage write.
+    expect(routeSupabase.uploadedKeys).toEqual([]);
+  });
+
+  it("an unknown token is refused without the request body ever being consumed", async () => {
+    const { POST } = await import("@/app/api/push/route");
+    const routeSupabase = makeFakeRouteSupabase();
+    routeSupabaseClient = routeSupabase.client;
+    // Deliberately register NO credential — this token is unknown.
+    const { token } = generateToken();
+
+    const request = buildPushRequest({
+      authorization: `Bearer ${token}`,
+      files: [{ filename: "a.csv", bytes: csvBytes("a,b\n1,2\n") }],
+    });
+
+    const response = await POST(request);
+
+    expect(response.status).toBe(401);
+    expect((await response.json()).results).toEqual([]);
+    // The decisive assertion: the route never consumed the body. bodyUsed
+    // flips only when something reads it, so a false here means the 401 was
+    // issued before any buffering — T-09-31's "cheap 401" premise holding.
+    expect(request.bodyUsed).toBe(false);
+    expect(routeSupabase.uploadedKeys).toEqual([]);
+    expect(routeSupabase.touchedIds).toEqual([]);
+  });
+
+  it("a revoked token is also refused without the body being consumed", async () => {
+    const { POST } = await import("@/app/api/push/route");
+    const routeSupabase = makeFakeRouteSupabase();
+    routeSupabaseClient = routeSupabase.client;
+    const { token, hash } = generateToken();
+    routeSupabase.addCredential(hash, CREDENTIAL_ID, SENDER);
+    routeSupabase.revoke(hash);
+
+    const request = buildPushRequest({
+      authorization: `Bearer ${token}`,
+      files: [{ filename: "a.csv", bytes: csvBytes("a,b\n1,2\n") }],
+    });
+
+    const response = await POST(request);
+
+    expect(response.status).toBe(401);
+    expect(request.bodyUsed).toBe(false);
+    expect(routeSupabase.uploadedKeys).toEqual([]);
+  });
+
+  it("a normal under-cap push still works end to end after the reordering", async () => {
+    const { POST } = await import("@/app/api/push/route");
+    const routeSupabase = makeFakeRouteSupabase();
+    routeSupabaseClient = routeSupabase.client;
+    const { token, hash } = generateToken();
+    routeSupabase.addCredential(hash, CREDENTIAL_ID, SENDER);
+
+    const response = await POST(
+      buildPushRequest({
+        authorization: `Bearer ${token}`,
+        files: [{ filename: "a.csv", bytes: csvBytes("a,b\n1,2\n") }],
+      })
+    );
+
+    expect(response.status).toBe(202);
+    const body = await response.json();
+    expect(body.results[0].accepted).toBe(true);
+    expect(routeSupabase.uploadedKeys).toHaveLength(1);
+  });
+});
