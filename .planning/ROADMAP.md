@@ -58,7 +58,7 @@ doc; freshness evaluation (D-4's other half) is layered on in Phase 10.
   4. Every ingested file's record (manual or pushed) shows which source delivered it, and a pushed file's record additionally references the originating inbox object it came from.
   5. Manual drag-and-drop upload on `/uploads` still accepts a file and ingests it exactly as it did before v1.1, including multi-file sequential upload (260923-ili).
 
-**Plans**: 5/5 plans executed
+**Plans**: 5/7 plans executed (2 gap-closure plans added for G-09-1)
 
 Plans:
 
@@ -67,6 +67,8 @@ Plans:
 - [x] 09-03-PLAN.md — `/settings/senders`: mint, show once, revoke (wave 2)
 - [x] 09-04-PLAN.md — Uploads history: sender provenance, interleaved rejections, source_ref drill (wave 3)
 - [x] 09-05-PLAN.md — [BLOCKING] Apply live, schedule the daily job, prove nothing moved (wave 4)
+- [ ] 09-06-PLAN.md — [GAP G-09-1] profiles table + id→email resolver; manual uploads attribute to the signed-in user (wave 1)
+- [ ] 09-07-PLAN.md — [GAP G-09-1] the three settings change-history lists stop rendering raw actor UUIDs (wave 2)
 
 ### Phase 10: Freshness & Loud Absence
 
