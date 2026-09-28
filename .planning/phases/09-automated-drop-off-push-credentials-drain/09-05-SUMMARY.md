@@ -52,7 +52,12 @@ the deployed drain route through pg_net, with the bearer token read from
 credential and no session cookie, drained by invoking the scheduled job's own command, and
 traced through to its normalised rows.
 
-## Two defects found, both fixed
+## Four defects found, all fixed
+
+Two were found by the live catalog verification this plan mandates, one by the Supabase security
+advisor, one by this phase's code review. **None of them was reachable from the unit tests as they
+stood** — every one needed either the live project or the deployed route. That is the whole
+argument for this plan existing as a separate blocking step.
 
 ### 1. 0040's token-digest revoke was a silent no-op (security)
 
@@ -159,16 +164,69 @@ the token or its hash.
 
 ### Row-count reckoning
 
+Final, after both round trips (the second re-proved the path following the CR-01 fix below):
+
 | Table | Before | After | Delta | Accounted for by |
 |---|---|---|---|---|
-| `ingested_files` | 138 | 139 | **+1** | the one pushed file |
-| `verifications` | 4705 | 4708 | **+3** | the three rows in that file (`external_card_reference LIKE '525346PH09PROOF%'`) |
+| `ingested_files` | 138 | 140 | **+2** | the two pushed proof files |
+| `verifications` | 4705 | 4710 | **+5** | 3 rows from the first file + 2 from the second, all matching `external_card_reference LIKE '525346PH09PROOF%' OR LIKE '525346CR01RECHK%'` |
 
-`source='manual'` count unchanged at 138. Nothing moved that the exercise does not account for.
+`source='manual'` count unchanged at 138. `push_rejections` holds 2 rows, the inbox holds 0
+objects, and 0 credentials remain live (both proof credentials revoked). Nothing moved that the
+exercise does not account for.
+
+### 3. `drain_lock` was world-writable (security)
+
+The Supabase security advisor flagged this as an **ERROR, EXTERNAL-facing**, immediately after
+0040 went live: `rls_disabled_in_public` on `public.drain_lock`. 0040 enabled RLS on
+`push_credentials`, `push_credentials_audit` and `push_rejections` and simply missed this one.
+Measured: `relrowsecurity = false`, with `anon` AND `authenticated` both holding SELECT, INSERT,
+UPDATE, DELETE and TRUNCATE through PostgREST.
+
+The exploit is this milestone's own name in reverse. `UPDATE drain_lock SET running = true` on a
+loop keeps the daily job locked out — the ten-minute stale-reclaim bounds a *crashed* run, not an
+attacker refreshing `started_at`. `DELETE` is worse and permanent: `fn_try_acquire_drain_lock` is
+an `UPDATE … RETURNING true`, so with no row it returns NULL forever and the inbox never drains
+again. Either way reports stop arriving and nothing says so — the drain answers 409, which reads
+as ordinary contention.
+
+Fixed in `0044_drain_lock_rls.sql`, in both halves. RLS enabled with no policies (the access model
+0040's own comment described but never enforced), **and** the client grants revoked — because
+TRUNCATE is not a row-level operation and is not governed by RLS, so enabling RLS alone would
+still have let an authenticated caller empty the table. Verified after: `relrowsecurity=true`,
+0 policies, no anon/authenticated grants, row intact; the mutex probe returns identically to
+before (`true`/`NULL`/`true`/`false`) and a real drain answers 200. The advisor ERROR is gone,
+leaving only the INFO that RLS is on with no policy — the intended state.
+
+### 4. CR-01 — the 25MB cap was opt-in, and auth ran after buffering (security)
+
+Raised by this phase's own code review, Critical, and sharper than the fix in defect 2 above.
+That fix hoisted only a *shape* check above the body read. Two problems remained:
+
+The cap was enforced solely from a client-supplied `Content-Length`, and `Number(null ?? "")` is
+`0` — finite and under the limit. A request that simply **omits** the header (trivially, via
+chunked transfer-encoding) sailed past both the route's guard and `acceptPush`'s own
+`declaredContentLength` check. The 25MB ceiling applied only to callers who volunteered their size.
+
+And `Authorization: Bearer x` satisfies a shape check without being a credential, so the real
+lookup still ran only after `request.formData()` had buffered the whole body and `arrayBuffer()`'d
+every part. Together: any caller with no valid credential could force unbounded buffering before
+collecting a 401 — the precise opposite of T-09-31's premise, and a memory-exhaustion vector on a
+public endpoint.
+
+Fixed in both dimensions: the credential lookup now completes **before** the body is touched (one
+indexed hit on `token_sha256` instead of buffering 25MB), and `readBodyWithinCap()` counts as it
+reads and cancels the stream past the cap, so the ceiling no longer depends on the sender
+declaring anything. `declaredContentLength` now carries the measured size. `acceptPush` is
+unchanged and repeats the lookup for its own contract.
+
+Four regression tests, including `request.bodyUsed === false` after a 401 — the decisive proof of
+ordering. Re-proved live afterwards with a second credential and file: push **202**, drain **200
+`{"processed":1}`**, `source_ref` matching exactly, inbox emptied, lock released.
 
 ## Verification
 
-`npm test` **583/583** across 37 files (up from 09-04's 580 by the three new regression tests),
+`npm test` **587/587** across 37 files (up from 09-04's 580 by seven new regression tests),
 `npx tsc --noEmit` clean, `npm run lint` **0 errors** / 18 warnings (pre-existing baseline).
 All five pinned manual-path blob hashes match — `ingest()`, its types, the manual upload route,
 the dropzone and the batch module are byte-identical to before this phase.
@@ -226,14 +284,40 @@ These are in Task 3's `<human-check>` and cannot be exercised headlessly:
 - `/settings/senders` renders now that the migration is applied (it showed `ErrorState` until this
   plan ran), and the mint → reveal-once → revoke flow works through the UI.
 
+## Open code-review findings carried forward
+
+`09-REVIEW.md` raised 5 findings. CR-01 is fixed above. The rest are open:
+
+- **WR-01** — no try/catch around `acceptPush`'s dependency calls, so a transient Storage or DB
+  failure crashes to a default 500 instead of the documented JSON contract, and can strand an
+  inbox object with no reference ever returned. Same class as the 500 already fixed; worth closing.
+- **WR-02** — the drain persists `file_name` from the mangled inbox key segment
+  (`<timestamp>-<index>-<suffix>-original.csv`) rather than the sender's original filename, so
+  pushed files read badly in the uploads history.
+- **WR-03** — `lib/push/tables.ts`'s `pushTable`/`pushRpc` escape hatches are now stale, since
+  `types/db.ts` describes every table and RPC they worked around. **Deliberately not actioned
+  here:** plan 09-05 Task 1 explicitly says not to remove it in this plan ("a tidy-up with its own
+  risk of breaking a working path") and to record that it is now removable. It is.
+- **IN-01** — `settings-nav.tsx` uses unanchored `startsWith` for nav active-state, the same bug
+  class `proxy.ts`'s matcher was rewritten to avoid.
+
 ## Housekeeping left for the operator
 
-- The test credential `phase-09-live-proof` (`5ade9153…`) is **revoked** but not deleted — revocation
-  is deliberate in this design (a credential is never deleted, so the audit trail survives).
-- The proof data is still live: 1 `ingested_files` row, 3 `verifications` rows dated 2026-09-27, and
-  2 `push_rejections` rows. `v_reconciliation_billing_daily` now shows a 2026-09-27 row with status
-  `no_source_data` and `settled = false` — the settling window correctly reporting "counterpart not
-  yet arrived" rather than a false mismatch, but it is a visible new row on the dashboard. Say the
-  word and I will remove the proof rows.
+- Both proof credentials (`phase-09-live-proof` `5ade9153…`, `phase-09-cr01-recheck` `48d12d19…`)
+  are **revoked** but not deleted — revocation is deliberate in this design, so the audit trail
+  survives. 0 credentials are live.
+- The proof data is still live: 2 `ingested_files` rows, 5 `verifications` rows dated 2026-09-26
+  and 2026-09-27, and 2 `push_rejections` rows. `v_reconciliation_billing_daily` now shows a
+  2026-09-27 row with status `no_source_data` and `settled = false` — the settling window correctly
+  reporting "counterpart not yet arrived" rather than a false mismatch, but it is a visible new row
+  on the dashboard. Say the word and I will remove the proof rows.
+- **Pre-existing, not from this phase:** the security advisor still reports two SECURITY DEFINER
+  functions callable by `authenticated` (`delete_pricing_tier_set`, `save_pricing_tier_set`, from
+  Phases 7–8) plus two auth-config warnings (OTP expiry over an hour, leaked-password protection
+  off). The performance advisor reports 16 unindexed foreign keys, 4 of them added by this phase
+  (`ingested_files.source_credential_id`, `push_credentials.created_by`,
+  `push_credentials_audit.changed_by`, `push_rejections.credential_id`) — all INFO, consistent with
+  the 12 pre-existing ones, and immaterial at 140 rows. Indexing only the new four would be an
+  inconsistent half-measure, so none were added.
 
 ## Self-Check: PASSED
