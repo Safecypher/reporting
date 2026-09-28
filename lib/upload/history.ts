@@ -80,11 +80,14 @@ type SourceInput =
  * mechanism — a pushed file reads the joined sender name, a rejection reads
  * its own denormalised sender, and a manual upload reads "Manual — "
  * followed by the uploader's email, falling back to "Manual — unknown user"
- * when the identity cannot be resolved. Never a raw UUID: no
- * email-resolving view exists in this codebase — the same gap
- * `/settings/pricing`'s audit log already documents and accepts (`changed_by
- * ?? "Unknown user"`) — and a UUID here would read as a bug rather than a
- * known gap to the three people who use this table.
+ * when the identity cannot be resolved. Never a raw UUID: `lib/identity/
+ * profiles.ts` (migration 0045) resolves an actor id to an email for the
+ * caller, but resolution can still come back empty — an id not yet synced
+ * by the hourly `refresh-profiles` cron job, a null email, or a failed
+ * `fetchActorEmails` read — and this function's job is only to render
+ * whichever of those two outcomes the caller already determined, exactly as
+ * `/settings/pricing`'s audit log falls back (`changed_by ?? "Unknown
+ * user"`) for the same reason.
  */
 export function sourceLabel(input: SourceInput): string {
   switch (input.kind) {
@@ -119,9 +122,7 @@ export function formatCount(count: number | null | undefined): string {
 export function mergeHistory(
   uploads: IngestedFileRow[],
   rejections: RejectionRow[],
-  // RED-phase stub (Task 3 TDD cycle, plan 09-06): accepted but not yet
-  // consulted. GREEN wires this into the manual branch below.
-  _uploaderEmails: ActorEmailMap
+  uploaderEmails: ActorEmailMap
 ): CombinedHistoryRow[] {
   const uploadRows: CombinedHistoryRow[] = uploads.map((upload) => ({
     kind: "upload",
@@ -130,7 +131,12 @@ export function mergeHistory(
     fileName: upload.file_name,
     source:
       upload.source === "manual"
-        ? sourceLabel({ kind: "manual", uploaderEmail: null })
+        ? sourceLabel({
+            kind: "manual",
+            uploaderEmail: upload.uploaded_by
+              ? (uploaderEmails.get(upload.uploaded_by) ?? null)
+              : null,
+          })
         : sourceLabel({
             kind: "push",
             senderName: upload.push_credentials?.sender ?? "Unknown sender",

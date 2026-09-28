@@ -3,6 +3,7 @@ import { Dropzone } from "@/components/upload/dropzone";
 import { UploadsHistoryTable } from "@/components/upload/uploads-history-table";
 import { createClient } from "@/lib/supabase/server";
 import { pushTable } from "@/lib/push/tables";
+import { fetchActorEmails } from "@/lib/identity/profiles";
 import { mergeHistory, type IngestedFileRow, type RejectionRow } from "@/lib/upload/history";
 
 export const metadata: Metadata = {
@@ -43,7 +44,21 @@ async function UploadsHistory() {
     );
   }
 
-  const rows = mergeHistory(uploadsResult.data ?? [], rejectionsResult.data ?? []);
+  // A necessary third round trip rather than a fourth Promise.all entry —
+  // the uploader ids aren't known until uploadsResult resolves above. Its
+  // error deliberately does NOT join the shared error branch above: losing
+  // an email is not losing a row, so the table still renders with the
+  // unresolved fallback ("Manual — unknown user") rather than the whole
+  // page's error state.
+  const { emails: uploaderEmails, error: emailsError } = await fetchActorEmails(
+    supabase,
+    (uploadsResult.data ?? []).map((row) => row.uploaded_by)
+  );
+  if (emailsError) {
+    console.error("UploadsHistory: fetchActorEmails failed", emailsError);
+  }
+
+  const rows = mergeHistory(uploadsResult.data ?? [], rejectionsResult.data ?? [], uploaderEmails);
 
   return <UploadsHistoryTable rows={rows} />;
 }
