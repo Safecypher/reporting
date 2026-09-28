@@ -1,64 +1,72 @@
 ---
-status: testing
+status: complete
 phase: 09-automated-drop-off-push-credentials-drain
 source: [09-VERIFICATION.md]
 started: 2026-09-28T13:45:00Z
-updated: 2026-09-28T13:45:00Z
+updated: 2026-09-28T14:15:29Z
 ---
 
 ## Current Test
 
-number: 1
-name: Manual drag-and-drop still works, single file
-expected: |
-  Dragging one report file onto /uploads ingests it exactly as it did before v1.1 —
-  per-file progress, a success outcome, and a new row in the uploads history reading
-  Source "Manual". The resulting ingested_files row has source = 'manual' with a null
-  source_ref and null source_credential_id.
-awaiting: user response
+[testing complete]
 
 ## Tests
 
 ### 1. Manual drag-and-drop still works, single file
 expected: Dragging one report file onto /uploads ingests it as before. The uploads-history row reads Source "Manual", and the underlying row has source = 'manual', source_ref null, source_credential_id null.
 why_it_matters: This is AUTO-07 and the phase goal's second half — "the existing manual path keeps working exactly as before". The five pinned blob hashes prove `ingest()`, its types, the manual route, the dropzone and the batch module are byte-identical. But the manual path still traverses `lib/ingestion/supabase-writer.ts`, which WAS modified (additively) this phase, and now writes into a table with a new NOT NULL defaulted column. That is the gap a hash check cannot close.
-result: [pending]
+result: issue
+reported: "Source is set to \"Maual - unknown user\" but given I'm logged in, surely it should be attributed to me"
+severity: major
 
 ### 2. Manual drag-and-drop still works, two files at once
 expected: Dragging two files together shows the sequential continue-on-failure behaviour from quick task 260923-ili — per-file progress, per-file outcomes, and the summary toast. If one file fails the other still completes.
 why_it_matters: Batch behaviour is the part most likely to regress silently, and it has its own prior quick-task history.
-result: [pending]
+result: pass
 
 ### 3. /uploads shows push provenance
 expected: The uploads history lists the two pushed proof files with `phase-09-live-proof` and `phase-09-cr01-recheck` in the Source column (not "Manual"), and expanding a row reveals the source_ref — the inbox object key returned to the sender.
 why_it_matters: D-15/D-16. The whole thesis is that one string traces a sender's claim to a dashboard figure; this is where a human actually sees it.
-result: [pending]
+result: pass
 
 ### 4. Rejections render as "Delivery rejected", not "Failed"
 expected: The two zero-byte rejections appear in the /uploads list, interleaved by time with the ingested files, labelled "Delivery rejected" — a distinct label from "Failed". Both appear: two separate rows, not one.
 why_it_matters: D-14's reason for existing. A refused delivery is not a failed parse, and two identical refusals must not collapse into one — that is what makes "this sender has failed every morning this week" visible.
-result: [pending]
+result: pass
 
 ### 5. /settings/senders mint → reveal-once → revoke
 expected: The page renders (it showed an error state until migration 0040 was applied). Minting a credential for a named sender reveals the full token exactly once, with a copy affordance; the token is not retrievable afterwards. The list shows every credential — including two live ones for the same sender name, since sender is deliberately not unique. Revoking one marks it revoked without deleting it.
 why_it_matters: AUTO-04, and D-05's show-once rule. The credentials used in the live proof were minted by SQL because this environment has no browser session, so the UI mint path itself is unproven.
-result: [pending]
+result: pass
+note: "User reported: pass (although the two credentials that already existed had both been revoked already, and they senders were unique). The mint / reveal-once / revoke path is verified. The two-live-credentials-for-one-sender sub-assertion was NOT exercised — no live pair existed to observe. The rule itself is confirmed structurally: supabase/migrations/0040_push_delivery_spine.sql:44 declares sender with no unique constraint, pinned as locked decision D-02."
+uncovered_sub_assertion: "Two live credentials for the same sender name both appear in the list (D-02 rotation overlap)"
 
 ### 6. Visual pass against the UI spec
 expected: /settings/senders and the extended /uploads table match 09-UI-SPEC.md — spacing rhythm, badge neutrality, the token-reveal dialog's treatment, and the disclosure chevron behaviour.
 why_it_matters: Deferred from plans 09-03 and 09-04, whose executors correctly routed browser-only visual checks to end-of-phase UAT.
-result: [pending]
+result: pass
 
 ## Summary
 
 total: 6
-passed: 0
-issues: 0
-pending: 6
+passed: 5
+issues: 1
+pending: 0
 skipped: 0
 blocked: 0
 
 ## Gaps
+
+- gap_id: G-09-1
+  truth: "The uploads-history Source column attributes a manual upload to the signed-in user who performed it"
+  status: failed
+  reason: "User reported: Source is set to \"Maual - unknown user\" but given I'm logged in, surely it should be attributed to me"
+  severity: major
+  test: 1
+  artifacts: []
+  missing: []
+
+### Automated-verification note (pre-existing)
 
 None found by automated verification — 5/5 ROADMAP success criteria are backed by code read in
 full, with `npm test` 587/587, `tsc` clean, `lint` 0 errors and the five pinned manual-path blob
