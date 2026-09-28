@@ -63,8 +63,19 @@ blocked: 0
   reason: "User reported: Source is set to \"Maual - unknown user\" but given I'm logged in, surely it should be attributed to me"
   severity: major
   test: 1
-  artifacts: []
-  missing: []
+  root_cause: "lib/upload/history.ts:95 — mergeHistory() passes uploaderEmail: null unconditionally for every manual row, making sourceLabel()'s email branch unreachable in the render path. The identity is captured and read correctly upstream (app/api/ingest/route.ts:59 writes uploaded_by: user.id; app/(dashboard)/uploads/page.tsx:27 selects it) and discarded at the merge. The underlying blocker is that no id->email mechanism exists anywhere in the codebase — no profiles table, no view, no RPC; auth.users appears only as an FK target. /settings/pricing has the identical gap and renders the raw UUID (page.tsx:132)."
+  artifacts:
+    - path: "lib/upload/history.ts"
+      issue: "mergeHistory hardcodes uploaderEmail: null (line 95), so the email branch of sourceLabel is dead code in production"
+    - path: "app/(dashboard)/uploads/page.tsx"
+      issue: "selects uploaded_by (line 27) but never resolves it to a display identity"
+    - path: "app/(dashboard)/settings/pricing/page.tsx"
+      issue: "same missing capability — renders raw changed_by UUID as the actor (line 132)"
+  missing:
+    - "An id->email resolution mechanism readable by authenticated users (profiles table synced from auth.users, or a SECURITY DEFINER view/RPC)"
+    - "Plumb the resolved email through mergeHistory into sourceLabel for manual rows"
+  debug_session: ""
+  chosen_approach: "profiles table + trigger — a new migration adding a `profiles` table (id, email) mirroring auth.users, kept in sync by a trigger, readable under RLS by authenticated users. Chosen by Mark at UAT close. Scope includes fixing /settings/pricing's raw-UUID actor at the same time, since it is the same missing capability."
 
 ### Automated-verification note (pre-existing)
 
@@ -87,3 +98,7 @@ Both proof credentials are revoked; 0 remain live; the inbox is empty.
 
 Keep them as an audit trail of the live proof, or remove them before Mark next looks at the
 dashboard? Either is fine — say which.
+
+**DECIDED (Mark, at UAT close):** keep them as an audit trail. They are real, correctly-labelled
+data; the `no_source_data` reconciliation row is honestly reporting "counterpart not yet arrived"
+rather than a false mismatch. The rows added by today's UAT manual-upload tests stay too.
