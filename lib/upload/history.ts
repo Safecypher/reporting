@@ -7,6 +7,7 @@
  * batch.ts` already uses for the dropzone — so the table itself stays
  * presentational and every rule here is testable without a DOM.
  */
+import type { ActorEmailMap } from "@/lib/identity/profiles";
 
 /** The existing parse-failure label and the new delivery-refusal label,
  * exported as constants so the deliberate distinction between "a file was
@@ -117,7 +118,10 @@ export function formatCount(count: number | null | undefined): string {
  */
 export function mergeHistory(
   uploads: IngestedFileRow[],
-  rejections: RejectionRow[]
+  rejections: RejectionRow[],
+  // RED-phase stub (Task 3 TDD cycle, plan 09-06): accepted but not yet
+  // consulted. GREEN wires this into the manual branch below.
+  _uploaderEmails: ActorEmailMap
 ): CombinedHistoryRow[] {
   const uploadRows: CombinedHistoryRow[] = uploads.map((upload) => ({
     kind: "upload",

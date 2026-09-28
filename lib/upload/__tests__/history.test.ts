@@ -1,5 +1,7 @@
 import { describe, expect, it } from "vitest";
 
+import { EMPTY_ACTOR_EMAILS, type ActorEmailMap } from "@/lib/identity/profiles";
+
 import {
   DELIVERY_REJECTED_STATUS_LABEL,
   FAILED_STATUS_LABEL,
@@ -89,7 +91,7 @@ describe("mergeHistory", () => {
       rejection({ id: "r2", rejected_at: "2026-09-25T05:00:00.000Z" }),
     ];
 
-    const merged = mergeHistory(uploads, rejections);
+    const merged = mergeHistory(uploads, rejections, EMPTY_ACTOR_EMAILS);
 
     expect(merged.map((row) => row.id)).toEqual(["u1", "r1", "u2", "r2", "u3"]);
   });
@@ -98,8 +100,8 @@ describe("mergeHistory", () => {
     const uploads = [upload({ id: "u2", uploaded_at: "2026-09-25T06:00:00.000Z" })];
     const rejections = [rejection({ id: "r1", rejected_at: "2026-09-25T06:00:00.000Z" })];
 
-    const forward = mergeHistory(uploads, rejections);
-    const reversed = mergeHistory([...uploads], [...rejections].reverse());
+    const forward = mergeHistory(uploads, rejections, EMPTY_ACTOR_EMAILS);
+    const reversed = mergeHistory([...uploads], [...rejections].reverse(), EMPTY_ACTOR_EMAILS);
 
     expect(forward.map((row) => row.id)).toEqual(["u2", "r1"]);
     expect(reversed.map((row) => row.id)).toEqual(["u2", "r1"]);
@@ -111,20 +113,20 @@ describe("mergeHistory", () => {
       upload({ id: "u2", uploaded_at: "2026-09-25T06:00:00.000Z" }),
     ];
 
-    const merged = mergeHistory(uploads, []);
+    const merged = mergeHistory(uploads, [], EMPTY_ACTOR_EMAILS);
 
     expect(merged.map((row) => row.id)).toEqual(["u2", "u9"]);
   });
 
   it("returns a non-empty list when there are zero uploads and one or more rejections", () => {
-    const merged = mergeHistory([], [rejection()]);
+    const merged = mergeHistory([], [rejection()], EMPTY_ACTOR_EMAILS);
 
     expect(merged).toHaveLength(1);
     expect(merged[0].kind).toBe("rejection");
   });
 
   it("returns an empty list when both inputs are empty", () => {
-    expect(mergeHistory([], [])).toEqual([]);
+    expect(mergeHistory([], [], EMPTY_ACTOR_EMAILS)).toEqual([]);
   });
 
   it("derives the Source column from the sender for a pushed upload", () => {
@@ -136,26 +138,73 @@ describe("mergeHistory", () => {
           push_credentials: { sender: "TSYS" },
         }),
       ],
-      []
+      [],
+      EMPTY_ACTOR_EMAILS
     );
 
     expect(merged[0].source).toBe("TSYS");
   });
 
-  it("derives the Source column as 'Manual — unknown user' for a manual upload", () => {
-    const merged = mergeHistory([upload({ id: "u1", source: "manual" })], []);
+  it("derives the Source column as 'Manual — unknown user' when the uploader cannot be resolved (uploaded_by is null) -- this is the fallback condition, not a universal", () => {
+    const merged = mergeHistory([upload({ id: "u1", source: "manual" })], [], EMPTY_ACTOR_EMAILS);
 
     expect(merged[0].source).toBe("Manual — unknown user");
   });
 
+  it("renders 'Manual — <email>' when uploaded_by resolves through the supplied map (G-09-1 regression guard)", () => {
+    const uploaderEmails: ActorEmailMap = new Map([
+      ["user-1", "mark.wright@safecypher.com"],
+    ]);
+    const merged = mergeHistory(
+      [upload({ id: "u1", source: "manual", uploaded_by: "user-1" })],
+      [],
+      uploaderEmails
+    );
+
+    expect(merged[0].source).toBe("Manual — mark.wright@safecypher.com");
+  });
+
+  it("falls back to 'Manual — unknown user' when uploaded_by is present but absent from the supplied map", () => {
+    const uploaderEmails: ActorEmailMap = new Map([
+      ["user-1", "mark.wright@safecypher.com"],
+    ]);
+    const merged = mergeHistory(
+      [upload({ id: "u1", source: "manual", uploaded_by: "user-99" })],
+      [],
+      uploaderEmails
+    );
+
+    expect(merged[0].source).toBe("Manual — unknown user");
+  });
+
+  it("leaves a pushed row's Source unaffected by the uploader-email map", () => {
+    const uploaderEmails: ActorEmailMap = new Map([
+      ["user-1", "mark.wright@safecypher.com"],
+    ]);
+    const merged = mergeHistory(
+      [
+        upload({
+          id: "u1",
+          source: "push",
+          uploaded_by: "user-1",
+          push_credentials: { sender: "TSYS" },
+        }),
+      ],
+      [],
+      uploaderEmails
+    );
+
+    expect(merged[0].source).toBe("TSYS");
+  });
+
   it("derives the Source column from the rejection's own denormalised sender", () => {
-    const merged = mergeHistory([], [rejection({ sender: "Bit Addict" })]);
+    const merged = mergeHistory([], [rejection({ sender: "Bit Addict" })], EMPTY_ACTOR_EMAILS);
 
     expect(merged[0].source).toBe("Bit Addict");
   });
 
   it("gives a rejection row no counts and no source reference", () => {
-    const merged = mergeHistory([], [rejection()]);
+    const merged = mergeHistory([], [rejection()], EMPTY_ACTOR_EMAILS);
 
     expect(merged[0].accepted).toBeNull();
     expect(merged[0].duplicate).toBeNull();
@@ -168,7 +217,8 @@ describe("mergeHistory", () => {
   it("carries the upload's source_ref through untouched", () => {
     const merged = mergeHistory(
       [upload({ id: "u1", source: "push", source_ref: "inbox/tsys/123-file.csv" })],
-      []
+      [],
+      EMPTY_ACTOR_EMAILS
     );
 
     expect(merged[0].sourceRef).toBe("inbox/tsys/123-file.csv");
