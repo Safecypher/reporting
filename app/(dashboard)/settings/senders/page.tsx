@@ -9,6 +9,7 @@ import { CredentialsTable } from "@/components/settings/credentials-table";
 import { MintCredentialForm } from "@/components/settings/mint-credential-form";
 import { RevokeCredential } from "@/components/settings/revoke-credential";
 import { AuditLog, type AuditLogEntry } from "@/components/pricing/audit-log";
+import { actorLabel, fetchActorEmails } from "@/lib/identity/profiles";
 import {
   distinctSenders,
   isSoleLiveCredential,
@@ -118,9 +119,23 @@ async function SendersBody() {
 
   const credentialRows = credentialsResult.data ?? [];
   const auditRows = auditResult.data ?? [];
+
+  // A necessary third round trip rather than a third Promise.all entry — the
+  // actor ids aren't known until auditRows is derived above. Its error is
+  // deliberately kept out of the combined error branch above: losing an
+  // email is not losing a row, so the audit list still renders with the
+  // unresolved fallback rather than the whole page's error state.
+  const { emails: actorEmails, error: actorEmailsError } = await fetchActorEmails(
+    supabase,
+    auditRows.map((row) => row.changed_by),
+  );
+  if (actorEmailsError) {
+    console.error("SendersBody: fetchActorEmails failed", actorEmailsError);
+  }
+
   const entries: AuditLogEntry[] = auditRows.map((row) => ({
     id: row.id,
-    actor: row.changed_by ?? "Unknown user",
+    actor: actorLabel(row.changed_by, actorEmails),
     summary: row.summary,
     changedAt: row.changed_at,
   }));

@@ -9,6 +9,7 @@ import { AlignmentSettingsForm } from "@/components/settings/alignment-settings-
 import { RevenueForecastSettingsForm } from "@/components/settings/revenue-forecast-settings-form";
 import { AuditLog, type AuditLogEntry } from "@/components/pricing/audit-log";
 import { SettingsFallbackNotice } from "@/components/dashboard/settings-fallback-notice";
+import { actorLabel, fetchActorEmails } from "@/lib/identity/profiles";
 import { DEFAULT_FY_START } from "@/lib/settings/fy-settings";
 import { fetchAlignmentSettings } from "@/lib/settings/alignment-settings";
 import { fetchRevenueForecastSettings } from "@/lib/settings/revenue-forecast-settings";
@@ -145,9 +146,27 @@ async function GeneralBody() {
     : DEFAULT_FY_START;
 
   const auditRows = auditResult.data ?? [];
+
+  // A necessary extra round trip rather than a fifth Promise.all entry — the
+  // actor ids aren't known until auditRows is derived above. Its error is
+  // deliberately kept out of the combined error branch above: losing an
+  // email is not losing a row, so the audit list still renders with the
+  // unresolved fallback rather than the whole page's error state. This is a
+  // different, quieter error contract than fetchAlignmentSettings'/
+  // fetchRevenueForecastSettings' SettingsFallbackNotice above and must not
+  // be merged with it (WR-03/T-07-10 concern a form pre-filled from a
+  // failed read; an audit-row actor label has no equivalent risk).
+  const { emails: actorEmails, error: actorEmailsError } = await fetchActorEmails(
+    supabase,
+    auditRows.map((row) => row.changed_by),
+  );
+  if (actorEmailsError) {
+    console.error("GeneralBody: fetchActorEmails failed", actorEmailsError);
+  }
+
   const entries: AuditLogEntry[] = auditRows.map((row) => ({
     id: row.id,
-    actor: row.changed_by ?? "Unknown user",
+    actor: actorLabel(row.changed_by, actorEmails),
     summary: row.summary,
     changedAt: row.changed_at,
   }));
