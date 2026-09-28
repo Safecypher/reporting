@@ -680,3 +680,71 @@ describe("acceptPush isolation — no rejection recorded on request-level refusa
     expect(rejectionRecorder.recordRejection).not.toHaveBeenCalled();
   });
 });
+
+/**
+ * Regression cover for two defects found when POST /api/push was first
+ * exercised against the DEPLOYED site during plan 09-05 Task 3:
+ *
+ *   - a request with no body at all answered 500, because
+ *     `request.formData()` throws on a non-multipart body and the throw was
+ *     uncaught. The published contract has no 500 in it.
+ *   - the body was buffered BEFORE the token was checked, so an
+ *     unauthenticated caller could make the server parse up to 25MB of
+ *     multipart before being refused — contradicting T-09-31's stated
+ *     premise that an unauthenticated call is "a cheap 401 before any
+ *     Storage or database work".
+ *
+ * Both are contract-visible to TSYS and Bit Addict, so both are pinned here.
+ */
+describe("POST /api/push route — request-level refusals never 500 (09-05 Task 3)", () => {
+  it("a request with no body and no Authorization answers 401, not 500", async () => {
+    const { POST } = await import("@/app/api/push/route");
+    const routeSupabase = makeFakeRouteSupabase();
+    routeSupabaseClient = routeSupabase.client;
+
+    const response = await POST(
+      new Request("http://localhost/api/push", { method: "POST" })
+    );
+
+    expect(response.status).toBe(401);
+    expect((await response.json()).results).toEqual([]);
+  });
+
+  it("a request with a valid-looking token but a non-multipart body answers 400, not 500", async () => {
+    const { POST } = await import("@/app/api/push/route");
+    const routeSupabase = makeFakeRouteSupabase();
+    routeSupabaseClient = routeSupabase.client;
+    const { token, hash } = generateToken();
+    routeSupabase.addCredential(hash, CREDENTIAL_ID, SENDER);
+
+    const response = await POST(
+      new Request("http://localhost/api/push", {
+        method: "POST",
+        headers: {
+          authorization: `Bearer ${token}`,
+          "content-type": "application/json",
+        },
+        body: "{}",
+      })
+    );
+
+    expect(response.status).toBe(400);
+    expect((await response.json()).results).toEqual([]);
+  });
+
+  it("an unauthenticated request is refused without the credential table ever being read", async () => {
+    const { POST } = await import("@/app/api/push/route");
+    const routeSupabase = makeFakeRouteSupabase();
+    routeSupabaseClient = routeSupabase.client;
+
+    const response = await POST(
+      buildPushRequest({
+        authorization: null,
+        files: [{ filename: "a.csv", bytes: csvBytes("a,b\n1,2\n") }],
+      })
+    );
+
+    expect(response.status).toBe(401);
+    expect(routeSupabase.touchedIds).toEqual([]);
+  });
+});

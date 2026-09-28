@@ -1,7 +1,12 @@
 import { NextResponse } from "next/server";
 import { buildSecretClient } from "@/lib/ingestion/supabase-writer";
 import { pushTable } from "@/lib/push/tables";
-import { acceptPush, type AcceptPushDeps, type PushCredentialLookup } from "@/lib/push/delivery";
+import {
+  acceptPush,
+  extractBearerToken,
+  type AcceptPushDeps,
+  type PushCredentialLookup,
+} from "@/lib/push/delivery";
 
 // node:crypto (token hashing) and the writer's magic-byte detection require
 // the Node runtime, not Edge — the manual route already sets this.
@@ -26,10 +31,15 @@ const MAX_REQUEST_BYTES = 25 * 1024 * 1024;
  * entry carries `reason`, never `reference`. The HTTP status is the D-07
  * matrix: 202 when every entry is accepted, 207 Multi-Status when the array
  * is mixed, 400 when none are accepted (including a request with zero file
- * parts, whose `results` is `[]`). A request-level refusal (missing/invalid
- * Authorization, or a declared Content-Length over 25MB) also answers 400
- * with `results: []` — there is no per-file breakdown to report before a
- * credential has been resolved.
+ * parts, whose `results` is `[]`).
+ *
+ * Request-level refusals, all carrying `results: []` because no per-file
+ * breakdown exists before a credential is resolved:
+ *
+ *   401 — Authorization missing, malformed, unknown, or revoked. All four
+ *         are indistinguishable by design (D-10).
+ *   400 — declared Content-Length over 25MB, or a body that is not
+ *         well-formed multipart.
  */
 export async function POST(request: Request) {
   // Defence-in-depth beyond acceptPush's own declaredContentLength check:
@@ -89,7 +99,35 @@ export async function POST(request: Request) {
     },
   };
 
-  const formData = await request.formData();
+  // Reject a request with no usable bearer token BEFORE buffering the body.
+  // Two reasons, both found when this route was first exercised against the
+  // deployed site:
+  //   1. `request.formData()` THROWS on a request that is not well-formed
+  //      multipart (including one with no body at all), and an uncaught throw
+  //      in a Route Handler is a 500. An unauthenticated caller could get a
+  //      500 out of the published contract just by omitting the body.
+  //   2. T-09-31 accepts unauthenticated flooding on the stated premise that
+  //      each call is "a cheap 401 before any Storage or database work".
+  //      Parsing up to 25MB of multipart and calling arrayBuffer() on every
+  //      part before checking the token is not cheap, so the premise did not
+  //      hold until this check existed.
+  // acceptPush still performs its own token check — this is defence-in-depth
+  // and does not change the contract.
+  if (extractBearerToken(request.headers.get("authorization")) === null) {
+    return NextResponse.json({ results: [] }, { status: 401 });
+  }
+
+  let formData: FormData;
+  try {
+    formData = await request.formData();
+  } catch {
+    // A body that is not well-formed multipart is a bad request, not a
+    // server error. Never surface the parser's own message — it can carry
+    // server-side detail, and the curated-copy discipline in
+    // lib/upload/batch.ts applies here too (T-09-12).
+    return NextResponse.json({ results: [] }, { status: 400 });
+  }
+
   const files = formData
     .getAll("file")
     .filter((f): f is File => f instanceof File);

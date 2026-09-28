@@ -112,7 +112,13 @@ export interface AcceptPushResult {
   results: PushFileResult[];
 }
 
-function extractBearerToken(header: string | null): string | null {
+/**
+ * Exported so the route can reject a request carrying no usable bearer token
+ * BEFORE it buffers the multipart body. `acceptPush` still calls this itself,
+ * so the route's pre-check is defence-in-depth, not the only gate — the
+ * contract is unchanged whether or not a caller pre-checks.
+ */
+export function extractBearerToken(header: string | null): string | null {
   if (!header) return null;
   const match = /^Bearer (.+)$/.exec(header);
   return match ? match[1] : null;
