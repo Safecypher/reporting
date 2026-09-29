@@ -5,10 +5,10 @@ milestone_name: Nothing Silently Missing
 current_phase: 10
 current_phase_name: Freshness & Loud Absence
 status: planning
-stopped_at: Phase 10 context gathered
-last_updated: "2026-09-29T17:08:01.446Z"
+stopped_at: Phase 10 UI-SPEC approved
+last_updated: "2026-09-29T17:56:48.338Z"
 last_activity: 2026-09-29
-state_head: d713ef146ab187905e633ed771463155c66894da
+state_head: 904447ee22690390b449840b6242f9012fd37382
 progress:
   total_phases: 4
   completed_phases: 9
@@ -245,9 +245,9 @@ recorded in three phases — a Next.js generated ambient type, not a defect.
 
 ## Session Continuity
 
-Last session: 2026-09-29T17:08:01.404Z
-Stopped at: Phase 10 context gathered
-Resume file: .planning/phases/10-freshness-loud-absence/10-CONTEXT.md
+Last session: 2026-09-29T17:56:48.296Z
+Stopped at: Phase 10 UI-SPEC approved
+Resume file: .planning/phases/10-freshness-loud-absence/10-UI-SPEC.md
 
 ## Operator Next Steps
 
