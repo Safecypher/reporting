@@ -372,9 +372,12 @@ bordered/destructive-tinted treatment as `/settings/senders`' `ErrorState`.
 
 Produced by the deterministic UI-consideration probe
 (`gsd-core/bin/lib/ui-consideration-probe.cjs`) over 10 described surfaces, then resolved.
-**67 applicable considerations · 0 unclassified · 61 resolved (explicit) · 4 resolved (backstop) ·
-2 dismissed.** Element kinds were confirmed, not taken from the heuristic alone: E2 classified to
-zero kinds on its prose and was re-run with an authored `static-content` override.
+**The probe reported 67 applicable considerations · 0 unclassified.** One further row was authored
+by hand — E2's `empty`, because the probe's element-kind vocabulary cannot raise `empty` for a
+conditional static line (see that element's note). This section therefore carries **68 rows:
+61 resolved (explicit) · 5 resolved (backstop) · 2 dismissed.** Element kinds were confirmed, not
+taken from the heuristic alone: E2 classified to zero kinds on its prose and was re-run with an
+authored `static-content` override.
 
 Empty-state and error-state COPY lives in `## Copywriting Contract`; the rows below reference it
 rather than restating it.
@@ -497,7 +500,7 @@ rather than restating it.
 | zero-one-many | resolved (explicit) | One line per non-empty group; between one and three lines plus the link. |
 | long-text | resolved (backstop) | `{ statement: "A comma-joined group line naming all six sources with their covered dates does not rely on Slack's own wrapping to stay legible", verification: backstop }` |
 
-**On the four backstops:** each is a held-out visual/state check rather than a specified string.
+**On the five backstops:** each is a held-out visual/state check rather than a specified string.
 At verify time a `backstop` truth the verifier cannot confirm with explicit evidence abstains to
 `human_needed` (reason `insufficient_spec`) rather than passing silently — that surfacing is
 intended, not over-flagging.
