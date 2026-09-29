@@ -90,12 +90,18 @@ implements D-7/D-8 (business-day-aware, per-source configurable staleness).
 **Plans**: 6 plans
 
 Plans:
-
+**Wave 1**
 - [ ] 10-01-PLAN.md — Tracer: one source's freshness state reaches the dashboard and `/uploads`, end-to-end (wave 1)
 - [ ] 10-02-PLAN.md — D-15: prove `cron.alter_job` is reachable before anything is built on it (wave 1)
+
+**Wave 2** *(blocked on Wave 1 completion)*
 - [ ] 10-03-PLAN.md — One Slack message per run, and the evidence that a run happened at all (wave 2)
 - [ ] 10-04-PLAN.md — `/settings/sources`: tune a threshold without a SQL console (wave 2)
+
+**Wave 3** *(blocked on Wave 2 completion)*
 - [ ] 10-05-PLAN.md — D-14: the daily check run time becomes operator-editable (wave 3)
+
+**Wave 4** *(blocked on Wave 3 completion)*
 - [ ] 10-06-PLAN.md — [BLOCKING] Apply live, verify against the catalog, and prove the day goes loud (wave 4)
 
 **UI hint**: yes
