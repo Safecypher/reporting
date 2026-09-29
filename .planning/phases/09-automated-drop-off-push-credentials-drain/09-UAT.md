@@ -3,7 +3,7 @@ status: complete
 phase: 09-automated-drop-off-push-credentials-drain
 source: [09-VERIFICATION.md]
 started: 2026-09-28T13:45:00Z
-updated: 2026-09-28T14:15:29Z
+updated: 2026-09-29T09:25:09Z
 ---
 
 ## Current Test
@@ -15,9 +15,23 @@ updated: 2026-09-28T14:15:29Z
 ### 1. Manual drag-and-drop still works, single file
 expected: Dragging one report file onto /uploads ingests it as before. The uploads-history row reads Source "Manual", and the underlying row has source = 'manual', source_ref null, source_credential_id null.
 why_it_matters: This is AUTO-07 and the phase goal's second half — "the existing manual path keeps working exactly as before". The five pinned blob hashes prove `ingest()`, its types, the manual route, the dropzone and the batch module are byte-identical. But the manual path still traverses `lib/ingestion/supabase-writer.ts`, which WAS modified (additively) this phase, and now writes into a table with a new NOT NULL defaulted column. That is the gap a hash check cannot close.
-result: issue
-reported: "Source is set to \"Maual - unknown user\" but given I'm logged in, surely it should be attributed to me"
-severity: major
+result: pass
+first_run: issue — "Source is set to \"Maual - unknown user\" but given I'm logged in, surely it should be attributed to me" (severity: major, gap G-09-1)
+retested: 2026-09-29, against production after the G-09-1 fix deployed
+retest_result: "Production matches - shows the uploader's email (as well as the settings)"
+note: |
+  The first failing run is kept deliberately rather than overwritten. It is the
+  record that this checkpoint caught a real defect that five automated gates, a
+  clean code review and five pinned blob hashes all missed — the identity was
+  captured and read correctly, and thrown away one layer before render. An
+  overwritten "pass" would erase the only evidence that human UAT earned its place
+  in this phase.
+
+  One intermediate re-test also failed, for a different reason: the fix was
+  committed locally but no dev server was running and Netlify was 11 commits
+  behind, so the build under test predated the fix entirely. Recorded because
+  "the fix does not work" and "you are not looking at the fix" are indistinguishable
+  from the user's side, and the distinction cost a diagnostic pass to establish.
 
 ### 2. Manual drag-and-drop still works, two files at once
 expected: Dragging two files together shows the sequential continue-on-failure behaviour from quick task 260923-ili — per-file progress, per-file outcomes, and the summary toast. If one file fails the other still completes.
@@ -46,12 +60,22 @@ expected: /settings/senders and the extended /uploads table match 09-UI-SPEC.md 
 why_it_matters: Deferred from plans 09-03 and 09-04, whose executors correctly routed browser-only visual checks to end-of-phase UAT.
 result: pass
 
+## Deferred Human Checks — now satisfied
+
+Both plans deferred a browser-only check to this UAT pass rather than claiming it
+offline. Both were confirmed by the user against production on 2026-09-29:
+
+- 09-06 Task 3 — `/uploads` names the uploader rather than "unknown user"
+- 09-07 Tasks 1 and 2 — `/settings/pricing`, `/settings/general` and
+  `/settings/senders` change-history rows name a person rather than a raw uuid
+
 ## Summary
 
 total: 6
-passed: 5
-issues: 1
+passed: 6
+issues: 0
 pending: 0
+issues_found_and_closed: 1   # G-09-1 — failed on first run, fixed, retested green
 skipped: 0
 blocked: 0
 
@@ -59,7 +83,10 @@ blocked: 0
 
 - gap_id: G-09-1
   truth: "The uploads-history Source column attributes a manual upload to the signed-in user who performed it"
-  status: failed
+  status: resolved
+  resolved_by: 09-06-PLAN.md, 09-07-PLAN.md
+  resolved_at: 2026-09-29
+  confirmed_by: "User, against production: \"Production matches - shows the uploader's email (as well as the settings)\""
   reason: "User reported: Source is set to \"Maual - unknown user\" but given I'm logged in, surely it should be attributed to me"
   severity: major
   test: 1
