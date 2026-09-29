@@ -649,3 +649,70 @@ requires, and its shape should be copied close to verbatim:
    - What's unclear: cannot be verified without live access, which this session did not have.
    - Recommendation: exactly D-15's own plan — run the four-query probe as the phase's first task,
      before any `/settings/sources` editable-run-time UI is built.
+
+---
+
+## Orchestrator Addendum — live-catalog evidence (2026-09-29)
+
+> Added by the plan-phase orchestrator AFTER the researcher returned. The researcher reported it
+> could not reach the live project (`supabase` CLI returned 401). The orchestrator has Supabase
+> MCP access and ran the checks. **This section supersedes the research body's LOW/ASSUMED rating
+> on `cron.alter_job` reachability.** Everything below is measured, not inferred.
+
+### `cron.job` — the job rows as they actually exist
+
+| jobid | jobname | username | schedule | active |
+|---|---|---|---|---|
+| 2 | `daily-drop-off` | `postgres` | `0 16 * * *` | true |
+| 3 | `refresh-profiles` | `postgres` | `0 * * * *` | true |
+
+`daily-drop-off` is **jobid 2**, owned by `postgres` — exactly the precondition pg_cron's RLS
+check needs. Note both Phase 9 jobs are present, confirming the "exactly one drain job, plus the
+separately-argued profile job" state described in 09-LEARNINGS.
+
+### Privilege check
+
+```
+current_user        = postgres
+session_user        = postgres
+EXECUTE cron.alter_job(bigint,text,text,text,text,boolean)  = true
+EXECUTE cron.schedule(text,text,text)                       = true
+EXECUTE cron.unschedule(text)                               = true
+USAGE   ON SCHEMA cron                                      = true
+pg_has_role(current_user,'postgres','MEMBER')               = true
+```
+
+### What this means for CONTEXT D-14 / D-15
+
+**The mechanism is available.** pg_cron gates job edits by matching `cron.job.username` against
+`current_user` — not by table ownership, which is what blocked Phase 9's `auth.users` trigger.
+Inside a `SECURITY DEFINER` function **owned by `postgres`**, `current_user` becomes `postgres`,
+which matches the job row's `username`. The privilege and schema-usage grants are all present.
+This is a materially different situation from Phase 9's surprise: there, the required role
+membership was *false*; here every precondition reads *true*.
+
+**What is still unproven, and why it stays a plan task.** Privilege to call a function is not the
+same as a successful call. D-15's verification task remains, but is now narrow: prove that a
+`postgres`-owned `SECURITY DEFINER` wrapper, invoked through the app's normal request path,
+actually changes `cron.job.schedule` for jobid 2 and that the change survives. The orchestrator
+deliberately did **not** execute `cron.alter_job` here, because doing so would mutate the live
+production schedule outside any plan or migration.
+
+**Planner guidance:**
+- Treat the D-15 task as *expected to pass*, not as a coin flip — but keep the degrade-to-read-only
+  fallback written down, per D-15. Do not delete the fallback on the strength of this addendum.
+- `cron.alter_job` is preferred over `unschedule` + `schedule`: it mutates in place, so the job
+  cannot transiently vanish if the second statement fails.
+- Address the job by **name** where the API allows, or by the jobid looked up from `jobname`
+  at call time — never by hardcoding `2`, which is environment-specific.
+
+### Still open — needs a human, not a query
+
+**Netlify's function-timeout ceiling on this project's plan.** The research body flags that the
+drain route must await drain → freshness → Slack in one request (D-4), and that Netlify's default
+synchronous-function ceiling (~10s free / ~26s+ paid) could kill the function before `alert_runs`
+is written — which would lose exactly the evidence CONTEXT D-10 exists to capture. `export const
+maxDuration = 60` is the documented mitigation but its effect depends on the plan. This cannot be
+resolved from the database and was not resolved by research; it needs someone to check the Netlify
+dashboard.
+
