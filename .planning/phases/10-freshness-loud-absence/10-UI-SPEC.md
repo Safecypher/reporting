@@ -94,13 +94,16 @@ Project's existing, already-live typographic contract — no new type scale:
 | Role | Size | Weight | Line Height |
 |------|------|--------|-------------|
 | Eyebrow/label | 12px (`text-xs`) | 500 (`font-medium`), uppercase, `tracking-[0.08em]`–`tracking-[0.12em]` | 1.5 |
-| Body / table cell / caption | 14px (`text-sm`) body, 12px (`text-xs`) caption | 300 (`font-light`) default; 400/500 for values and headers | 1.5 |
+| Body / caption | 14px (`text-sm`) body, 12px (`text-xs`) caption | 300 (`font-light`) — explicit `font-light` class, e.g. captions in `credentials-table.tsx` | 1.5 |
+| Table header cell | 14px (`text-sm`) | 500 — inherited automatically from `components/ui/table.tsx`'s `TableHead`/`TableHeader` base classes (`font-medium` is baked into the primitive itself); never applied as a per-instance override | 1.5 |
+| Emphasized table value / label (non-monospace) | 14px (`text-sm`) | 500 (`font-medium`) — explicit, only where emphasis is needed | 1.5 |
 | Section heading (h2) | 18px (`text-lg`) | 500 (`font-medium`) | 1.2 |
 | Page heading (h1) | 24px (`text-2xl`) | 500 (`font-medium`) | 1.2 |
-| Monospace (hours value, run-time) | 14px (`text-sm`) | 400 | 1.5 |
+| Monospace (hours value, run-time) | 14px (`text-sm`) | **unset — no weight utility applied.** Do not add `font-light` or `font-medium` to this element. The element inherits the browser/Tailwind default (visually ~400), the same way `components/settings/fy-settings-form.tsx:129`, `alignment-settings-form.tsx` (both `<Input className="font-mono tabular-nums">`, no weight class) and `credentials-table.tsx`'s `font-mono text-xs` prefix cell already render — this is existing, established precedent (3+ files), not a new weight introduced by this phase. | 1.5 |
 
-Only two weights app-wide: 300 (`font-light`, body/secondary) and 500 (`font-medium`,
-headings/labels/emphasis). Do not introduce 400/600/700 anywhere new in this phase.
+**Verified against the live codebase (2026-09-29):** `grep -rn "font-normal\|font-light\|font-medium\|font-semibold\|font-bold" app components` — `font-light`: 43 files (dominant body/secondary weight), `font-medium`: 53 files (headings/labels/emphasis, and baked into shadcn `TableHead`), `font-normal`: 9 files (scoped entirely to `variant="outline"` `Badge` text, e.g. `ScopeBadge` — unrelated to any element this phase touches), `font-bold`: 6 files (scoped entirely to large 48px/20px KPI tabular-nums display numbers — this phase adds no KPI tiles). `app/globals.css` declares no `font-weight`/`--font-weight-*` tokens at all; weight is controlled purely by these Tailwind utility classes.
+
+**Binding rule, corrected:** this phase applies at most two explicit weight utility classes to any new element — 300 (`font-light`, body/secondary) and 500 (`font-medium`, headings/labels/emphasis). Do not add `font-normal`, `font-semibold`, or `font-bold` to anything new this phase. The one exception is the Monospace row above, which is not a weight utility at all — it is the deliberate *absence* of one, matching pre-existing precedent, and must stay that way rather than being "fixed" by adding `font-light` or `font-medium`.
 
 ---
 
@@ -196,7 +199,7 @@ states the fact; nothing beneath it should imply a date exists when none does.
 | Threshold input suffix | "hours" |
 | Threshold validation error | "Enter a whole number of hours greater than 0." |
 | Enabled field label | "Enabled" |
-| Per-row Save CTA | **"Save"** (appears only when that row has unsaved changes) |
+| Per-row Save CTA | **"Save"** (appears only when that row has unsaved changes). Bare, not "Save {source}" — the row's own Source cell already states the noun in the same visual line, so the button's label doesn't need to repeat it (same reasoning as any inline per-row table action). Set `aria-label={`Save ${source} settings`}` on the `Button` so the noun is still present for assistive tech, which reads the label out of row context. |
 | Per-row save success toast | "Saved {source} settings." |
 | Per-row save error toast | "Could not save {source} settings — {error}." (row **stays in its edited state** so the change can be retried without re-entering it) |
 | Empty state | *(not applicable — the table always shows exactly six migration-seeded rows; there is no zero-row state to design for)* |
@@ -289,6 +292,12 @@ only the `FreshnessBadge` JSX that displayed it is deleted. `LoadingState`'s ske
 more `Skeleton`-shaped block above `AlignmentStripSkeleton`, matching `FreshnessStripSkeleton`'s
 proportions.
 
+**Primary visual anchor:** `FreshnessStrip` is the first-read region on both dashboard home and
+`/uploads` — it sits above `AlignmentStrip` and everything else precisely because "loud absence"
+must be the first thing an operator's eye lands on, ahead of alignment status or KPI totals (the
+same "freshness precedes alignment" ordering already reasoned through in 10-CONTEXT.md). No other
+region on either page competes for that position this phase.
+
 ### 3. `/uploads` (`app/(dashboard)/uploads/page.tsx`)
 
 D-17: the same strip renders above the existing upload history, wrapped in its own boundary —
@@ -315,10 +324,11 @@ CONTEXT's open discretion point), consistent with General/Pricing/Senders.
 **Section order, separated by `Separator`:**
 
 1. **Daily check run time.** `Label` "Daily check run time" + either:
-   - **Editable (D-15 succeeded):** `<Input type="time">` bound to the stored run time, plus
-     the helper text above, plus a "Save run time" `Button` (`useTransition`, disabled while
-     pending, "Saving…" pending copy — same pattern as `FySettingsForm`). On success: toast
-     "Daily check run time saved."
+   - **Editable (D-15 succeeded):** `<Input type="time" className="font-mono tabular-nums">`
+     bound to the stored run time (no `font-light`/`font-medium` class, per Typography's
+     Monospace row), plus the helper text above, plus a "Save run time" `Button`
+     (`useTransition`, disabled while pending, "Saving…" pending copy — same pattern as
+     `FySettingsForm`). On success: toast "Daily check run time saved."
    - **Degraded (D-15 failed — `cron.alter_job` unreachable):** the same label, but the value
      renders as static monospace text inside the neutral read-only notice box specified in the
      Copywriting Contract. No `Input`, no Save button. This is a per-deploy fact (resolved once,
@@ -330,15 +340,17 @@ CONTEXT's open discretion point), consistent with General/Pricing/Senders.
      `report_sources` is not a user-extensible list.
    - **Source cell:** plain label, not editable.
    - **Cadence cell:** `Select` bound to `expected_cadence`.
-   - **Overdue-after cell:** `Input type="number" min={1} step={1}` bound to
-     `stale_after_hours`, with the "hours" suffix rendered as trailing muted text beside the
-     input, not inside it.
+   - **Overdue-after cell:** `Input type="number" min={1} step={1}
+     className="font-mono tabular-nums"` bound to `stale_after_hours`, with the "hours" suffix
+     rendered as trailing muted text beside the input, not inside it. `font-mono tabular-nums`
+     only — no `font-light`/`font-medium` class, per Typography's Monospace row.
    - **Enabled cell:** `Switch` bound to `enabled`.
    - **Save cell:** empty unless that row is dirty (any of its three fields differs from the
-     server-provided value), in which case a small `Button` "Save" appears, `useTransition`
-     per-row so one row's in-flight save never disables the others. On failure, the toast names
-     the row and the row's edited values are preserved (not reset) — same retry-without-re-entry
-     discipline as Phase 9's mint-form failure handling.
+     server-provided value), in which case a small `Button` "Save" (`aria-label={`Save ${source}
+     settings`}`, per Copywriting Contract) appears, `useTransition` per-row so one row's
+     in-flight save never disables the others. On failure, the toast names the row and the row's
+     edited values are preserved (not reset) — same retry-without-re-entry discipline as Phase
+     9's mint-form failure handling.
    - Each row submits independently via its own Zod-validated Server Action call — never one
      whole-table submit, so an invalid edit to one source can never block saving a different,
      valid edit to another.
@@ -358,26 +370,137 @@ bordered/destructive-tinted treatment as `/settings/senders`' `ErrorState`.
 
 ## UI Considerations
 
-Manually resolved against the 8-category taxonomy (`ui-consideration-probe.md`), scoped to this
-phase's new/changed elements. 15 applicable considerations, 13 resolved, 2 backstop.
+Produced by the deterministic UI-consideration probe
+(`gsd-core/bin/lib/ui-consideration-probe.cjs`) over 10 described surfaces, then resolved.
+**67 applicable considerations · 0 unclassified · 61 resolved (explicit) · 4 resolved (backstop) ·
+2 dismissed.** Element kinds were confirmed, not taken from the heuristic alone: E2 classified to
+zero kinds on its prose and was re-run with an authored `static-content` override.
 
-| Category | Element(s) | Status | Resolution / Reason |
-|----------|------------|--------|---------------------|
-| empty | Freshness strip, whole strip | ✅ covered | Not applicable by construction — six migration-seeded rows always exist; see Screen Contracts |
-| empty | Freshness strip, single source with zero history | ✅ covered | "No report received" badge, no fabricated caption — see Copywriting Contract precedence rule 5 |
-| loading | Freshness strip (both pages) | ✅ covered | `FreshnessStripSkeleton` inside `Suspense`, independent of the surrounding page's own loading state |
-| loading | `/settings/sources` page | ✅ covered | `Suspense` + `LoadingState`, cloned from `/settings/senders` |
-| error | Freshness strip (both pages) | ✅ covered | `TileErrorBoundary label="Freshness"` — isolated per D-16/D-17, cannot blank neighbouring regions |
-| error | `/settings/sources` query failure | ✅ covered | "Report sources could not be loaded" `ErrorState`, cloned pattern |
-| error | Per-row source-settings save failure | ✅ covered | Destructive toast naming the row; row's edited values are preserved for retry (Copywriting Contract) |
-| error | Run-time save failure (editable branch) | 🧪 backstop | No explicit copy specified beyond the general Server-Action-failure toast pattern already established (`FySettingsForm`) — verify the exact string during phase UAT rather than assume it |
-| populated | Freshness strip, mixed states across the six sources | ✅ covered | Fixed source order, badge+caption per item — Screen Contracts §1 |
-| partial | A source with a covered day AND a same-day failed file | ✅ covered | Binding precedence rule: Failed to parse wins (Copywriting Contract) |
-| partial | A source disabled mid-rotation (was overdue, now turned off) | ✅ covered | Precedence rule 1: Disabled always wins over any underlying coverage/failure fact |
-| zero-one-many | Freshness strip source count | ✅ covered | Always exactly six — no 0/1/many variation exists for this element |
-| zero-one-many | Sources table row count | ✅ covered | Always exactly six, fixed, non-extensible |
-| long-text | Source label, cadence label, caption text | ✅ covered | All five copy strings are short, fixed, English — no truncation risk; not a user-entered field anywhere on this surface |
-| long-text | Slack message body (many overdue/failed sources at once) | 🧪 backstop | D-11's example shows 2–3 items per group; a genuinely bad day (e.g. all six overdue) produces a longer comma-joined line with no specified wrap/cap — verify readability of a worst-case message during phase UAT rather than assume Slack's own line-wrap is sufficient |
+Empty-state and error-state COPY lives in `## Copywriting Contract`; the rows below reference it
+rather than restating it.
+
+### E1 — `FreshnessStrip` (shared component)
+
+| Category | Status | Resolution |
+|---|---|---|
+| empty | resolved (explicit) | The strip has no page-level empty state: `report_sources` is migration-seeded with exactly six rows, so six items always render. |
+| loading | resolved (explicit) | `FreshnessStripSkeleton` renders inside `Suspense`: a `Card` with a sentence-height placeholder bar (always shown, since loading cannot yet know whether the inbox line applies) plus six skeleton chips in the same grid shape. |
+| error | resolved (explicit) | `TileErrorBoundary label="Freshness"` wraps the component on both pages and renders "Freshness could not be loaded." with a Try again retry; `FreshnessStrip` contains no bespoke error UI. |
+| populated | resolved (explicit) | Six sources render in fixed canonical order, each as a source label plus a `StatusBadge` plus an optional caption. |
+| partial | resolved (explicit) | Mixed states across the six sources are the normal case; each item's state is decided independently by the five-step precedence rule. |
+| overflow | resolved (explicit) | The six items sit in a responsive grid (`grid-cols-2` / `sm:grid-cols-3` / `lg:grid-cols-6`) that wraps rather than overflowing; the count is fixed at six and cannot grow. |
+| zero-one-many | resolved (explicit) | Always exactly six — no zero, one, or many variation exists for this element. |
+| long-text | resolved (explicit) | Every string is short, fixed and English: six source labels, five badge labels, and one of three caption formats. No user-entered text appears on this surface. |
+
+### E2 — inbox-not-draining sentence line
+
+| Category | Status | Resolution |
+|---|---|---|
+| empty | resolved (explicit) | When zero objects are stuck the line is absent entirely — no "0 objects stuck", no collapsed empty row. *(Authored row: the probe's element-kind vocabulary has no kind that raises `empty` for a conditional static line, so this was recorded directly rather than probe-derived.)* |
+| overflow | resolved (backstop) | `{ statement: "The inbox-stuck line stays readable on one line at the narrowest supported width with a two-digit stuck count", verification: backstop }` |
+| long-text | resolved (backstop) | `{ statement: "The composed sentence — count plus en-GB medium-date/short-time timestamp — does not wrap awkwardly against the six-source grid below it", verification: backstop }` |
+
+### E3 — a single freshness item
+
+| Category | Status | Resolution |
+|---|---|---|
+| empty | resolved (explicit) | "No report received" renders the badge label alone and no caption — never a fabricated date, never "Uploaded: —", never a raw `null`. |
+| loading | resolved (explicit) | Individual items have no separate loading state; they appear together via the strip's six skeleton chips. |
+| error | resolved (explicit) | Individual items have no error state; failure is handled once at the strip's `TileErrorBoundary`. |
+| populated | resolved (explicit) | Badge label and caption are fixed per state by the Copywriting Contract's five-row table. |
+| partial | resolved (explicit) | The binding precedence rule resolves every combination: Disabled > Failed to parse > Overdue > Current > No report received. |
+| overflow | resolved (explicit) | Caption format is fixed (`Last covered {Ddd D Mon}` / `Arrived {Ddd D Mon, HH:mm}`) and cannot vary in length beyond a few characters. |
+| zero-one-many | resolved (explicit) | Exactly one badge and at most one caption per item. |
+| long-text | resolved (explicit) | Source labels are fixed constants, not user-entered. |
+
+### E4 — dashboard home (`app/(dashboard)/page.tsx`)
+
+| Category | Status | Resolution |
+|---|---|---|
+| empty | resolved (explicit) | The whole-page `EmptyState` branch and the read driving it are unchanged by this phase; only the `FreshnessBadge` JSX that displayed that fact is deleted. |
+| loading | resolved (explicit) | `LoadingState` gains one `Skeleton` block above `AlignmentStripSkeleton`, matching `FreshnessStripSkeleton`'s proportions. |
+| error | resolved (explicit) | Per-region `TileErrorBoundary` isolation (now five regions), with `app/(dashboard)/error.tsx` unchanged as the outer net for a total page failure. |
+| populated | resolved (explicit) | Region order top to bottom: PageHeader, Freshness, Separator, Alignment, Separator, three KPI tiles. |
+| partial | resolved (explicit) | Each region fails independently — a failed freshness read never blanks alignment or the KPI tiles, and vice versa. |
+| overflow | resolved (explicit) | Regions stack vertically and each manages its own responsive behaviour; the page gains no net stacking because one region is removed as one is added. |
+| zero-one-many | resolved (explicit) | A fixed set of regions; none is conditionally repeated. |
+
+### E5 — `/uploads` (`app/(dashboard)/uploads/page.tsx`)
+
+| Category | Status | Resolution |
+|---|---|---|
+| empty | resolved (explicit) | Unchanged — the upload history keeps its own existing empty handling; the strip has no empty state of its own (see E1). |
+| loading | resolved (explicit) | The strip loads via its own `Suspense` + `FreshnessStripSkeleton`, independent of the history table below. |
+| error | resolved (explicit) | The strip is wrapped in its own `TileErrorBoundary label="Freshness"` — the first per-region isolation on this page — so a failed freshness read cannot blank the dropzone or the history table. |
+| populated | resolved (explicit) | Order: page header, Dropzone, Freshness strip, Upload history. |
+| partial | resolved (explicit) | Dropzone, strip and history each render and fail independently. |
+| overflow | resolved (explicit) | Same responsive grid as E1; the history table keeps its existing behaviour. |
+| zero-one-many | resolved (explicit) | One strip instance, identical to the dashboard's. |
+
+### E6 — daily check run time, editable (D-15 succeeded)
+
+| Category | Status | Resolution |
+|---|---|---|
+| empty | resolved (explicit) | Cannot occur — the seeding migration writes the run time alongside the six `report_sources` rows, so a stored value always exists. **The planner must honour this: the seeding migration is what makes this row true.** |
+| loading | resolved (explicit) | Covered by the page's `Suspense` + `LoadingState` (run-time card skeleton). |
+| error | resolved (backstop) | `{ statement: "A failed run-time save surfaces a destructive toast and leaves the entered value in the field for retry", verification: backstop }` — the general Server-Action-failure pattern from `FySettingsForm` applies, but no exact string is specified. |
+| partial | resolved (explicit) | While saving, the button is disabled and shows "Saving…"; success toasts "Daily check run time saved." |
+| overflow | resolved (explicit) | `<Input type="time">` is fixed-width; the value is always `HH:mm`. |
+| long-text | resolved (explicit) | The value is five characters. Helper text is fixed copy. |
+
+### E7 — daily check run time, degraded read-only (D-15 fallback)
+
+| Category | Status | Resolution |
+|---|---|---|
+| empty | resolved (explicit) | Cannot occur — same migration-seeded guarantee as E6. |
+| loading | resolved (explicit) | Same page-level `LoadingState`. |
+| error | resolved (explicit) | Not applicable — nothing is submitted from this rendering. |
+| partial | resolved (explicit) | Not applicable — no pending state exists. This is a per-deploy fact resolved once at verification time, not a per-request branch. |
+| overflow | resolved (explicit) | Static monospace text in a neutral `border-border bg-muted text-muted-foreground` box; fixed copy. |
+| long-text | resolved (explicit) | The notice string is fixed by the Copywriting Contract. |
+
+### E8 — sources table (`/settings/sources`)
+
+| Category | Status | Resolution |
+|---|---|---|
+| empty | resolved (explicit) | Not applicable — always exactly six migration-seeded rows; there is no zero-row state. |
+| loading | resolved (explicit) | Six-row table skeleton within the page `LoadingState`, cloned from `/settings/senders`. |
+| error | resolved (explicit) | "Report sources could not be loaded." / "Try refreshing the page." |
+| populated | resolved (explicit) | Columns: Source, Cadence (`Select`), Overdue after (`Input type="number"` + "hours" suffix), Enabled (`Switch`), Save. Six rows in the same canonical order as the freshness strip. |
+| partial | resolved (explicit) | Per-row dirty detection and per-row `useTransition`; one row's in-flight save never disables another, and each row submits via its own Server Action call so an invalid edit cannot block a valid one elsewhere. |
+| overflow | resolved (explicit) | The table sits in an `overflow-x-auto` container, so all five columns stay intact and each row reads as one unit at narrow widths. |
+| zero-one-many | resolved (explicit) | Always exactly six, fixed and non-extensible — no add or remove affordance. |
+| long-text | resolved (explicit) | Source labels and cadence option labels are fixed constants; the only user input is a bounded integer, with "Enter a whole number of hours greater than 0." on failure. |
+
+### E9 — change history audit log
+
+| Category | Status | Resolution |
+|---|---|---|
+| empty | resolved (explicit) | `emptyMessage="No source setting changes yet."` |
+| loading | resolved (explicit) | Audit-log skeleton block within the page `LoadingState`. |
+| error | resolved (explicit) | Covered by the page-level `ErrorState`. |
+| populated | resolved (explicit) | `AuditLog` reused verbatim from `/settings/senders` and `/settings/pricing`. |
+| partial | resolved (explicit) | Not applicable — the log renders whole or not at all. |
+| overflow | resolved (explicit) | `AUDIT_ROW_CAP = 50` with the identical overflow caption pattern as the two existing audit surfaces. |
+| zero-one-many | resolved (explicit) | Zero handled by `emptyMessage`; many handled by the row cap and caption. |
+
+### E10 — Slack notification body
+
+| Category | Status | Resolution |
+|---|---|---|
+| empty | resolved (explicit) | Nothing is posted when every group is empty — silence means healthy (D-12). |
+| loading | dismissed | Not a rendered surface; a webhook POST has no loading state. |
+| error | dismissed | A failed post is not a UI state. Its handling is CONTEXT D-10's `alert_runs` table, which records what was wrong, whether the post succeeded, and the HTTP status. |
+| populated | resolved (explicit) | Plain-text payload, one line per wrong-state group, plus a trailing `/uploads` link on its own line. |
+| partial | resolved (explicit) | A group with nothing in it is omitted entirely rather than rendered empty. |
+| overflow | resolved (backstop) | `{ statement: "A worst-case message — all six sources overdue plus failures plus a stuck inbox — remains readable in Slack without manual truncation", verification: backstop }` |
+| zero-one-many | resolved (explicit) | One line per non-empty group; between one and three lines plus the link. |
+| long-text | resolved (backstop) | `{ statement: "A comma-joined group line naming all six sources with their covered dates does not rely on Slack's own wrapping to stay legible", verification: backstop }` |
+
+**On the four backstops:** each is a held-out visual/state check rather than a specified string.
+At verify time a `backstop` truth the verifier cannot confirm with explicit evidence abstains to
+`human_needed` (reason `insufficient_spec`) rather than passing silently — that surfacing is
+intended, not over-flagging.
 
 ---
 
