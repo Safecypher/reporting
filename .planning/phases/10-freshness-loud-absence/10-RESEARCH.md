@@ -716,3 +716,21 @@ maxDuration = 60` is the documented mitigation but its effect depends on the pla
 resolved from the database and was not resolved by research; it needs someone to check the Netlify
 dashboard.
 
+### Netlify ceiling — resolved by the user (2026-09-29)
+
+**Safecypher is on a PAID Netlify plan.** The synchronous-function ceiling is therefore the paid
+tier's (~26s, raisable), not the 10s free-tier figure the research body warned about, and
+`export const maxDuration = 60` is supported.
+
+**Planner guidance — do both anyway:**
+1. Set `export const maxDuration = 60` explicitly on `app/api/ingest/drain/route.ts`. It is one
+   line and it removes any dependence on what the platform default happens to be.
+2. **Write the `alert_runs` row BEFORE attempting the Slack post**, then update it with the post's
+   outcome. Ordering it this way means a timeout, a network stall or a Slack outage can cost the
+   *notification* but never the *evidence that a check ran and what it found*. That evidence is
+   the entire reason CONTEXT D-10 exists — "quiet because healthy" must stay distinguishable from
+   "quiet because broken", and a row written only on success cannot make that distinction.
+
+This ordering is cheap and correct on any plan tier; the paid-plan headroom is the belt, not the
+braces.
+
