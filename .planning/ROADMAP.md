@@ -87,11 +87,16 @@ implements D-7/D-8 (business-day-aware, per-source configurable staleness).
   4. When something is wrong for the day (a stale source, a failed file, or a non-draining inbox), exactly one Slack message is posted for that run; when everything is healthy, no message is posted.
   5. Per-source staleness thresholds and the daily cron run time are both derived from a month of observed `ingested_files.uploaded_at` history — not guessed round numbers — and the thresholds are stored in a table an operator can adjust without a redeploy.
 
-**Plans**: TBD
+**Plans**: 6 plans
 
 Plans:
 
-- [ ] 10-01: TBD
+- [ ] 10-01-PLAN.md — Tracer: one source's freshness state reaches the dashboard and `/uploads`, end-to-end (wave 1)
+- [ ] 10-02-PLAN.md — D-15: prove `cron.alter_job` is reachable before anything is built on it (wave 1)
+- [ ] 10-03-PLAN.md — One Slack message per run, and the evidence that a run happened at all (wave 2)
+- [ ] 10-04-PLAN.md — `/settings/sources`: tune a threshold without a SQL console (wave 2)
+- [ ] 10-05-PLAN.md — D-14: the daily check run time becomes operator-editable (wave 3)
+- [ ] 10-06-PLAN.md — [BLOCKING] Apply live, verify against the catalog, and prove the day goes loud (wave 4)
 
 **UI hint**: yes
 
