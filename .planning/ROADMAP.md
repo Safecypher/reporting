@@ -34,7 +34,7 @@ parse, a financial year showing four months — says so on screen instead of
 quietly looking fine. Design of record for the delivery/freshness mechanism:
 [docs/superpowers/specs/2026-09-25-automated-report-drop-off-design.md](../docs/superpowers/specs/2026-09-25-automated-report-drop-off-design.md).
 
-- [ ] **Phase 9: Automated Drop-Off — Push, Credentials & Drain** - Reports can arrive without a human downloading email attachments, manual drag-and-drop keeps working unchanged
+- [x] **Phase 9: Automated Drop-Off — Push, Credentials & Drain** - Reports can arrive without a human downloading email attachments, manual drag-and-drop keeps working unchanged (completed 2026-09-29)
 - [ ] **Phase 10: Freshness & Loud Absence** - Missing, failed, or stuck reports are visible on screen and in Slack; silence means healthy
 - [ ] **Phase 11: Disclosure Fixes — FY Caption & Counterparty Rename** - Partial financial-year periods say so on screen; planning docs name the counterparty correctly
 - [ ] **Phase 12: Verification Timezone Confirmation** - The CreatedAt timezone assumption carried from v1.0 is confirmed and corrected if wrong
@@ -154,7 +154,7 @@ order or in parallel with 9–11 without blocking them.
 | 6. Dual-Source Alignment: TSYS vs Bit Addict | v1.0 | 10/10 | Complete | 2026-09-15 |
 | 7. TSYS Tiered Volume & Revenue Forecast | v1.0 | 6/6 | Complete | 2026-09-16 |
 | 8. Period & Pricing Correctness | v1.0 | 5/5 | Complete | 2026-09-23 |
-| 9. Automated Drop-Off — Push, Credentials & Drain | v1.1 | 7/7 | In Progress|  |
+| 9. Automated Drop-Off — Push, Credentials & Drain | v1.1 | 7/7 | Complete    | 2026-09-29 |
 | 10. Freshness & Loud Absence | v1.1 | 0/TBD | Not started | - |
 | 11. Disclosure Fixes — FY Caption & Counterparty Rename | v1.1 | 0/TBD | Not started | - |
 | 12. Verification Timezone Confirmation | v1.1 | 0/TBD | Not started | - |

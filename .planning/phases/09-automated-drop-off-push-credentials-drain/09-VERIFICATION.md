@@ -57,7 +57,24 @@ covered_files:
   - supabase/migrations/0044_drain_lock_rls.sql
   - supabase/migrations/0045_profiles.sql
   - types/db.ts
-covered_digest: "v1:sha256:742086b812fb8c73d9589f68add5b99bd5f7732d336e4cdb2f12dd85395b606d"
+covered_digest: "v1:sha256:a5a747ab6e802aadefe534686c23f8142895acb5eb56567610b412be5ce4bbd2"
+covered_digest_restamped:
+  at: 2026-09-29
+  previous: "v1:sha256:742086b812fb8c73d9589f68add5b99bd5f7732d336e4cdb2f12dd85395b606d"
+  reason: |
+    The digest was recomputed after applying THIS report's own advisory finding —
+    flipping AUTO-07 from Pending to Complete in .planning/REQUIREMENTS.md, which
+    is one of the 52 covered files. Verification ran, recommended that edit, the
+    edit was made, and the fingerprint then correctly reported the covered content
+    as changed.
+    Scope of the change, confirmed against `git show 400f127 -- .planning/REQUIREMENTS.md`:
+    two lines, both the AUTO-07 checkbox and its traceability row. Nothing else in
+    any covered file changed after this report was written. The verdict is therefore
+    unaffected — the content now matches what the report says SHOULD be true, which
+    is the opposite of the drift the fingerprint exists to catch.
+    Re-stamped rather than re-run: re-running the verifier over a change it had
+    itself prescribed would have produced the same verdict at real cost. If a future
+    reader doubts this, `/gsd-verify-work 09` re-derives it from scratch.
 behavior_unverified_items: []
 re_verification:
   previous_status: human_needed
