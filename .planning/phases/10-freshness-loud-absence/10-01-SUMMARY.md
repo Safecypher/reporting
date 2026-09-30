@@ -185,6 +185,10 @@ None - no external service configuration required. This plan touches only SQL (n
 - `types/db.ts` does not yet know `report_sources`/`v_source_freshness`/`alert_runs` — `lib/dashboard/freshness.ts` carries the one documented untyped accessor (`freshnessTable`) that plan 10-06's type regeneration retires.
 - No blockers for 10-02 (drain-schedule reachability probe) — it depends on Phase 9's cron job, not on this plan's artifacts.
 
+## Self-Check: PASSED
+
+All 6 created/summary files found on disk; all 7 commits (`b0e2fc5`, `967a391`, `85ad223`, `26e6f63`, `66a8c77`, `75c2764`, `3e7dc5a`) verified present in `git log`.
+
 ---
 *Phase: 10-freshness-loud-absence*
 *Completed: 2026-09-30*
