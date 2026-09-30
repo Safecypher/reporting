@@ -1,7 +1,9 @@
 import { describe, expect, it } from "vitest";
 import {
   alignmentSettingsSchema,
+  drainRunTimeSchema,
   financialYearSettingsSchema,
+  reportSourceSettingsSchema,
   revenueForecastSettingsSchema,
 } from "../schema";
 
@@ -278,5 +280,178 @@ describe("revenueForecastSettingsSchema", () => {
       );
       expect(issue?.message).toBe(REVENUE_FORECAST_VALIDATION_MESSAGE);
     }
+  });
+});
+
+// ---------------------------------------------------------------------------
+// reportSourceSettingsSchema (Phase 10 Plan 4, FRESH-05/D-13)
+// ---------------------------------------------------------------------------
+// `reportType` is a closed enum mirroring the six migration-seeded
+// `report_sources` rows / `SOURCE_ORDER` in lib/dashboard/freshness.ts -- it
+// is the allowlist that stops a forged seventh source ever being addressed
+// by the Server Action. `staleAfterHours`'s floor is 1, not 0 (unlike
+// alignmentSettingsSchema), and every rejection on it carries the identical
+// Copywriting Contract message so the form never branches on error type.
+
+const REPORT_SOURCE_STALE_HOURS_MESSAGE =
+  "Enter a whole number of hours greater than 0.";
+
+const VALID_REPORT_SOURCE_INPUT = {
+  reportType: "verification" as const,
+  expectedCadence: "daily-business" as const,
+  staleAfterHours: 24,
+  enabled: true,
+};
+
+describe("reportSourceSettingsSchema", () => {
+  it.each([
+    "verification",
+    "billing",
+    "dcvv",
+    "card-inventory",
+    "removed-cards",
+    "apigee-stats",
+  ])("accepts the canonical reportType %s", (reportType) => {
+    const result = reportSourceSettingsSchema.safeParse({
+      ...VALID_REPORT_SOURCE_INPUT,
+      reportType,
+    });
+    expect(result.success).toBe(true);
+  });
+
+  it("rejects a forged seventh reportType -- the enum is the allowlist", () => {
+    const result = reportSourceSettingsSchema.safeParse({
+      ...VALID_REPORT_SOURCE_INPUT,
+      reportType: "forged-source",
+    });
+    expect(result.success).toBe(false);
+    if (!result.success) {
+      const issue = result.error.issues.find(
+        (i) => i.path.join(".") === "reportType",
+      );
+      expect(issue).toBeDefined();
+    }
+  });
+
+  it.each(["daily-business", "daily", "none"])(
+    "accepts the expectedCadence value %s",
+    (expectedCadence) => {
+      const result = reportSourceSettingsSchema.safeParse({
+        ...VALID_REPORT_SOURCE_INPUT,
+        expectedCadence,
+      });
+      expect(result.success).toBe(true);
+    },
+  );
+
+  it("rejects an unknown expectedCadence", () => {
+    const result = reportSourceSettingsSchema.safeParse({
+      ...VALID_REPORT_SOURCE_INPUT,
+      expectedCadence: "hourly",
+    });
+    expect(result.success).toBe(false);
+    if (!result.success) {
+      const issue = result.error.issues.find(
+        (i) => i.path.join(".") === "expectedCadence",
+      );
+      expect(issue).toBeDefined();
+    }
+  });
+
+  it("accepts the staleAfterHours floor value of 1", () => {
+    const result = reportSourceSettingsSchema.safeParse({
+      ...VALID_REPORT_SOURCE_INPUT,
+      staleAfterHours: 1,
+    });
+    expect(result.success).toBe(true);
+  });
+
+  it.each([
+    ["0", 0],
+    ["a negative value", -1],
+    ["a non-integer value", 2.5],
+    ["a string value", "24"],
+  ])("rejects staleAfterHours of %s with the identical message", (_label, staleAfterHours) => {
+    const result = reportSourceSettingsSchema.safeParse({
+      ...VALID_REPORT_SOURCE_INPUT,
+      staleAfterHours,
+    });
+    expect(result.success).toBe(false);
+    if (!result.success) {
+      const issue = result.error.issues.find(
+        (i) => i.path.join(".") === "staleAfterHours",
+      );
+      expect(issue?.message).toBe(REPORT_SOURCE_STALE_HOURS_MESSAGE);
+    }
+  });
+
+  it("rejects a non-boolean enabled value", () => {
+    const result = reportSourceSettingsSchema.safeParse({
+      ...VALID_REPORT_SOURCE_INPUT,
+      enabled: "true",
+    });
+    expect(result.success).toBe(false);
+    if (!result.success) {
+      const issue = result.error.issues.find(
+        (i) => i.path.join(".") === "enabled",
+      );
+      expect(issue).toBeDefined();
+    }
+  });
+
+  it("rejects missing fields", () => {
+    const result = reportSourceSettingsSchema.safeParse({});
+    expect(result.success).toBe(false);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// drainRunTimeSchema (Phase 10 Plan 5, FRESH-05/D-14)
+// ---------------------------------------------------------------------------
+// A regex on the HH:mm string rather than a coerced Date -- the schema
+// comment states a Date coercion would silently introduce a timezone
+// conversion, so this suite also pins that the parsed value stays the same
+// five-character string rather than becoming a Date.
+
+const DRAIN_RUN_TIME_MESSAGE = "Enter a time as HH:mm, 24-hour.";
+
+describe("drainRunTimeSchema", () => {
+  it.each(["00:00", "16:00", "23:59"])(
+    "accepts the boundary time %s",
+    (runTime) => {
+      const result = drainRunTimeSchema.safeParse({ runTime });
+      expect(result.success).toBe(true);
+    },
+  );
+
+  it("keeps the value the same five-character string through parse -- no Date coercion", () => {
+    const result = drainRunTimeSchema.safeParse({ runTime: "16:00" });
+    expect(result.success).toBe(true);
+    if (result.success) {
+      expect(result.data.runTime).toBe("16:00");
+      expect(typeof result.data.runTime).toBe("string");
+    }
+  });
+
+  it.each([
+    "24:00",
+    "23:60",
+    "9:05",
+    "16:00:00",
+    "",
+  ])("rejects %s with the documented message", (runTime) => {
+    const result = drainRunTimeSchema.safeParse({ runTime });
+    expect(result.success).toBe(false);
+    if (!result.success) {
+      const issue = result.error.issues.find(
+        (i) => i.path.join(".") === "runTime",
+      );
+      expect(issue?.message).toBe(DRAIN_RUN_TIME_MESSAGE);
+    }
+  });
+
+  it("rejects a non-string runTime", () => {
+    const result = drainRunTimeSchema.safeParse({ runTime: 1600 });
+    expect(result.success).toBe(false);
   });
 });
