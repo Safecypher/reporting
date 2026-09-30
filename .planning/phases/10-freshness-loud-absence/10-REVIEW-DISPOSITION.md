@@ -18,7 +18,7 @@ are real and unactioned, not forgotten.
 | ID | Severity | Summary | Disposition | Evidence |
 |---|---|---|---|---|
 | CR-01 | Critical | Drain route ignores `fetchFreshnessStripData`'s returned `error`, so a graceful query failure posts a fabricated "all six sources never arrived" alert and loses the real cause | **fixed** | `5352eda` |
-| WR-01 | Warning | `alert_runs` post-outcome UPDATE calls not guarded, so a rejection could turn a successful drain into a 500 (T-10-13) | **fixed** | `5352eda` |
+| WR-01 | Warning | `alert_runs` writes not guarded, so a rejection could turn a successful drain into a 500 (T-10-13) | **fixed (in two parts — see correction below)** | `5352eda`, then `84e43e9` |
 | WR-02 | Warning | `groupWrongStates` recovers the overdue date by string-prefix-matching the formatted caption (`"Last covered "`) instead of a structured field | **open** | — |
 | WR-03 | Warning | `saveDrainRunTime`'s compensating restore write is itself unguarded; a double failure leaves setting and cron schedule disagreeing | **open** | — |
 | WR-04 | Warning | Documents the thrown-vs-graceful asymmetry in the drain route, to ensure a CR-01 fix closes both | **fixed (subsumed by CR-01)** | `5352eda` |
@@ -59,6 +59,28 @@ recorded in `alert_runs.error` and `alertText` stays null, so nothing is compose
 same contract `FreshnessStripSection` already applies on the UI side.
 
 Suite: 638 → **639**, `tsc` clean, lint unchanged (0 errors).
+
+## Correction — WR-01 was marked fixed while only half fixed
+
+This entry originally read `fixed`, citing `5352eda`. That was an overclaim, caught by phase
+verification, not by me.
+
+`5352eda` guarded the two post-outcome `alert_runs` **UPDATE** calls but left the initial
+**INSERT** unguarded against rejection. The insert's graceful `{ error }` path was already
+handled correctly (log, then return the drain's own status), so the gap was narrow — but a
+*rejection* there escaped `POST` as an unhandled 500, which is exactly the T-10-13 failure the
+rest of the file is careful to prevent: a completed ingestion reported as failed, prompting the
+sender to retry files that arrived fine.
+
+Reproduced the same way as CR-01 rather than patched on assertion: added
+`alertInsertShouldThrow` to the test fake, wrote the regression test, removed the guard, and
+confirmed a real RED (the rejection escaping `POST` at `route.ts:221`). Restored → green.
+
+Suite: 639 → **640**.
+
+Recorded here as a correction rather than by quietly editing the row, because a disposition
+that overclaims is worse than one that admits an open finding — the whole point of this file is
+that a triaged item stays distinguishable from a forgotten one.
 
 ## Why WR-02, WR-03 and IN-01 are left open
 
