@@ -14,6 +14,42 @@ export type Database = {
   }
   public: {
     Tables: {
+      alert_runs: {
+        Row: {
+          error: string | null
+          http_status: number | null
+          id: number
+          inbox_oldest_stuck_at: string | null
+          inbox_stuck_count: number
+          posted: boolean
+          reasons: Json
+          response_body: string | null
+          run_at: string
+        }
+        Insert: {
+          error?: string | null
+          http_status?: number | null
+          id?: never
+          inbox_oldest_stuck_at?: string | null
+          inbox_stuck_count?: number
+          posted: boolean
+          reasons: Json
+          response_body?: string | null
+          run_at?: string
+        }
+        Update: {
+          error?: string | null
+          http_status?: number | null
+          id?: never
+          inbox_oldest_stuck_at?: string | null
+          inbox_stuck_count?: number
+          posted?: boolean
+          reasons?: Json
+          response_body?: string | null
+          run_at?: string
+        }
+        Relationships: []
+      }
       apigee_calls: {
         Row: {
           endpoint_category: string | null
@@ -61,6 +97,7 @@ export type Database = {
       app_settings: {
         Row: {
           alignment_tolerance: number
+          drain_cron_run_time: string
           fy_start_day: number
           fy_start_month: number
           id: number
@@ -72,6 +109,7 @@ export type Database = {
         }
         Insert: {
           alignment_tolerance?: number
+          drain_cron_run_time?: string
           fy_start_day?: number
           fy_start_month?: number
           id?: number
@@ -83,6 +121,7 @@ export type Database = {
         }
         Update: {
           alignment_tolerance?: number
+          drain_cron_run_time?: string
           fy_start_day?: number
           fy_start_month?: number
           id?: number
@@ -100,11 +139,13 @@ export type Database = {
           changed_by: string | null
           id: number
           new_alignment_tolerance: number | null
+          new_drain_cron_run_time: string | null
           new_fy_start_day: number
           new_fy_start_month: number
           new_revenue_forecast_min_covered_days: number | null
           new_tsys_live_cards_baseline_offset: number | null
           old_alignment_tolerance: number | null
+          old_drain_cron_run_time: string | null
           old_fy_start_day: number | null
           old_fy_start_month: number | null
           old_revenue_forecast_min_covered_days: number | null
@@ -116,11 +157,13 @@ export type Database = {
           changed_by?: string | null
           id?: never
           new_alignment_tolerance?: number | null
+          new_drain_cron_run_time?: string | null
           new_fy_start_day: number
           new_fy_start_month: number
           new_revenue_forecast_min_covered_days?: number | null
           new_tsys_live_cards_baseline_offset?: number | null
           old_alignment_tolerance?: number | null
+          old_drain_cron_run_time?: string | null
           old_fy_start_day?: number | null
           old_fy_start_month?: number | null
           old_revenue_forecast_min_covered_days?: number | null
@@ -132,11 +175,13 @@ export type Database = {
           changed_by?: string | null
           id?: never
           new_alignment_tolerance?: number | null
+          new_drain_cron_run_time?: string | null
           new_fy_start_day?: number
           new_fy_start_month?: number
           new_revenue_forecast_min_covered_days?: number | null
           new_tsys_live_cards_baseline_offset?: number | null
           old_alignment_tolerance?: number | null
+          old_drain_cron_run_time?: string | null
           old_fy_start_day?: number | null
           old_fy_start_month?: number | null
           old_revenue_forecast_min_covered_days?: number | null
@@ -638,6 +683,75 @@ export type Database = {
           },
         ]
       }
+      report_sources: {
+        Row: {
+          enabled: boolean
+          expected_cadence: string
+          report_type: string
+          stale_after_hours: number
+          updated_at: string
+          updated_by: string | null
+        }
+        Insert: {
+          enabled?: boolean
+          expected_cadence: string
+          report_type: string
+          stale_after_hours: number
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Update: {
+          enabled?: boolean
+          expected_cadence?: string
+          report_type?: string
+          stale_after_hours?: number
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Relationships: []
+      }
+      report_sources_audit: {
+        Row: {
+          changed_at: string
+          changed_by: string | null
+          id: number
+          new_enabled: boolean | null
+          new_expected_cadence: string | null
+          new_stale_after_hours: number | null
+          old_enabled: boolean | null
+          old_expected_cadence: string | null
+          old_stale_after_hours: number | null
+          report_type: string
+          summary: string
+        }
+        Insert: {
+          changed_at?: string
+          changed_by?: string | null
+          id?: never
+          new_enabled?: boolean | null
+          new_expected_cadence?: string | null
+          new_stale_after_hours?: number | null
+          old_enabled?: boolean | null
+          old_expected_cadence?: string | null
+          old_stale_after_hours?: number | null
+          report_type: string
+          summary: string
+        }
+        Update: {
+          changed_at?: string
+          changed_by?: string | null
+          id?: never
+          new_enabled?: boolean | null
+          new_expected_cadence?: string | null
+          new_stale_after_hours?: number | null
+          old_enabled?: boolean | null
+          old_expected_cadence?: string | null
+          old_stale_after_hours?: number | null
+          report_type?: string
+          summary?: string
+        }
+        Relationships: []
+      }
       verifications: {
         Row: {
           authenticated: boolean
@@ -744,6 +858,13 @@ export type Database = {
         Row: {
           billing_count: number | null
           day_utc: string | null
+        }
+        Relationships: []
+      }
+      v_dcvv_coverage_daily: {
+        Row: {
+          day: string | null
+          source_file_count: number | null
         }
         Relationships: []
       }
@@ -891,6 +1012,18 @@ export type Database = {
         }
         Relationships: []
       }
+      v_source_freshness: {
+        Row: {
+          expected_cadence: string | null
+          last_covered_day: string | null
+          latest_file_status: string | null
+          latest_file_uploaded_at: string | null
+          report_type: string | null
+          stale: boolean | null
+          stale_after_hours: number | null
+        }
+        Relationships: []
+      }
       v_verification_coverage_daily: {
         Row: {
           day: string | null
@@ -1013,6 +1146,19 @@ export type Database = {
         Returns: undefined
       }
       fn_release_drain_lock: { Args: never; Returns: undefined }
+      fn_set_drain_cron_schedule: {
+        Args: { p_run_time: string }
+        Returns: undefined
+      }
+      fn_source_is_stale: {
+        Args: {
+          p_as_of?: string
+          p_cadence: string
+          p_last_covered: string
+          p_stale_after_hours: number
+        }
+        Returns: boolean
+      }
       fn_sync_profile_from_auth_user: { Args: never; Returns: undefined }
       fn_try_acquire_drain_lock: { Args: never; Returns: boolean }
       price_volume_through_tier_set: {
