@@ -144,10 +144,42 @@ See `key-decisions` in frontmatter — the Task 1 selection and its full reasoni
 - **Verification:** `grep -Ec 'font-(light|medium|normal|semibold|bold)' drain-run-time-form.tsx` now returns `0`.
 - **Commit:** `72c651a` (Task 3 commit).
 
+**2a. [ORCHESTRATOR REVERSAL of deviation 2 — deliberate gate divergence, human-approved]**
+
+- **Decided by:** the orchestrator at Wave 3 close, approved by a human on 2026-09-30.
+- **What changed:** `font-light` was RESTORED to `DrainRunTimeForm`'s helper `<p>`
+  (`text-sm font-light text-muted-foreground`). The `<Input type="time">` still carries
+  `font-mono tabular-nums` and **no** weight utility — which is what Task 3's acceptance
+  criterion actually specifies.
+- **Why the reversal:** the executor's diagnosis above is correct and the consequence is worse
+  than it reads. `SourceSettingsForm` (plan 10-04) and `DrainRunTimeForm` render on the SAME
+  page, so dropping the class left two helper-text lines inches apart at different weights —
+  ~400 against the codebase's 300. The plan's prose asks for no weight utility *on the Input*
+  "matching `fy-settings-form.tsx`", and that file has `font-light` on its own helper text, so
+  the whole-file grep is broader than the intent it encodes. The plan author evidently knew the
+  gate was blunt: the same sentence warns against even *naming* the class names in a comment,
+  because the grep would match the comment explaining it.
+- **Known divergence, recorded not hidden:** Task 3's `<verify>` gate
+  `grep -Ec 'font-(light|medium|normal|semibold|bold)' components/settings/drain-run-time-form.tsx`
+  now returns **1**, not the specified **0**. This is a deliberate, approved divergence from a
+  written acceptance criterion, not an unmet one. The criterion's stated intent — no weight
+  utility on the monospace `<Input>` — IS met; only its over-broad whole-file implementation is
+  not.
+- **Follow-up:** the gate itself should be narrowed to the `<Input>` line rather than the file.
+  Not done here — editing a plan's `<verify>` block after execution would mutate the artifact
+  phase verification checks against.
+- **Files modified:** `components/settings/drain-run-time-form.tsx`.
+- **Verification:** `npm test` 638/638, `npx tsc --noEmit` clean, `npm run lint` 0 errors after
+  the restore. The `<Input>` line still greps clean for weight utilities.
+
 ---
 
-**Total deviations:** 2 auto-fixed (2 × Rule 1, both verification-gate fixes with no functional or intended-visual-behavior change).
-**Impact:** none on the plan's substantive outcome — both fixes make the file's literal grep-measured state match what the task's own `<verify>` block already assumed about the pre-existing baseline.
+**Total deviations:** 3 (2 × Rule 1 executor auto-fixes, 1 × orchestrator reversal of the second).
+**Impact:** deviation 1 is a confirmed no-op — the icon inherits the same `text-destructive` it
+previously set directly, and both text children carry explicit colours, so the rendered output
+is identical. Deviation 2 was reversed by 2a: `/settings/sources` ships visually consistent, at
+the cost of one grep-measured acceptance criterion reading 1 instead of 0, deliberately and
+with the reasoning recorded above.
 
 ## Issues Encountered
 

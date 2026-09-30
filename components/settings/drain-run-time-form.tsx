@@ -59,7 +59,7 @@ export function DrainRunTimeForm({ runTime }: { runTime: string }) {
   return (
     <div className="flex flex-col gap-3">
       <Label htmlFor="drain-run-time">Daily check run time</Label>
-      <p className="text-sm text-muted-foreground">
+      <p className="text-sm font-light text-muted-foreground">
         Every source is checked once a day, right after the drain finishes.
         Times are UTC.
       </p>
