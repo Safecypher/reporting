@@ -6,8 +6,13 @@ import { Separator } from "@/components/ui/separator";
 import { createClient } from "@/lib/supabase/server";
 import { freshnessTable, type ReportSourceRow } from "@/lib/dashboard/freshness";
 import { SourceSettingsForm } from "@/components/settings/source-settings-form";
+import { DrainRunTimeForm } from "@/components/settings/drain-run-time-form";
 import { AuditLog, type AuditLogEntry } from "@/components/pricing/audit-log";
 import { actorLabel, fetchActorEmails } from "@/lib/identity/profiles";
+import {
+  DRAIN_SCHEDULE_EDITABLE,
+  DRAIN_SCHEDULE_READONLY_NOTICE,
+} from "@/lib/settings/drain-schedule";
 
 export const metadata: Metadata = {
   title: "Report sources — Safecypher Reporting",
@@ -20,7 +25,22 @@ type ReportSourcesAuditRow = {
   summary: string;
 };
 
+/** `app_settings.drain_cron_run_time` -- not yet in `types/db.ts` (plan
+ * 10-06's job after the live apply), read via the same `freshnessTable`
+ * untyped accessor as `report_sources`/`report_sources_audit` above.
+ * PostgREST returns a Postgres `time` column as `HH:MM:SS`; this page trims
+ * the seconds for display rather than rendering them. */
+type AppSettingsRunTimeRow = {
+  drain_cron_run_time: string;
+};
+
 const AUDIT_ROW_CAP = 50;
+
+/** `time` comes back from PostgREST as `HH:MM:SS`; this section always
+ * displays and edits the five-character `HH:mm` form. */
+function toHhMm(time: string): string {
+  return time.slice(0, 5);
+}
 
 function PageHeader() {
   return (
@@ -41,8 +61,8 @@ function PageHeader() {
 
 function ErrorState() {
   return (
-    <div className="flex flex-1 flex-col items-center justify-center gap-3 rounded-lg border border-border bg-destructive/5 p-12 text-center">
-      <svg aria-hidden="true" className="size-8 text-destructive">
+    <div className="flex flex-1 flex-col items-center justify-center gap-3 rounded-lg border border-border bg-destructive/5 p-12 text-center text-destructive">
+      <svg aria-hidden="true" className="size-8">
         <use href="/icons.svg#alert" />
       </svg>
       <h2 className="text-lg font-medium text-foreground">
@@ -90,7 +110,7 @@ function LoadingState() {
 async function SourcesBody() {
   const supabase = await createClient();
 
-  const [sourcesResult, auditResult] = await Promise.all([
+  const [sourcesResult, auditResult, runTimeResult] = await Promise.all([
     freshnessTable(supabase, "report_sources").select("*") as Promise<{
       data: ReportSourceRow[] | null;
       error: { message: string } | null;
@@ -102,9 +122,19 @@ async function SourcesBody() {
       data: ReportSourcesAuditRow[] | null;
       error: { message: string } | null;
     }>,
+    freshnessTable(supabase, "app_settings")
+      .select("drain_cron_run_time")
+      .eq("id", 1)
+      .single() as Promise<{
+      data: AppSettingsRunTimeRow | null;
+      error: { message: string } | null;
+    }>,
   ]);
 
-  if (sourcesResult.error || auditResult.error) {
+  // The run-time section cannot render without its own read, so its error
+  // joins the combined page-level error branch (unlike the actor-emails
+  // read below, which is best-effort).
+  if (sourcesResult.error || auditResult.error || runTimeResult.error) {
     return (
       <>
         <PageHeader />
@@ -115,6 +145,9 @@ async function SourcesBody() {
 
   const sourceRows = sourcesResult.data ?? [];
   const auditRows = auditResult.data ?? [];
+  const runTime = runTimeResult.data
+    ? toHhMm(runTimeResult.data.drain_cron_run_time)
+    : "16:00";
 
   const { emails: actorEmails, error: actorEmailsError } = await fetchActorEmails(
     supabase,
@@ -141,14 +174,13 @@ async function SourcesBody() {
         <h2 className="text-lg font-medium text-foreground">
           Daily check run time
         </h2>
-        {/* fn_set_drain_cron_schedule and app_settings.drain_cron_run_time
-            (plan 10-05) are what make this section editable -- until that
-            plan lands, this states the current, unchangeable behaviour
-            rather than describing 10-05's future work. */}
-        <p className="text-sm font-light text-muted-foreground">
-          Every source is checked once a day, right after the drain
-          finishes. Times are UTC.
-        </p>
+        {DRAIN_SCHEDULE_EDITABLE ? (
+          <DrainRunTimeForm runTime={runTime} />
+        ) : (
+          <div className="rounded-lg border border-border bg-muted p-3 font-mono text-sm text-muted-foreground">
+            {DRAIN_SCHEDULE_READONLY_NOTICE(runTime)}
+          </div>
+        )}
       </div>
 
       <Separator />
