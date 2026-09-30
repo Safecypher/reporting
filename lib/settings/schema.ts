@@ -129,3 +129,22 @@ export const reportSourceSettingsSchema = z.object({
 export type ReportSourceSettingsInput = z.infer<
   typeof reportSourceSettingsSchema
 >;
+
+// ---------------------------------------------------------------------------
+// Drain cron run time (Phase 10 Plan 5, FRESH-05/D-14)
+// ---------------------------------------------------------------------------
+// A regex on the HH:mm string, rather than a coerced Date, is what keeps the
+// value the same five characters all the way from `<Input type="time">` to
+// the `time` column and on into fn_set_drain_cron_schedule's cron
+// expression -- no timezone conversion happens anywhere on this path, and a
+// coercion through Date would silently introduce one.
+
+export const drainRunTimeSchema = z.object({
+  runTime: z
+    .string()
+    .regex(/^([01]\d|2[0-3]):[0-5]\d$/, {
+      message: "Enter a time as HH:mm, 24-hour.",
+    }),
+});
+
+export type DrainRunTimeInput = z.infer<typeof drainRunTimeSchema>;
