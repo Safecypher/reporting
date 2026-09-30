@@ -161,6 +161,26 @@ export async function POST(request: Request) {
     // reads, so the message and the screen are computed from one resolver
     // and can never disagree.
     const freshnessData = await fetchFreshnessStripData(supabase);
+    // CR-01: fetchFreshnessStripData reports a query failure by RETURNING an
+    // `error` (the supabase-js contract: `.select()` resolves with
+    // `{ data: null, error }`, it does not reject). On that path `data` is
+    // null, so `sources` is `[]`, and buildFreshnessItems resolves all six
+    // SOURCE_ORDER entries to "No report received" -- a fabricated, maximally
+    // alarming state that is indistinguishable from every source genuinely
+    // having stopped. Posting that to Slack on a transient database hiccup is
+    // the loud-absence inverse of the reassuring-green failure this phase
+    // exists to prevent, and it would also leave alert_runs.error null,
+    // destroying the only record of the real cause (D-10).
+    //
+    // Rethrow so this converges on the same catch as a genuine throw: the
+    // cause is recorded, and alertText stays null so nothing is composed.
+    // FreshnessStripSection already throws on this field for the UI; this is
+    // the same contract on the alerting side.
+    if (freshnessData.error) {
+      throw freshnessData.error instanceof Error
+        ? freshnessData.error
+        : new Error(String(freshnessData.error));
+    }
     const groups = groupWrongStates(freshnessData.items, inboxStuckCount, inboxOldestStuckAt);
     alertText = formatSlackAlertText(groups);
     if (groups.overdue.length > 0) reasons.overdue = groups.overdue.map((o) => o.label);
@@ -201,24 +221,38 @@ export async function POST(request: Request) {
   // healthy). alertText is null both when nothing is wrong and when the
   // freshness read itself failed -- either way, no message is composed.
   if (alertText !== null && rowId !== undefined) {
-    const webhookUrl = process.env.SLACK_WEBHOOK_URL;
-    if (!webhookUrl) {
-      // Fail closed, but visibly: a missing env var must not be silently
-      // identical to a healthy week (mirrors the DRAIN_CRON_SECRET
-      // fail-closed convention above).
-      await alertRunsTable(supabase)
-        .update({ posted: false, error: "SLACK_WEBHOOK_URL is not configured" })
-        .eq("id", rowId);
-    } else {
-      const postResult = await postSlackAlert(webhookUrl, alertText);
-      await alertRunsTable(supabase)
-        .update({
-          posted: true,
-          http_status: postResult.status === 0 ? null : postResult.status,
-          response_body: postResult.body ?? null,
-          error: postResult.error ?? null,
-        })
-        .eq("id", rowId);
+    // WR-01: postSlackAlert never rethrows, but the alert_runs UPDATE calls
+    // below can still reject (a dropped connection, a PostgREST 5xx). The
+    // freshness read above is guarded for exactly this reason -- T-10-13, an
+    // alerting failure must never turn a successful drain into a failed
+    // request -- and the evidence row is already committed by this point, so
+    // there is nothing left worth failing the response over.
+    try {
+      const webhookUrl = process.env.SLACK_WEBHOOK_URL;
+      if (!webhookUrl) {
+        // Fail closed, but visibly: a missing env var must not be silently
+        // identical to a healthy week (mirrors the DRAIN_CRON_SECRET
+        // fail-closed convention above).
+        await alertRunsTable(supabase)
+          .update({ posted: false, error: "SLACK_WEBHOOK_URL is not configured" })
+          .eq("id", rowId);
+      } else {
+        const postResult = await postSlackAlert(webhookUrl, alertText);
+        await alertRunsTable(supabase)
+          .update({
+            posted: true,
+            http_status: postResult.status === 0 ? null : postResult.status,
+            response_body: postResult.body ?? null,
+            error: postResult.error ?? null,
+          })
+          .eq("id", rowId);
+      }
+    } catch (err) {
+      // Never include webhookUrl in this log line (T-10-09).
+      console.error(
+        "[drain] alert_runs post-outcome update failed",
+        err instanceof Error ? err.message : String(err),
+      );
     }
   }
 

@@ -88,6 +88,7 @@ interface FakeDrainSupabaseOptions {
   sources?: ReportSourceRow[];
   freshnessRows?: SourceFreshnessRow[];
   freshnessShouldThrow?: boolean;
+  freshnessShouldError?: boolean;
   lockAcquired?: boolean;
   inboxObjects?: FakeInboxObject[];
   callOrder?: string[];
@@ -117,6 +118,14 @@ function makeFakeDrainSupabase(opts: FakeDrainSupabaseOptions = {}) {
           select: async () => {
             if (opts.freshnessShouldThrow) {
               throw new Error("simulated freshness read failure");
+            }
+            // CR-01: the supabase-js contract is that a query failure RESOLVES
+            // with `{ data: null, error }` -- it does not reject. This is the
+            // path the route originally missed, so the fake has to be able to
+            // produce it; modelling only the throw above is what let the bug
+            // through.
+            if (opts.freshnessShouldError) {
+              return { data: null, error: { message: "simulated postgrest read error" } };
             }
             return { data: opts.freshnessRows ?? defaultFreshnessRows(), error: null };
           },
@@ -326,6 +335,39 @@ describe("POST /api/ingest/drain — freshness + alerting extension (FRESH-04, D
     expect(alertRunsRows).toHaveLength(1);
     expect(alertRunsRows[0].error).toBeTruthy();
     expect(alertRunsRows[0].reasons).toEqual({});
+  });
+
+  it("CR-01: a GRACEFUL freshness read error posts NOTHING to Slack and records the cause, instead of reporting all six sources as never-arrived", async () => {
+    // The regression this locks: supabase-js resolves a failed query with
+    // `{ data: null, error }` rather than rejecting, so the route's try/catch
+    // never fired. `data: null` makes `sources` `[]`, and buildFreshnessItems
+    // resolves every SOURCE_ORDER entry to "No report received" -- so a
+    // transient database hiccup composed a maximally alarming "every source
+    // has stopped reporting" message, posted it, and left alert_runs.error
+    // null, destroying the only record of the real cause (D-10).
+    process.env.SLACK_WEBHOOK_URL = "https://hooks.slack.com/services/GRACEFUL";
+    const fakeFetch = vi.fn();
+    vi.stubGlobal("fetch", fakeFetch);
+
+    const { client, alertRunsRows } = makeFakeDrainSupabase({ freshnessShouldError: true });
+    routeSupabaseClient = client;
+
+    const { POST } = await import("@/app/api/ingest/drain/route");
+    const response = await POST(buildDrainRequest());
+
+    // The drain's own contract is untouched (T-10-13).
+    expect(response.status).toBe(200);
+    expect(await response.json()).toEqual({ processed: 0 });
+
+    // The crying-wolf post must not happen.
+    expect(fakeFetch).not.toHaveBeenCalled();
+
+    // The evidence row still lands, carrying the real cause -- and crucially
+    // NOT a fabricated neverArrived list naming all six sources.
+    expect(alertRunsRows).toHaveLength(1);
+    expect(alertRunsRows[0].error).toBeTruthy();
+    expect(alertRunsRows[0].reasons).toEqual({});
+    expect(alertRunsRows[0].posted).toBe(false);
   });
 
   it("drainInbox returning status 409 returns 409 immediately, makes no freshness read, no POST, and writes NO alert_runs row", async () => {
