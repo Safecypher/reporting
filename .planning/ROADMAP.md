@@ -87,12 +87,12 @@ implements D-7/D-8 (business-day-aware, per-source configurable staleness).
   4. When something is wrong for the day (a stale source, a failed file, or a non-draining inbox), exactly one Slack message is posted for that run; when everything is healthy, no message is posted.
   5. Per-source staleness thresholds and the daily cron run time are both derived from a month of observed `ingested_files.uploaded_at` history — not guessed round numbers — and the thresholds are stored in a table an operator can adjust without a redeploy.
 
-**Plans**: 6 plans
+**Plans**: 2/6 plans executed
 
 Plans:
 **Wave 1**
-- [ ] 10-01-PLAN.md — Tracer: one source's freshness state reaches the dashboard and `/uploads`, end-to-end (wave 1)
-- [ ] 10-02-PLAN.md — D-15: prove `cron.alter_job` is reachable before anything is built on it (wave 1)
+- [x] 10-01-PLAN.md — Tracer: one source's freshness state reaches the dashboard and `/uploads`, end-to-end (wave 1)
+- [x] 10-02-PLAN.md — D-15: prove `cron.alter_job` is reachable before anything is built on it (wave 1)
 
 **Wave 2** *(blocked on Wave 1 completion)*
 - [ ] 10-03-PLAN.md — One Slack message per run, and the evidence that a run happened at all (wave 2)
@@ -166,7 +166,7 @@ order or in parallel with 9–11 without blocking them.
 | 7. TSYS Tiered Volume & Revenue Forecast | v1.0 | 6/6 | Complete | 2026-09-16 |
 | 8. Period & Pricing Correctness | v1.0 | 5/5 | Complete | 2026-09-23 |
 | 9. Automated Drop-Off — Push, Credentials & Drain | v1.1 | 7/7 | Complete    | 2026-09-29 |
-| 10. Freshness & Loud Absence | v1.1 | 0/TBD | Not started | - |
+| 10. Freshness & Loud Absence | v1.1 | 2/6 | In Progress|  |
 | 11. Disclosure Fixes — FY Caption & Counterparty Rename | v1.1 | 0/TBD | Not started | - |
 | 12. Verification Timezone Confirmation | v1.1 | 0/TBD | Not started | - |
 
