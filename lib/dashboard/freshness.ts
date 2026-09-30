@@ -230,8 +230,13 @@ export interface FreshnessStripData {
  * read of these three objects goes through a single documented suppression
  * rather than four scattered ones. Plan 10-06's type regeneration is what
  * retires this function.
+ *
+ * Exported (Phase 10 Plan 4) so `app/(dashboard)/settings/sources/actions.ts`
+ * can route its `report_sources` UPDATE through this SAME accessor rather
+ * than adding a second, independently-documented `as any` cast for the one
+ * additional untyped table this phase writes to.
  */
-function freshnessTable(
+export function freshnessTable(
   client: Awaited<ReturnType<typeof createClient>>,
   table: string,
 ) {
