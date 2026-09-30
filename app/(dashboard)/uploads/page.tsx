@@ -1,6 +1,12 @@
+import { Suspense } from "react";
 import type { Metadata } from "next";
 import { Dropzone } from "@/components/upload/dropzone";
 import { UploadsHistoryTable } from "@/components/upload/uploads-history-table";
+import { TileErrorBoundary } from "@/components/dashboard/tile-error-boundary";
+import {
+  FreshnessStripSection,
+  FreshnessStripSkeleton,
+} from "@/components/dashboard/freshness-strip";
 import { createClient } from "@/lib/supabase/server";
 import { pushTable } from "@/lib/push/tables";
 import { fetchActorEmails } from "@/lib/identity/profiles";
@@ -74,6 +80,16 @@ export default function UploadsPage() {
       </div>
 
       <Dropzone />
+
+      {/* D-17: the same six-source strip as the dashboard home, isolated in
+          its own boundary -- the first per-region isolation on this page,
+          so a failed freshness read cannot blank the dropzone above it or
+          the upload history below it. */}
+      <TileErrorBoundary label="Freshness">
+        <Suspense fallback={<FreshnessStripSkeleton />}>
+          <FreshnessStripSection />
+        </Suspense>
+      </TileErrorBoundary>
 
       <div className="flex flex-col gap-3">
         <h2 className="text-lg font-medium text-foreground">Upload history</h2>
