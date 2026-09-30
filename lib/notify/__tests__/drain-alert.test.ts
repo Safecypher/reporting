@@ -89,6 +89,7 @@ interface FakeDrainSupabaseOptions {
   freshnessRows?: SourceFreshnessRow[];
   freshnessShouldThrow?: boolean;
   freshnessShouldError?: boolean;
+  alertInsertShouldThrow?: boolean;
   lockAcquired?: boolean;
   inboxObjects?: FakeInboxObject[];
   callOrder?: string[];
@@ -145,6 +146,12 @@ function makeFakeDrainSupabase(opts: FakeDrainSupabaseOptions = {}) {
           insert: (row: Record<string, unknown>) => ({
             select: () => ({
               single: async () => {
+                // WR-01 (second half): model a REJECTING insert, not just a
+                // graceful `{ error }`. An unguarded rejection escapes POST
+                // as a 500 and reports a completed ingestion as failed.
+                if (opts.alertInsertShouldThrow) {
+                  throw new Error("simulated alert_runs insert rejection");
+                }
                 const id = nextId++;
                 const fullRow = { id, ...row };
                 alertRunsRows.push(fullRow);
@@ -368,6 +375,29 @@ describe("POST /api/ingest/drain — freshness + alerting extension (FRESH-04, D
     expect(alertRunsRows[0].error).toBeTruthy();
     expect(alertRunsRows[0].reasons).toEqual({});
     expect(alertRunsRows[0].posted).toBe(false);
+  });
+
+  it("WR-01: a REJECTING alert_runs insert still returns the drain's own status and processed count, never a 500", async () => {
+    // T-10-13: an alerting failure must never make a completed ingestion look
+    // failed. If it did, the sender would retry files that arrived fine.
+    // The graceful `{ error }` path was already handled; this covers the
+    // rejection, which previously escaped POST as an unhandled 500.
+    process.env.SLACK_WEBHOOK_URL = "https://hooks.slack.com/services/INSERTREJECT";
+    const fakeFetch = vi.fn();
+    vi.stubGlobal("fetch", fakeFetch);
+
+    const { client, alertRunsRows } = makeFakeDrainSupabase({ alertInsertShouldThrow: true });
+    routeSupabaseClient = client;
+
+    const { POST } = await import("@/app/api/ingest/drain/route");
+    const response = await POST(buildDrainRequest());
+
+    expect(response.status).toBe(200);
+    expect(await response.json()).toEqual({ processed: 0 });
+    // No row landed (the insert rejected) and no post was attempted, because
+    // the route returns as soon as it has no evidence row to update.
+    expect(alertRunsRows).toHaveLength(0);
+    expect(fakeFetch).not.toHaveBeenCalled();
   });
 
   it("drainInbox returning status 409 returns 409 immediately, makes no freshness read, no POST, and writes NO alert_runs row", async () => {

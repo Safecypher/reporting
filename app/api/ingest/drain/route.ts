@@ -197,18 +197,33 @@ export async function POST(request: Request) {
   // Write the alert_runs row FIRST, before attempting any post (D-10): a
   // timeout, a network stall or a Slack outage can then cost only the
   // notification, never the evidence that a check ran and what it found.
-  const { data: insertedRow, error: insertError } = await alertRunsTable(supabase)
-    .insert({
-      reasons,
-      inbox_stuck_count: inboxStuckCount,
-      inbox_oldest_stuck_at: inboxOldestStuckAt,
-      posted: false,
-      http_status: null,
-      response_body: null,
-      error: freshnessError,
-    })
-    .select("id")
-    .single();
+  // WR-01 (second half): the `error` field below covers a GRACEFUL failure,
+  // but this call can also REJECT (a dropped connection, a PostgREST 5xx).
+  // Unguarded, that rejection escapes POST as a 500 and turns a successful
+  // drain into a failed request -- the exact T-10-13 violation the freshness
+  // read and the post-outcome update are both guarded against. Losing the
+  // evidence row is bad; also reporting a completed ingestion as failed, so
+  // the sender retries files that arrived fine, is worse.
+  let insertedRow: { id?: unknown } | null = null;
+  let insertError: unknown = null;
+  try {
+    const inserted = await alertRunsTable(supabase)
+      .insert({
+        reasons,
+        inbox_stuck_count: inboxStuckCount,
+        inbox_oldest_stuck_at: inboxOldestStuckAt,
+        posted: false,
+        http_status: null,
+        response_body: null,
+        error: freshnessError,
+      })
+      .select("id")
+      .single();
+    insertedRow = inserted.data;
+    insertError = inserted.error;
+  } catch (err) {
+    insertError = err instanceof Error ? err.message : String(err);
+  }
 
   if (insertError) {
     console.error("[drain] alert_runs insert failed", insertError);
