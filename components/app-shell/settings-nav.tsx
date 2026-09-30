@@ -17,6 +17,7 @@ const SETTINGS_ITEMS = [
   { href: "/settings/general", label: "General" },
   { href: "/settings/pricing", label: "Pricing" },
   { href: "/settings/senders", label: "Senders" },
+  { href: "/settings/sources", label: "Sources" },
 ] as const;
 
 /**

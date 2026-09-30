@@ -86,3 +86,30 @@ export function friendlyRevenueForecastSettingsErrorMessage(
   void rawMessage;
   return REVENUE_FORECAST_SETTINGS_GENERIC_ERROR;
 }
+
+/**
+ * Report source settings error mapping (Phase 10 Plan 4, FRESH-05/D-13).
+ * Zod (`reportSourceSettingsSchema`) already rejects any non-integer or
+ * sub-1 `staleAfterHours` value, and a closed enum on both `reportType` and
+ * `expectedCadence`, before this ever reaches Postgres, so the CHECK
+ * constraints on `report_sources` are a defence-in-depth backstop (a direct
+ * PostgREST update bypassing the form), not an expected user-facing path --
+ * but the same "never echo the raw constraint name" discipline (WR-01)
+ * applies.
+ *
+ * Deliberately a sentence FRAGMENT, not a full sentence like the other
+ * mappers in this file: the Copywriting Contract composes this into
+ * `Could not save ${source} settings — ${message}.` client-side
+ * (`components/settings/source-settings-form.tsx`), so a full "Could not
+ * save..." sentence here would double the prefix.
+ */
+
+export const REPORT_SOURCE_SETTINGS_GENERIC_ERROR_FRAGMENT =
+  "please check the values and try again";
+
+export function friendlyReportSourceSettingsErrorMessage(
+  rawMessage: string,
+): string {
+  void rawMessage;
+  return REPORT_SOURCE_SETTINGS_GENERIC_ERROR_FRAGMENT;
+}

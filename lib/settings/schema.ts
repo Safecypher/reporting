@@ -88,3 +88,44 @@ export const revenueForecastSettingsSchema = z.object({
 export type RevenueForecastSettingsInput = z.infer<
   typeof revenueForecastSettingsSchema
 >;
+
+// ---------------------------------------------------------------------------
+// Report source freshness settings (Phase 10 Plan 4, FRESH-05/D-13)
+// ---------------------------------------------------------------------------
+// The single source of truth imported by BOTH the per-row client form
+// (components/settings/source-settings-form.tsx) and the per-row Server
+// Action (app/(dashboard)/settings/sources/actions.ts) -- exactly the same
+// "client validation is UX only, the server re-validates" discipline as
+// every other schema in this file. `reportType` is a closed enum of the six
+// migration-seeded `report_sources` rows (mirrors `SOURCE_ORDER` in
+// lib/dashboard/freshness.ts) so a forged seventh source can never be
+// addressed by this action. The floor on `staleAfterHours` is 1, not 0
+// (unlike `alignmentSettingsSchema`'s fields): a zero-hour threshold marks a
+// source overdue from the instant its own covered day ends, which is never
+// a meaningful operator intent. Every rejection on `staleAfterHours` carries
+// the identical Copywriting Contract message so the form never branches on
+// error type.
+
+const REPORT_SOURCE_STALE_HOURS_MESSAGE =
+  "Enter a whole number of hours greater than 0.";
+
+export const reportSourceSettingsSchema = z.object({
+  reportType: z.enum([
+    "verification",
+    "billing",
+    "dcvv",
+    "card-inventory",
+    "removed-cards",
+    "apigee-stats",
+  ]),
+  expectedCadence: z.enum(["daily-business", "daily", "none"]),
+  staleAfterHours: z
+    .number({ error: REPORT_SOURCE_STALE_HOURS_MESSAGE })
+    .int({ message: REPORT_SOURCE_STALE_HOURS_MESSAGE })
+    .min(1, { message: REPORT_SOURCE_STALE_HOURS_MESSAGE }),
+  enabled: z.boolean(),
+});
+
+export type ReportSourceSettingsInput = z.infer<
+  typeof reportSourceSettingsSchema
+>;
