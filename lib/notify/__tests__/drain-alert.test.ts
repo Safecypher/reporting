@@ -1,5 +1,4 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { hashToken } from "@/lib/push/tokens";
 import type { ReportSourceRow, SourceFreshnessRow } from "@/lib/dashboard/freshness";
 
 // Task 2: the route's own dependencies are mocked so POST
