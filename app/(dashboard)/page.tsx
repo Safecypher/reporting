@@ -4,6 +4,10 @@ import type { Metadata } from "next";
 
 import { AlignmentStrip, AlignmentStripSkeleton } from "@/components/dashboard/alignment-strip";
 import {
+  FreshnessStripSection,
+  FreshnessStripSkeleton,
+} from "@/components/dashboard/freshness-strip";
+import {
   HomeKpiTileSkeleton,
   LiveCardsTile,
   RevenueThisPeriodTile,
@@ -13,7 +17,6 @@ import { TileErrorBoundary } from "@/components/dashboard/tile-error-boundary";
 import { SettingsFallbackNotice } from "@/components/dashboard/settings-fallback-notice";
 import { ScopeBadge } from "@/components/dashboard/scope-badge";
 import { PeriodControls } from "@/components/dashboard/period-controls";
-import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
 import { Skeleton } from "@/components/ui/skeleton";
 import { createClient } from "@/lib/supabase/server";
@@ -58,33 +61,18 @@ type VerificationsDailyRow = {
   failed_count: number | null;
 };
 
-function FreshnessBadge({ uploadedAt }: { uploadedAt: string | null }) {
-  const label = uploadedAt
-    ? `Data as of last import: ${new Date(uploadedAt).toLocaleString("en-GB", {
-        dateStyle: "medium",
-        timeStyle: "short",
-      })}`
-    : "Data as of last import: no imports yet";
-
-  return (
-    <Badge variant="outline" className="gap-1.5 font-normal text-muted-foreground">
-      <svg aria-hidden="true" className="size-3">
-        <use href="/icons.svg#clock" />
-      </svg>
-      {label}
-    </Badge>
-  );
-}
-
 type PeriodOption = { value: string; label: string };
 
+/** D-16: the six-source `FreshnessStrip` replaces the whole-system
+ * freshness badge that used to render here — this header no longer needs
+ * an `uploadedAt` prop (the underlying "has anything ever been ingested"
+ * read stays unchanged below; only the badge JSX that displayed it is
+ * gone). */
 function PageHeader({
-  uploadedAt,
   period,
   monthOptions,
   yearOptions,
 }: {
-  uploadedAt: string | null;
   period: ResolvedPeriod | null;
   monthOptions: PeriodOption[];
   yearOptions: PeriodOption[];
@@ -100,7 +88,6 @@ function PageHeader({
         </div>
         <div className="flex flex-wrap items-center gap-2">
           {period && <ScopeBadge period={period} />}
-          <FreshnessBadge uploadedAt={uploadedAt} />
         </div>
       </div>
       {period && (
@@ -155,6 +142,8 @@ function LoadingState() {
         <Skeleton className="h-8 w-40" />
         <Skeleton className="h-6 w-56" />
       </div>
+      <FreshnessStripSkeleton />
+      <Separator />
       <AlignmentStripSkeleton />
       <Separator />
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
@@ -265,7 +254,7 @@ async function HomeBody({ searchParams }: { searchParams: PageSearchParams }) {
   if (freshnessResult.error) {
     return (
       <>
-        <PageHeader uploadedAt={null} period={null} monthOptions={[]} yearOptions={[]} />
+        <PageHeader period={null} monthOptions={[]} yearOptions={[]} />
         <ErrorState />
       </>
     );
@@ -276,12 +265,7 @@ async function HomeBody({ searchParams }: { searchParams: PageSearchParams }) {
   if (uploadedAt === null) {
     return (
       <>
-        <PageHeader
-          uploadedAt={uploadedAt}
-          period={period}
-          monthOptions={monthOptions}
-          yearOptions={yearOptions}
-        />
+        <PageHeader period={period} monthOptions={monthOptions} yearOptions={yearOptions} />
         <EmptyState />
       </>
     );
@@ -334,16 +318,21 @@ async function HomeBody({ searchParams }: { searchParams: PageSearchParams }) {
 
   return (
     <>
-      <PageHeader
-        uploadedAt={uploadedAt}
-        period={period}
-        monthOptions={monthOptions}
-        yearOptions={yearOptions}
-      />
+      <PageHeader period={period} monthOptions={monthOptions} yearOptions={yearOptions} />
       {/* WR-03: rendered OUTSIDE every TileErrorBoundary below, so a
           settings-read failure can never blank the strip or any tile
           (UI-SPEC E6) — it only says the badges beneath it use defaults. */}
       {settingsError !== null && <SettingsFallbackNotice />}
+      {/* D-16: the six-source strip replaces the former whole-system
+          freshness badge and sits above AlignmentStrip — "do we have
+          today's data" precedes "does it agree". One region removed, one
+          added, no net stacking. */}
+      <TileErrorBoundary label="Freshness">
+        <Suspense fallback={<FreshnessStripSkeleton />}>
+          <FreshnessStripSection />
+        </Suspense>
+      </TileErrorBoundary>
+      <Separator />
       <TileErrorBoundary label="Alignment status">
         <AlignmentStrip metrics={alignmentMetrics} periodLabel={period.label} />
       </TileErrorBoundary>
