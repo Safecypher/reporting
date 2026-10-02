@@ -35,8 +35,15 @@ const MINT_FAILURE_FALLBACK_MESSAGE = "Enter a sender name.";
  */
 export function MintCredentialForm({
   existingSenders,
+  endpointUrl,
 }: {
   existingSenders: string[];
+  /**
+   * Resolved server-side from NEXT_PUBLIC_SITE_URL; null when unset. Passed
+   * through to the reveal dialog so the one moment the token exists is also
+   * the moment the full onboarding message can be copied (quick-261002-p6r).
+   */
+  endpointUrl: string | null;
 }) {
   const [isPending, startTransition] = useTransition();
   const [reveal, setReveal] = useState<TokenReveal | null>(null);
@@ -123,7 +130,11 @@ export function MintCredentialForm({
         </Button>
       </form>
 
-      <TokenRevealDialog reveal={reveal} onAcknowledge={() => setReveal(null)} />
+      <TokenRevealDialog
+        reveal={reveal}
+        endpointUrl={endpointUrl}
+        onAcknowledge={() => setReveal(null)}
+      />
     </>
   );
 }

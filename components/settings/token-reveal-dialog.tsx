@@ -3,6 +3,7 @@
 import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
+import { buildSenderInstructions } from "@/lib/push/endpoint";
 import { Input } from "@/components/ui/input";
 import {
   Dialog,
@@ -36,9 +37,16 @@ export interface TokenReveal {
  */
 export function TokenRevealDialog({
   reveal,
+  endpointUrl,
   onAcknowledge,
 }: {
   reveal: TokenReveal | null;
+  /**
+   * Resolved server-side from NEXT_PUBLIC_SITE_URL; null when unset. When
+   * null the "copy everything" affordance is hidden rather than offering a
+   * message with a broken URL in it — copying the bare token still works.
+   */
+  endpointUrl: string | null;
   onAcknowledge: () => void;
 }) {
   async function handleCopy() {
@@ -53,6 +61,33 @@ export function TokenRevealDialog({
       // lose the secret — the dialog stays open and the token stays
       // selectable, so a failed copy is recoverable without re-minting.
       toast.error("Copy failed — select the token and copy manually");
+    }
+  }
+
+  /**
+   * The complete onboarding message: token, endpoint, contract and a curl
+   * example in one paste. This is the ONLY moment it can be assembled — the
+   * token is unrecoverable once this dialog closes (D-05) — which is exactly
+   * why it belongs here rather than only on the page behind it.
+   *
+   * Like the token itself this goes to the clipboard and nowhere else: never
+   * stored, never logged, never put in the URL.
+   */
+  async function handleCopyAll() {
+    if (!reveal || !endpointUrl) {
+      return;
+    }
+    try {
+      await navigator.clipboard.writeText(
+        buildSenderInstructions({
+          sender: reveal.sender,
+          endpointUrl,
+          token: reveal.token,
+        }),
+      );
+      toast("Token and instructions copied");
+    } catch {
+      toast.error("Copy failed — copy the token first, then the instructions");
     }
   }
 
@@ -103,6 +138,26 @@ export function TokenRevealDialog({
                 Copy token
               </Button>
             </div>
+
+            {endpointUrl && (
+              <div className="flex flex-col gap-2 rounded-lg border border-border bg-muted/40 p-3">
+                <p className="text-xs font-light text-muted-foreground">
+                  Send {reveal.sender} everything they need in one message —
+                  the token, the endpoint URL, the request format and a curl
+                  example. This is the only time the token can be included.
+                </p>
+                <div>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={handleCopyAll}
+                  >
+                    Copy token + instructions
+                  </Button>
+                </div>
+              </div>
+            )}
 
             <DialogFooter>
               <Button

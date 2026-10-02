@@ -7,6 +7,8 @@ import { createClient } from "@/lib/supabase/server";
 import { pushTable } from "@/lib/push/tables";
 import { CredentialsTable } from "@/components/settings/credentials-table";
 import { MintCredentialForm } from "@/components/settings/mint-credential-form";
+import { EndpointInstructions } from "@/components/settings/endpoint-instructions";
+import { pushEndpointUrl } from "@/lib/push/endpoint";
 import { RevokeCredential } from "@/components/settings/revoke-credential";
 import { AuditLog, type AuditLogEntry } from "@/components/pricing/audit-log";
 import { actorLabel, fetchActorEmails } from "@/lib/identity/profiles";
@@ -142,11 +144,36 @@ async function SendersBody() {
 
   const atCap = auditRows.length === AUDIT_ROW_CAP;
 
+  // Resolved here rather than in the client components so the value comes
+  // from the server's own environment. Null when NEXT_PUBLIC_SITE_URL is
+  // unset, which the panel renders as a fix-this notice rather than a
+  // half-built URL a sender might paste and try.
+  const endpointUrl = pushEndpointUrl(process.env.NEXT_PUBLIC_SITE_URL);
+
   return (
     <>
       <PageHeader />
 
-      <MintCredentialForm existingSenders={distinctSenders(credentialRows)} />
+      <MintCredentialForm
+        existingSenders={distinctSenders(credentialRows)}
+        endpointUrl={endpointUrl}
+      />
+
+      <Separator />
+
+      <div className="flex flex-col gap-4">
+        <div className="flex flex-col gap-1">
+          <h2 className="text-lg font-medium text-foreground">
+            What to send a sender
+          </h2>
+          <p className="max-w-2xl text-sm font-light text-muted-foreground">
+            The details a sender needs to integrate. These stay readable —
+            unlike the token, which is shown once when it is issued and cannot
+            be retrieved afterwards.
+          </p>
+        </div>
+        <EndpointInstructions endpointUrl={endpointUrl} />
+      </div>
 
       <Separator />
 
