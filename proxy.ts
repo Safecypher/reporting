@@ -46,7 +46,26 @@ export const config = {
   // which would otherwise truncate a push request under the 25MB cap rather
   // than reject it. `/api/ingest`, `/set-password`, `/uploads`,
   // `/settings/*` and every other route stay gated exactly as before.
+  //
+  // quick-261002-kaf: files under `public/` are also excluded, matched by
+  // file extension and anchored to the END of the path. Without this, every
+  // asset in `public/` was answered with a 307 to /login for anyone not yet
+  // signed in — so on /login itself (where nobody is signed in by
+  // definition) the browser received an HTML redirect where an image should
+  // be and rendered a broken-image box. Verified live before the fix:
+  // `/logo.svg` -> 307 /login, `/icons.svg` -> 307 /login. The logo and
+  // every sprite glyph on the sign-in page were broken for every user.
+  // `_next/static` was already excluded, which is why this only ever
+  // affected `public/` and never the bundled assets.
+  //
+  // This is a deliberate loosening of the auth gate, so it is scoped to an
+  // explicit extension allowlist rather than a general "has a dot" pattern.
+  // It cannot expose an application route: every route in this app is
+  // extensionless, so no gated page can end in one of these suffixes, and a
+  // path that matches nothing in `public/` 404s rather than resolving.
+  // Assets in `public/` are public by construction — they are served by the
+  // CDN to anyone with the URL regardless of this matcher.
   matcher: [
-    "/((?!_next/static|_next/image|favicon.ico|login(?:/|$)|auth/confirm(?:/|$)|api/push(?:/|$)|api/ingest/drain(?:/|$)).*)",
+    "/((?!_next/static|_next/image|favicon.ico|login(?:/|$)|auth/confirm(?:/|$)|api/push(?:/|$)|api/ingest/drain(?:/|$)|.*\\.(?:svg|png|jpg|jpeg|gif|webp|avif|ico|woff2?|ttf|otf|txt|xml|webmanifest)$).*)",
   ],
 };
