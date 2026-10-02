@@ -34,6 +34,13 @@ export const config = {
   // verifyOtp) — `/set-password` is deliberately NOT excluded here, since it
   // relies on the session verifyOtp just created and must stay gated.
   //
+  // quick-261002-mu7: `/auth/code` is excluded on the same grounds and with
+  // the same full-segment anchoring. It is the emailed-code entry point, so
+  // by definition nobody reaching it has a session yet. Unlike
+  // `/auth/confirm`, nothing in its URL authenticates anything — the code
+  // lives only in the body of the email — so a link scanner that opens it
+  // learns nothing and spends nothing.
+  //
   // Phase 9 (AUTO-03/AUTO-05): `api/push` and `api/ingest/drain` are also
   // excluded, anchored to full segment boundaries the same way. Neither
   // route authenticates via the Supabase session cookie — `/api/push` uses
@@ -66,6 +73,6 @@ export const config = {
   // Assets in `public/` are public by construction — they are served by the
   // CDN to anyone with the URL regardless of this matcher.
   matcher: [
-    "/((?!_next/static|_next/image|favicon.ico|login(?:/|$)|auth/confirm(?:/|$)|api/push(?:/|$)|api/ingest/drain(?:/|$)|.*\\.(?:svg|png|jpg|jpeg|gif|webp|avif|ico|woff2?|ttf|otf|txt|xml|webmanifest)$).*)",
+    "/((?!_next/static|_next/image|favicon.ico|login(?:/|$)|auth/confirm(?:/|$)|auth/code(?:/|$)|api/push(?:/|$)|api/ingest/drain(?:/|$)|.*\\.(?:svg|png|jpg|jpeg|gif|webp|avif|ico|woff2?|ttf|otf|txt|xml|webmanifest)$).*)",
   ],
 };

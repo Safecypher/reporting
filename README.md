@@ -164,6 +164,60 @@ it:
 Both templates redirect through `/auth/confirm`, which verifies the token, establishes a
 session, and sends the user to `/set-password` to finish activating their account.
 
+### Use the CODE templates, not the link templates (2026-10-02)
+
+**The steps above are superseded for any mailbox behind a link scanner.** Microsoft
+Defender Safe Links detonates a link in a sandbox that renders the page *and clicks its
+buttons*. A single-use token in a URL is therefore spent before the human arrives:
+`michael.ward`'s account was confirmed at 14:51:43 by the sandbox, and his own click
+seven seconds later got "that link has expired". Copy-pasting the link works, because it
+bypasses Safe Links entirely — but that is a workaround, not a fix.
+
+`/auth/code` removes the URL from the equation: the person types the code, which exists
+only in the body of the email. There is nothing for a scanner to spend.
+
+**Paste these as the Message body, and press Save TWICE** — the Dashboard silently
+discards the first save of a template, which cost roughly a month of broken invites
+before it was spotted. Verify by sending a real email and reading what arrives.
+
+**Auth -> Email Templates -> Invite user**
+
+```html
+<h2>You've been invited to Safecypher Reporting</h2>
+
+<p>Your sign-in code is:</p>
+<p style="font-size:24px;font-weight:bold;letter-spacing:2px;">{{ .Token }}</p>
+
+<p><a href="{{ .SiteURL }}/auth/code?type=invite">Enter your code</a></p>
+
+<p>This code expires in 24 hours and can only be used once.</p>
+```
+
+**Auth -> Email Templates -> Reset password**
+
+```html
+<h2>Reset your password</h2>
+
+<p>Your sign-in code is:</p>
+<p style="font-size:24px;font-weight:bold;letter-spacing:2px;">{{ .Token }}</p>
+
+<p><a href="{{ .SiteURL }}/auth/code?type=recovery">Enter your code</a></p>
+
+<p>If you didn't request this, you can safely ignore this email.</p>
+```
+
+Note `{{ .Token }}` here, **not** `{{ .TokenHash }}`. They are different values and the
+two flows need opposite ones: `/auth/code` takes the plain code a person can read and
+type, `/auth/confirm` takes the hash. Getting this backwards is exactly the bug that
+produced `token_hash=06771769` — an 8-digit OTP in a parameter expecting a 56-character
+hash, which Supabase rejects with the thoroughly misleading `otp_expired`.
+
+The link in these templates carries **no token**, so a scanner opening it achieves
+nothing. `/auth/confirm` is kept and still works for a pasted link.
+
+`/auth/code` must stay excluded from the `proxy.ts` auth gate — nobody reaching it has a
+session yet. `lib/__tests__/proxy-matcher.test.ts` pins that.
+
 ## Scripts
 
 | Command | Purpose |

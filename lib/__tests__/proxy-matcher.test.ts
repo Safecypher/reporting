@@ -47,6 +47,8 @@ describe("proxy matcher — routes that MUST stay gated", () => {
   it("keeps full-segment anchoring — a lookalike route is NOT excluded (IN-01)", () => {
     expect(isGated("/login-help")).toBe(true);
     expect(isGated("/auth/confirm-x")).toBe(true);
+    expect(isGated("/auth/code-x")).toBe(true);
+    expect(isGated("/auth/codes")).toBe(true);
     expect(isGated("/api/pushover")).toBe(true);
   });
 
@@ -81,6 +83,8 @@ describe("proxy matcher — paths that MUST stay excluded", () => {
     "/login/",
     "/auth/confirm",
     "/auth/confirm/",
+    "/auth/code",
+    "/auth/code/",
     "/api/push",
     "/api/ingest/drain",
     "/favicon.ico",
