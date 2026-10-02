@@ -56,6 +56,28 @@ inputs rather than trusting the GET checked them.
 - `npm test` — 42 files/674 tests -> **43 files/685 tests**, all passing
 - `/auth/confirm` still appears in the build route list as a dynamic route
 
+## EFFICACY CORRECTION (added 2026-10-02, after the fact)
+
+**This fix has never been shown to prevent a failure.** Recorded here so nobody later
+assumes it was validated.
+
+- andrew.perry succeeded at **13:17:19 UTC**. This commit was authored at **13:28 UTC** —
+  eleven minutes LATER, and not yet deployed. His success had nothing to do with the
+  interstitial; he used copy-paste on the old Route Handler.
+- The one production exercise of the interstitial was michael.ward **clicking** the link
+  after it deployed. It failed: Microsoft Defender Safe Links rendered the page and
+  clicked the Continue button, consuming the token at 14:51:43, seven seconds before
+  Michael's own click at 14:51:50.
+- Both successes today (Andy and Michael) came from copy-paste, which bypasses Safe
+  Links entirely and would have worked with or without this change.
+
+The reasoning behind the fix still holds for a GET-only prefetcher or a CDN retry, and it
+is not harmful. But it is **unproven**, it costs every user an extra click, and against
+the actual adversary here — a sandbox that clicks buttons — it achieves nothing. The real
+fix is quick-261002-mu7's emailed-code flow, which removes the token from the URL
+entirely. Once the templates point at `/auth/code`, consider whether this interstitial
+still earns its click.
+
 ## Carried forward
 
 - **`lib/site-url.ts` is now unused** (9 tests still pass). Deleting a tested module was
