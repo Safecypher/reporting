@@ -16,12 +16,25 @@ import { cn } from "@/lib/utils";
  * friendly message. Unrecognized/absent values render no message — the
  * route only ever emits whitelisted codes (T-quick260901-02), so this is a
  * closed set, not a pass-through of arbitrary query text.
+ *
+ * The two codes describe genuinely different failures and MUST NOT share a
+ * message (quick 261002-dt8). They were identical for a month, during which
+ * five invited users never completed the flow across ~9 sends and nobody
+ * could tell a misconfigured link from a stale one:
+ *
+ *   missing_params     — the link carried no `token_hash`/`type`, or an
+ *                        unsupported `type`. The route returned BEFORE ever
+ *                        contacting Supabase, so no token was consumed. Points
+ *                        at the email template or a URL mangled in transit.
+ *   invalid_or_expired — params were well-formed and Supabase's verifyOtp
+ *                        actively rejected the token. Points at a link past
+ *                        the OTP expiry window, or one already used.
  */
 const CONFIRM_ERROR_MESSAGES: Record<string, string> = {
   missing_params:
-    "That invite link has expired or already been used. Ask an admin to re-send it.",
+    "That link is missing the information needed to sign you in, so we couldn't check it. It may have been altered in transit. Ask an admin to re-send it — and if a fresh link does the same, the invite email template needs fixing rather than another re-send.",
   invalid_or_expired:
-    "That invite link has expired or already been used. Ask an admin to re-send it.",
+    "That link has expired or has already been used. Links are only valid for a short time after they're sent. Ask an admin for a fresh one and open it as soon as it arrives.",
 };
 
 /**
@@ -96,6 +109,17 @@ function LoginForm() {
   const displayedError =
     error ?? (dismissConfirmError ? null : confirmErrorMessage);
 
+  // The raw code, shown only when the message on screen IS the confirm-error
+  // message — never alongside a sign-in failure, which has no code. `error`
+  // (sign-in) takes precedence in `displayedError` above, so this mirrors that
+  // same precedence rather than re-deriving it. Displaying the code leaks
+  // nothing: it is already in the URL the user is looking at. It exists so a
+  // reported problem arrives naming its own cause.
+  const displayedErrorCode =
+    !error && !dismissConfirmError && confirmErrorMessage
+      ? confirmErrorCode
+      : null;
+
   return (
     <div className="flex flex-1 items-center justify-center bg-background px-4">
       <div className="flex w-full max-w-sm flex-col items-center gap-6">
@@ -156,9 +180,14 @@ function LoginForm() {
                 />
               </div>
               {displayedError ? (
-                <p role="alert" className="text-sm text-destructive">
-                  {displayedError}
-                </p>
+                <div role="alert" className="flex flex-col gap-1">
+                  <p className="text-sm text-destructive">{displayedError}</p>
+                  {displayedErrorCode ? (
+                    <p className="text-xs font-light text-muted-foreground">
+                      Reference: {displayedErrorCode}
+                    </p>
+                  ) : null}
+                </div>
               ) : null}
               <Button
                 type="submit"
