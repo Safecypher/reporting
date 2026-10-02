@@ -4,18 +4,18 @@ milestone: v1.1
 milestone_name: Nothing Silently Missing
 current_phase: 10
 current_phase_name: Freshness & Loud Absence
-status: executing
-stopped_at: Phase 10 UI-SPEC approved
-last_updated: "2026-09-30T08:55:19.403Z"
-last_activity: 2026-09-30
-last_activity_desc: Phase 10 execution started
-state_head: edc0a8b75bc642985a022ed575bc209ac036222a
+status: awaiting_human_uat
+stopped_at: Phase 10 verified at code level — 3 human UAT items outstanding
+last_updated: "2026-10-02T14:13:29.931Z"
+last_activity: 2026-10-02
+last_activity_desc: Phase 10 validated; v1.1 milestone audited; invite flow fixed (3 quick tasks)
+state_head: 8bfc79a23b9768af4eaaac1c82e20dd8cac45f0f
 progress:
   total_phases: 4
   completed_phases: 9
   total_plans: 13
-  completed_plans: 7
-  percent: 54
+  completed_plans: 13
+  percent: 100
 ---
 
 # Project State
@@ -29,10 +29,19 @@ See: .planning/PROJECT.md (updated 2026-09-25)
 
 ## Current Position
 
-Phase: 10 (Freshness & Loud Absence) — EXECUTING
-Plan: 1 of 6
-Status: Executing Phase 10
-Last activity: 2026-09-30 — Phase 10 execution started
+Phase: 10 (Freshness & Loud Absence) — CODE-COMPLETE, AWAITING HUMAN UAT
+Plan: 6 of 6 (all executed, all with SUMMARY)
+Status: Verified at code level 2026-09-30 (12/12 must-haves). `10-VERIFICATION.md` is
+`human_needed` — three items close the phase:
+  1. A real Slack message reaching a real channel (FRESH-04's actual end-to-end proof)
+  2. The daily-check run time changed through the deployed app's own request path (D-14/T-10-27)
+  3. The seven-point visual walkthrough in 10-06-PLAN.md Task 3
+Also complete for Phase 10: SECURITY (27 threats closed), REVIEW + disposition,
+VALIDATION (status `validated`, `nyquist_compliant: false` — 4 manual-only behaviours).
+Last activity: 2026-10-02 — Phase 10 validated, v1.1 milestone audited, invite flow fixed
+
+**Percent note:** 100% counts plans-with-summaries (13/13). It is NOT milestone progress —
+phases 11 and 12 have no plans yet, so v1.1 is 2 of 4 phases.
 
 ## Performance Metrics
 

@@ -51,7 +51,8 @@
     {
       "number": "10",
       "name": "Freshness & Loud Absence",
-      "status": "pending"
+      "status": "in_progress",
+      "note": "6/6 plans executed and verified at code level 2026-09-30; 10-VERIFICATION.md is human_needed with 3 outstanding human items (real Slack message, live cron reschedule via the app request path, seven-point visual walkthrough). Not 'complete' until those close."
     },
     {
       "number": "11",
@@ -65,9 +66,9 @@
     }
   ],
   "next": {
-    "command": "/gsd:progress --next",
-    "label": "Advance to the next step",
-    "reason": "Phase 10 of 4 · 54% · executing"
+    "command": "/gsd-discuss-phase 11",
+    "label": "Start Phase 11 — Disclosure Fixes",
+    "reason": "Phase 10 code-complete, awaiting human UAT; phases 11-12 not started"
   },
-  "updated_at": "2026-09-30T08:55:19.415Z"
+  "updated_at": "2026-10-02T14:13:06.643Z"
 }

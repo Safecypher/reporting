@@ -33,6 +33,14 @@ v1.0 and is delivered by the union of AUTO-03..AUTO-07 below. `AUTO-02` remains 
 - [ ] **FRESH-04**: When a source is overdue, a file failed, or the inbox is not draining, one Slack message is posted; when everything is healthy, nothing is posted
 - [ ] **FRESH-05**: Per-source staleness thresholds are configurable and seeded from observed delivery history rather than guessed
 
+> **FRESH-01..05 status (2026-10-02):** all five are code-complete, integration-wired and
+> test-covered as of Phase 10 (verified 2026-09-30). They remain unchecked deliberately —
+> `10-VERIFICATION.md` is `human_needed`, and the v1.1 milestone audit classifies all five as
+> *partial* rather than satisfied. Three human items close them: a real Slack message reaching a
+> real channel, the daily-check run time changed through the deployed app's own request path, and
+> the seven-point visual walkthrough. See the traceability table below for the per-requirement
+> detail and `.planning/v1.1-MILESTONE-AUDIT.md` for the reasoning.
+
 ### Disclosure
 
 - [ ] **FY-02**: A financial-year period covering only part of the year displays a caption saying so
@@ -76,11 +84,11 @@ Deferred to a later milestone. Tracked but not in this roadmap.
 | AUTO-05 | Phase 9 | Complete |
 | AUTO-06 | Phase 9 | Complete |
 | AUTO-07 | Phase 9 | Complete (the five pinned manual-path blob hashes match, re-measured at phase verification; the live drag-and-drop UAT ran 2026-09-29 against production and passed — 09-UAT.md tests 1-2. Test 1's first run caught G-09-1, a real defect in the rendered uploader attribution that the hashes and a clean code review both missed; it was fixed by plans 09-06/09-07 and retested green, which is what closed this requirement rather than the hashes alone.) |
-| FRESH-01 | Phase 10 | Pending |
-| FRESH-02 | Phase 10 | Pending |
-| FRESH-03 | Phase 10 | Pending |
-| FRESH-04 | Phase 10 | Pending |
-| FRESH-05 | Phase 10 | Pending |
+| FRESH-01 | Phase 10 | Code-verified 2026-09-30 — strip renders on dashboard home and /uploads, 13 unit tests. **Human UAT outstanding:** the seven-point visual walkthrough (10-06-PLAN.md Task 3). |
+| FRESH-02 | Phase 10 | Code-verified 2026-09-30 — `fn_source_is_stale` plus a passing weekend-grace oracle. **Caveat:** that oracle is live-DB SQL and cannot run under `npm test` (no pgTAP, no CI database), so a regression here would not be caught by the normal runner. |
+| FRESH-03 | Phase 10 | Code-verified 2026-09-30. Re-checked independently at the v1.1 audit: `ingested_files.status` is CHECK-constrained to ('pending','done','failed'), ingestion writes those literals, and `freshness.ts:141` matches 'failed' — the failure-vs-absence distinction genuinely holds. **Human UAT outstanding:** same walkthrough as FRESH-01. |
+| FRESH-04 | Phase 10 | Code-verified 2026-09-30 — 31 tests against an injected fake fetch. **Human UAT outstanding:** no real Slack message has ever been sent, and that is this requirement's actual end-to-end proof. |
+| FRESH-05 | Phase 10 | Code-verified 2026-09-30; 34 tests from /gsd-validate-phase 10 closed a gap where the Zod validators and Server Actions had NO coverage at all. **Two caveats:** the live cron reschedule was deliberately never performed through the app request path (T-10-27), and thresholds are seeded from PROJECT.md's stated delivery contract rather than observed push history — which does not exist yet, though the requirement's wording asks for it. |
 | FY-02 | Phase 11 | Pending |
 | DOC-01 | Phase 11 | Pending |
 | DATA-08 | Phase 12 | Pending |
