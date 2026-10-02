@@ -8,6 +8,7 @@ import {
   distinctSenders,
   formatLastUsed,
   isSoleLiveCredential,
+  partitionByRevoked,
   rotatingSenders,
   sortCredentials,
   type PushCredentialRow,
@@ -308,5 +309,51 @@ describe("revokePushCredential", () => {
 
     expect(result).toEqual({ error: "This credential is already revoked." });
     expect(result).not.toEqual({ success: true });
+  });
+});
+
+describe("partitionByRevoked (quick-261002-po6)", () => {
+  const row = (
+    id: string,
+    revoked_at: string | null,
+  ): PushCredentialRow => ({
+    id,
+    sender: `sender-${id}`,
+    token_prefix: `sc_live_${id}`,
+    created_at: "2026-09-28T13:00:00.000Z",
+    last_used_at: null,
+    revoked_at,
+  });
+
+  it("splits live from revoked", () => {
+    const { live, revoked } = partitionByRevoked([
+      row("a", null),
+      row("b", "2026-09-28T13:19:56.000Z"),
+      row("c", null),
+    ]);
+    expect(live.map((r) => r.id)).toEqual(["a", "c"]);
+    expect(revoked.map((r) => r.id)).toEqual(["b"]);
+  });
+
+  it("returns an empty live list when every credential is revoked — today's actual state", () => {
+    const { live, revoked } = partitionByRevoked([
+      row("a", "2026-09-28T13:19:56.000Z"),
+      row("b", "2026-09-28T13:37:54.000Z"),
+      row("c", "2026-09-28T14:13:16.000Z"),
+    ]);
+    expect(live).toEqual([]);
+    expect(revoked).toHaveLength(3);
+  });
+
+  it("handles an empty input without inventing rows", () => {
+    expect(partitionByRevoked([])).toEqual({ live: [], revoked: [] });
+  });
+
+  it("preserves input order within each group, so the caller's sort still applies", () => {
+    const { revoked } = partitionByRevoked([
+      row("z", "2026-09-28T13:00:00.000Z"),
+      row("a", "2026-09-28T13:00:00.000Z"),
+    ]);
+    expect(revoked.map((r) => r.id)).toEqual(["z", "a"]);
   });
 });

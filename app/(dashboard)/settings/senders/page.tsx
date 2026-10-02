@@ -15,8 +15,10 @@ import { actorLabel, fetchActorEmails } from "@/lib/identity/profiles";
 import {
   distinctSenders,
   isSoleLiveCredential,
+  partitionByRevoked,
   type PushCredentialRow,
 } from "@/lib/push/credentials";
+import Link from "next/link";
 
 export const metadata: Metadata = {
   title: "Push credentials — Safecypher Reporting",
@@ -91,7 +93,7 @@ function LoadingState() {
  * suggestion-chip row; each live row's `RevokeCredential` control receives
  * that credential's sole-live flag from Task 1's `isSoleLiveCredential`.
  */
-async function SendersBody() {
+async function SendersBody({ showRevoked }: { showRevoked: boolean }) {
   const supabase = await createClient();
 
   const [credentialsResult, auditResult] = await Promise.all([
@@ -150,6 +152,17 @@ async function SendersBody() {
   // half-built URL a sender might paste and try.
   const endpointUrl = pushEndpointUrl(process.env.NEXT_PUBLIC_SITE_URL);
 
+  // Revoked credentials are hidden by default: they accumulate forever and
+  // nothing can be done with them. They are NEVER deleted — `push_credentials`
+  // is referenced by `ingested_files.source_credential_id` and
+  // `push_rejections.credential_id`, both ON DELETE NO ACTION, because a
+  // credential is the provenance record for every file it delivered. Two rows
+  // that read as throwaway tests delivered real 26-27 September verification
+  // data (quick-261002-po6).
+  const { live: liveCredentials, revoked: revokedCredentials } =
+    partitionByRevoked(credentialRows);
+  const visibleCredentials = showRevoked ? credentialRows : liveCredentials;
+
   return (
     <>
       <PageHeader />
@@ -183,12 +196,23 @@ async function SendersBody() {
             Credentials
           </h2>
           <p className="max-w-2xl text-sm font-light text-muted-foreground">
-            Every credential ever issued, live or revoked — a sender may hold
-            more than one live credential during a rotation.
+            {showRevoked
+              ? "Every credential ever issued, live and revoked — a sender may hold more than one live credential during a rotation."
+              : "Live credentials — a sender may hold more than one during a rotation."}
           </p>
         </div>
         <CredentialsTable
-          rows={credentialRows}
+          rows={visibleCredentials}
+          emptyTitle={
+            revokedCredentials.length > 0
+              ? "No live credentials"
+              : "No push credentials yet"
+          }
+          emptyBody={
+            revokedCredentials.length > 0
+              ? `Every credential issued so far has been revoked. Issue one to let TSYS or Bit Addict push reports automatically. ${revokedCredentials.length} revoked credential${revokedCredentials.length === 1 ? " is" : "s are"} hidden — they are kept because each one is the provenance record for the files it delivered.`
+              : "Issue one to let TSYS or Bit Addict push reports automatically, without anyone downloading email attachments."
+          }
           renderAction={(credential) => (
             <RevokeCredential
               credentialId={credential.id}
@@ -198,6 +222,22 @@ async function SendersBody() {
             />
           )}
         />
+        {revokedCredentials.length > 0 && (
+          <div>
+            <Link
+              href={
+                showRevoked
+                  ? "/settings/senders"
+                  : "/settings/senders?revoked=1"
+              }
+              className="text-sm font-light text-muted-foreground underline underline-offset-4 hover:text-foreground"
+            >
+              {showRevoked
+                ? "Hide revoked credentials"
+                : `Show ${revokedCredentials.length} revoked credential${revokedCredentials.length === 1 ? "" : "s"}`}
+            </Link>
+          </div>
+        )}
       </div>
 
       <Separator />
@@ -217,12 +257,24 @@ async function SendersBody() {
   );
 }
 
-export default function SendersPage() {
+export default async function SendersPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ [key: string]: string | string[] | undefined }>;
+}) {
+  const params = await searchParams;
+  const showRevoked = firstValue(params.revoked) === "1";
+
   return (
     <div className="flex flex-1 flex-col gap-6 p-6">
       <Suspense fallback={<LoadingState />}>
-        <SendersBody />
+        <SendersBody showRevoked={showRevoked} />
       </Suspense>
     </div>
   );
+}
+
+function firstValue(value: string | string[] | undefined): string | null {
+  if (Array.isArray(value)) return value[0] ?? null;
+  return value ?? null;
 }

@@ -43,19 +43,25 @@ function formatCreatedAt(createdAt: string): string {
 export function CredentialsTable({
   rows,
   renderAction,
+  emptyTitle = "No push credentials yet",
+  emptyBody = "Issue one to let TSYS or Bit Addict push reports automatically, without anyone downloading email attachments.",
 }: {
   rows: PushCredentialRow[];
   renderAction?: (credential: PushCredentialRow) => React.ReactNode;
+  /**
+   * The default empty state says "none have ever been issued", which is a
+   * lie when revoked rows exist and are merely hidden (quick-261002-po6).
+   * The caller knows which case it is, so it supplies the wording.
+   */
+  emptyTitle?: string;
+  emptyBody?: string;
 }) {
   if (rows.length === 0) {
     return (
       <div className="flex flex-col items-center justify-center gap-2 rounded-lg border border-dashed border-border p-12 text-center">
-        <h2 className="text-lg font-medium text-foreground">
-          No push credentials yet
-        </h2>
+        <h2 className="text-lg font-medium text-foreground">{emptyTitle}</h2>
         <p className="max-w-md text-sm font-light text-muted-foreground">
-          Issue one to let TSYS or Bit Addict push reports automatically,
-          without anyone downloading email attachments.
+          {emptyBody}
         </p>
       </div>
     );

@@ -132,3 +132,27 @@ export function formatLastUsed(lastUsedAt: string | null): string | null {
     timeStyle: "short",
   });
 }
+
+/**
+ * Splits rows into live and revoked (quick-261002-po6).
+ *
+ * `/settings/senders` shows live credentials by default, because every
+ * credential ever issued accumulates there forever and a revoked one is
+ * history rather than something you can act on. Revoked rows stay one click
+ * away rather than being deleted: `push_credentials` is referenced by
+ * `ingested_files.source_credential_id` and `push_rejections.credential_id`,
+ * both `ON DELETE NO ACTION`, because a credential is the provenance record
+ * for every file it delivered. Two of the credentials that look like test
+ * rows delivered real 26-27 September verification data.
+ */
+export function partitionByRevoked(rows: PushCredentialRow[]): {
+  live: PushCredentialRow[];
+  revoked: PushCredentialRow[];
+} {
+  const live: PushCredentialRow[] = [];
+  const revoked: PushCredentialRow[] = [];
+  for (const row of rows) {
+    (isLiveCredential(row) ? live : revoked).push(row);
+  }
+  return { live, revoked };
+}
