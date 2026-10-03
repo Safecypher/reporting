@@ -10,6 +10,7 @@ files:
   - lib/dashboard/freshness.ts
 
 status: pending
+unblocked: 2026-10-03
 source: Phase 10 Wave 2 post-merge integration gate (orchestrator)
 ---
 
@@ -51,3 +52,27 @@ suppression there. So, after Phase 10 closes:
    the three objects and that is the real finding.
 
 Net effect: two `no-explicit-any` suppressions removed, none added.
+
+---
+
+## UNBLOCKED 2026-10-03 — step 1 is now verified
+
+This todo's step 1 was its gate: "confirm `types/db.ts` contains
+`report_sources`, `alert_runs` and `v_source_freshness`". Phase 10-06
+regenerated the file, and all three objects are present — checked directly,
+not inferred from the fact that 10-06 ran.
+
+Both accessors are still in place, so steps 2-4 are untouched work:
+
+- `lib/dashboard/freshness.ts:239` — `freshnessTable()`, called at :264, :267, :270
+- `app/api/ingest/drain/route.ts:40` — `alertRunsTable()`, called at :210, :251
+
+Step 4 remains the real check: if `npx tsc --noEmit` is not clean after the
+deletions, the regeneration did not cover one of the three objects, and *that*
+is the finding — not a reason to put the suppressions back.
+
+One addition since this was written: `lib/push/tables.ts` carries a third
+untyped pair, `pushTable`/`pushRpc`, deliberately deferred as WR-03 in Phase 9
+and still listed as open tech debt in `.planning/v1.1-MILESTONE-AUDIT.md`.
+Same cause, same fix, and worth doing in one pass rather than leaving a third
+escape hatch behind after removing two.
