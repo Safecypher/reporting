@@ -63,12 +63,17 @@
       "number": "12",
       "name": "Verification Timezone Confirmation",
       "status": "pending"
+    },
+    {
+      "number": "13",
+      "name": "Async Ingestion — Return 202 and Process in the Background",
+      "status": "pending"
     }
   ],
   "next": {
-    "command": "/gsd-discuss-phase 11",
-    "label": "Start Phase 11 — Disclosure Fixes",
-    "reason": "Phase 10 code-complete, awaiting human UAT; phases 11-12 not started"
+    "command": "/gsd-plan-phase 13",
+    "label": "Plan Phase 13 — Async Ingestion",
+    "reason": "Phase 13 added 2026-10-05 from the async-ingestion todo; decisions resolved, not yet planned"
   },
-  "updated_at": "2026-10-02T14:13:06.643Z"
+  "updated_at": "2026-10-05T15:51:05.410Z"
 }

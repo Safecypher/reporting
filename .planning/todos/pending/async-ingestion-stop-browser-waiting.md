@@ -116,3 +116,16 @@ cost turns out to be, the request stops being the thing that has to finish in ti
 `apigee_calls` 28,998 -> 222,716. Zero `pending` files remain. Every file's
 `rows_accepted + rows_duplicate` equals its measured parse count exactly, with zero
 rejected and zero excluded.
+
+## Decisions resolved 2026-10-05 (with the user)
+
+- **Phase 2 trigger: client fire-and-forget + drain sweep.** After the 202, the browser
+  fires a non-blocking POST to a new processing route so a watching user gets immediate
+  progress. Independently, the existing daily drain sweeps `pending` rows older than a
+  threshold, so a fired request nobody read — dropped, aborted, or never sent — still
+  converges. This directly answers the "Related" section: a `pending` row that never
+  completes now has something that notices it.
+- **Inbox-bucket convergence: out of scope.** Manual upload keeps its own storage path
+  and its own processor; both continue to share `lib/ingestion`. The push/drain path is
+  not touched beyond adding the sweep. Convergence is recorded as a separate follow-up.
+- **GSD routing: new Phase 13 in v1.1**, not a quick task.

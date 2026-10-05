@@ -38,6 +38,7 @@ quietly looking fine. Design of record for the delivery/freshness mechanism:
 - [ ] **Phase 10: Freshness & Loud Absence** - Missing, failed, or stuck reports are visible on screen and in Slack; silence means healthy _(all 6 plans executed and verified at code level 2026-09-30; deliberately still unchecked — 10-VERIFICATION.md is `human_needed` with 3 outstanding human items: a real Slack message, the live cron reschedule through the app request path, and the seven-point visual walkthrough)_
 - [ ] **Phase 11: Disclosure Fixes — FY Caption & Counterparty Rename** - Partial financial-year periods say so on screen; planning docs name the counterparty correctly
 - [ ] **Phase 12: Verification Timezone Confirmation** - The CreatedAt timezone assumption carried from v1.0 is confirmed and corrected if wrong
+- [ ] **Phase 13: Async Ingestion — Return 202 and Process in the Background** - A large upload is never reported as failed while it is in fact succeeding; the browser stops waiting on the ingest
 
 ## Phase Details
 
@@ -169,8 +170,52 @@ order or in parallel with 9–11 without blocking them.
 | 10. Freshness & Loud Absence | v1.1 | 6/6 | Needs Review | 2026-09-30 |
 | 11. Disclosure Fixes — FY Caption & Counterparty Rename | v1.1 | 0/TBD | Not started | - |
 | 12. Verification Timezone Confirmation | v1.1 | 0/TBD | Not started | - |
+| 13. Async Ingestion — Return 202 and Process in the Background | v1.1 | 0/TBD | Not started | - |
 
 | Milestone | Phases | Plans | Status |
 |-----------|--------|-------|--------|
 | v1.0 MVP | 8 | 55/55 | ✅ Shipped 2026-09-23 |
 | v1.1 Nothing Silently Missing | 4 | 0/TBD | 🚧 Roadmap complete, ready to plan Phase 9 |
+
+### Phase 13: Async Ingestion — Return 202 and Process in the Background
+
+**Goal**: A large report file is never reported as failed while it is in fact
+succeeding. `/api/ingest` stops doing the row-writing inside the user's request:
+it authenticates, hashes, classifies, stores the bytes, records the file as
+`pending` and answers **202**. A separate processing path parses and writes the
+rows with its own time budget, and the browser follows the file's status rather
+than holding a connection open. Source:
+`.planning/todos/pending/async-ingestion-stop-browser-waiting.md`, where the
+measured 504 (43,383 rows ingested correctly, UI said "Upload failed") and the
+two decisions below are recorded.
+**Depends on**: Nothing (independent of Phases 10–12; shares `lib/ingestion`
+with the push/drain path, which must keep working unchanged)
+**Requirements**: TBD (to be mapped at /gsd-plan-phase)
+**Success Criteria** (what must be TRUE):
+
+  1. Uploading a file large enough to exceed the synchronous gateway budget (the
+     ~44-batch TSYS Stats files that failed on 2026-10-05) shows a truthful
+     outcome: progress then `Done`, never "Upload failed" for a file that
+     completed.
+  2. `/api/ingest` returns 202 with `{ fileId, reportType, status: 'pending' }`
+     without writing any report rows, and returns well inside the gateway budget
+     regardless of file size.
+  3. Processing is triggered two ways and is idempotent across both: the client
+     fires a non-blocking request after the 202, and the daily drain sweeps
+     `pending` rows older than a threshold. A file processed by one is not
+     double-written by the other.
+  4. A `pending` row that never completes is surfaced rather than sitting
+     unnoticed — the failure mode that stranded five files, the oldest for three
+     days, before 2026-10-05.
+  5. No regression in: the `status = 'done'` de-dup filter (a failed or pending
+     file stays retryable), `recordFile`'s upsert on `content_sha256`, the
+     chunked writes, or the push/drain path.
+
+**Decisions already taken** (2026-10-05, with the user — do not re-litigate):
+
+  - Phase-2 trigger is **client fire-and-forget plus a drain sweep**, not a
+    Netlify background function and not drain-only.
+  - Manual upload does **not** converge on the push path's inbox bucket in this
+    phase; that is recorded as a separate follow-up.
+
+**Plans**: TBD
