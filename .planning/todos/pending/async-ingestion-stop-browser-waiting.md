@@ -81,3 +81,38 @@ exists.
 A `pending` row that never completes is now the failure mode, and nothing surfaces one.
 Five sat unnoticed before 2026-10-05, the oldest for three days. Whatever triggers phase
 2 needs a way to notice when it never ran — this overlaps Phase 10's freshness work.
+
+## Evidence added 2026-10-05 — row count is NOT the threshold
+
+All five stranded files were re-uploaded and every one completed. The three Stats files
+errored in the UI first and then showed `Done`; `card-inventory-report_2026-10-05.csv`
+ran cleanly with no error at all.
+
+That last one matters, because it is the **biggest** of them:
+
+| File | Rows written | Errored in UI? |
+|---|---|---|
+| card-inventory-report_2026-10-05.csv | **57,757** | **no** |
+| Safecypher Stats 0210 to 0310.xlsx | 53,876 | yes |
+| Safecypher Stats 0410 to 0510.xlsx | 45,367 | yes |
+| Safecypher Stats 0310 to 0410.xlsx | 43,383 | yes |
+
+So the timeout does not track row count. Two candidate differences, both worth measuring
+before sizing any chunk-based mitigation:
+
+- **Parser.** The Stats files are XLSX through ExcelJS; card inventory is CSV through
+  PapaParse. Measured locally, ExcelJS reads a Stats file in 240-370ms, so parsing alone
+  does not explain it — but it is not nothing.
+- **Per-row write cost.** `apigee_calls` carries a `GENERATED ALWAYS ... STORED`
+  `row_hash`, so Postgres computes a hash per row on insert. If `card_inventory`'s write
+  is cheaper per row, that is the dominant term and **larger batches would not help** —
+  which is the assumption the chunk-tuning option rested on.
+
+This strengthens the case for the async split over chunk tuning: whatever the per-table
+cost turns out to be, the request stops being the thing that has to finish in time.
+
+## Totals after the 2026-10-05 recovery
+
+`apigee_calls` 28,998 -> 222,716. Zero `pending` files remain. Every file's
+`rows_accepted + rows_duplicate` equals its measured parse count exactly, with zero
+rejected and zero excluded.
