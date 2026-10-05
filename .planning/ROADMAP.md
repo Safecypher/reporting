@@ -190,7 +190,7 @@ measured 504 (43,383 rows ingested correctly, UI said "Upload failed") and the
 two decisions below are recorded.
 **Depends on**: Nothing (independent of Phases 10–12; shares `lib/ingestion`
 with the push/drain path, which must keep working unchanged)
-**Requirements**: TBD (to be mapped at /gsd-plan-phase)
+**Requirements**: INGEST-06, INGEST-07, INGEST-08, INGEST-09, INGEST-10, INGEST-11
 **Success Criteria** (what must be TRUE):
 
   1. Uploading a file large enough to exceed the synchronous gateway budget (the
@@ -218,4 +218,12 @@ with the push/drain path, which must keep working unchanged)
   - Manual upload does **not** converge on the push path's inbox bucket in this
     phase; that is recorded as a separate follow-up.
 
-**Plans**: TBD
+**Plans**: 7 plans across 5 waves
+
+  - [ ] 13-01-PLAN.md — the lease column and the measured Netlify ceiling (wave 1)
+  - [ ] 13-02-PLAN.md — tracer: split `ingest()`, the 202, and the processing route (wave 2)
+  - [ ] 13-03-PLAN.md — `/uploads` tells "processing now" from "stuck for days" (wave 2)
+  - [ ] 13-04-PLAN.md — the client: fire-and-forget, follow the status, report the truth (wave 3)
+  - [ ] 13-05-PLAN.md — convergence across attempts, gated on the measured ceiling (wave 3)
+  - [ ] 13-06-PLAN.md — the drain sweep and the stuck-pending Slack line (wave 4)
+  - [ ] 13-07-PLAN.md — no regression, and the deployed 44-batch proof (wave 5)

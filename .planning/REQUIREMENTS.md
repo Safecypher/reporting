@@ -41,6 +41,21 @@ v1.0 and is delivered by the union of AUTO-03..AUTO-07 below. `AUTO-02` remains 
 > the seven-point visual walkthrough. See the traceability table below for the per-requirement
 > detail and `.planning/v1.1-MILESTONE-AUDIT.md` for the reasoning.
 
+### Ingestion Reliability
+
+Added 2026-10-05 at `/gsd-plan-phase 13`, continuing the v1.0 `INGEST-` family rather than
+minting a new prefix: these extend the same `/api/ingest` contract `INGEST-01..05` already
+govern — what the endpoint promises and whether its reported outcome is true. The source is
+`.planning/todos/pending/async-ingestion-stop-browser-waiting.md`, where a file that ingested
+43,383 rows correctly was reported to the user as a failure.
+
+- [ ] **INGEST-06**: `/api/ingest` returns 202 with `{ fileId, reportType, status: 'pending' }` after auth, hashing, the de-dup short-circuit, classification and byte storage, writing no report rows in the request and returning in a time that does not scale with file size
+- [ ] **INGEST-07**: The browser reports a file's real terminal outcome — it follows the file's status after the 202 and never shows failure copy for a file that completed
+- [ ] **INGEST-08**: Background processing is triggered both by a client fire-and-forget request and by a daily drain sweep, is safe to run concurrently on the same file, and converges across repeated attempts without corrupting the persisted `rows_accepted`/`rows_duplicate` audit numbers
+- [ ] **INGEST-09**: A `pending` row that never completes is surfaced in the existing grouped drain Slack alert, not left silently stranded
+- [ ] **INGEST-10**: `/uploads` distinguishes a file processing right now from one stuck for days, without a Slack message to hand
+- [ ] **INGEST-11**: No regression to the `status = 'done'` de-dup filter, `recordFile`'s upsert on `content_sha256`, the chunked writes, or the push/drain path
+
 ### Disclosure
 
 - [ ] **FY-02**: A financial-year period covering only part of the year displays a caption saying so
@@ -92,11 +107,17 @@ Deferred to a later milestone. Tracked but not in this roadmap.
 | FY-02 | Phase 11 | Pending |
 | DOC-01 | Phase 11 | Pending |
 | DATA-08 | Phase 12 | Pending |
+| INGEST-06 | Phase 13 | Pending — plan 13-02 |
+| INGEST-07 | Phase 13 | Pending — plan 13-04; its real proof is the deployed large-file run in plan 13-07, not the unit suite |
+| INGEST-08 | Phase 13 | Pending — plans 13-02, 13-05, 13-06 |
+| INGEST-09 | Phase 13 | Pending — plan 13-06 |
+| INGEST-10 | Phase 13 | Pending — plan 13-03 |
+| INGEST-11 | Phase 13 | Pending — gated per plan, with the full check in plan 13-07 |
 
 **Coverage:**
 
-- v1.1 requirements: 13 total
-- Mapped to phases: 13 (roadmap complete)
+- v1.1 requirements: 19 total
+- Mapped to phases: 19 (roadmap complete)
 - Unmapped: 0 ✓
 
 ---
