@@ -127,10 +127,24 @@ export function createSupabaseWriter(
 
   return {
     async findFileByHash(sha256) {
+      // Only a COMPLETED ingest counts as "already uploaded" (quick-261005-kz3).
+      //
+      // This used to match on content_sha256 alone. A run that died after
+      // recordFile but before finalizeFile leaves the row at `pending`, and
+      // the unfiltered lookup then reported that half-written attempt as a
+      // prior successful upload — so the file could never be retried. Five
+      // such rows were stranded in production on 2026-10-05, the oldest since
+      // 2 October, each one permanently blocking the file that created it.
+      //
+      // `pending` and `failed` deliberately fall through to a real ingest.
+      // Re-running is safe: every report table de-dups on its own row_hash /
+      // UNIQUE constraint, which is the actual guarantee here — this lookup is
+      // only a short-circuit to avoid redundant work.
       const { data, error } = await supabase
         .from("ingested_files")
         .select("id, uploaded_at, report_type")
         .eq("content_sha256", sha256)
+        .eq("status", "done")
         .maybeSingle();
 
       if (error) throw error;
@@ -182,9 +196,18 @@ export function createSupabaseWriter(
         source_credential_id: sourceCredentialId,
       };
 
+      // Upsert, not insert (quick-261005-kz3). `ingested_files` has
+      // UNIQUE (content_sha256), so retrying a file whose previous attempt
+      // died mid-write would otherwise fail on the constraint — the row from
+      // that attempt is still there. Upserting reuses it, resetting status to
+      // `pending` for this fresh attempt, so a stranded row heals itself on
+      // the next upload instead of needing a manual delete.
+      //
+      // This cannot resurrect a completed ingest: findFileByHash above has
+      // already short-circuited anything at `done` before we reach here.
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const { data, error } = await (supabase.from("ingested_files") as any)
-        .insert(insertPayload)
+        .upsert(insertPayload, { onConflict: "content_sha256" })
         .select("id")
         .single();
 

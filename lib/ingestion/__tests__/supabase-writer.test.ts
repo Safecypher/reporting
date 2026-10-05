@@ -30,17 +30,32 @@ function makeFakeSupabase(overrides: {
   // inspect the exact fields the writer built — without disturbing the
   // existing chained `select().single()` shape any current test relies on.
   const ingestedFilesInsertPayloads: Record<string, unknown>[] = [];
+  const ingestedFilesUpsertOptions: unknown[] = [];
+  const findFileByHashFilters: [string, unknown][] = [];
 
   const from = vi.fn((table: string) => {
     if (table === "ingested_files") {
+      // quick-261005-kz3: findFileByHash now chains TWO .eq() calls —
+      // content_sha256 AND status='done' — so the stub must stay chainable
+      // rather than terminating at the first one. The status filter is
+      // captured so a test can assert it is actually applied.
+      const chainable = {
+        eq: (column: string, value: unknown) => {
+          findFileByHashFilters.push([column, value]);
+          return {
+            ...chainable,
+            maybeSingle: () =>
+              Promise.resolve({ data: findFileByHashResult, error: null }),
+          };
+        },
+      };
       return {
-        select: () => ({
-          eq: () => ({
-            maybeSingle: () => Promise.resolve({ data: findFileByHashResult, error: null }),
-          }),
-        }),
-        insert: (payload: Record<string, unknown>) => {
+        select: () => chainable,
+        // recordFile upserts on content_sha256 now, so a retry reuses the row
+        // left behind by an attempt that died mid-write.
+        upsert: (payload: Record<string, unknown>, options?: unknown) => {
           ingestedFilesInsertPayloads.push(payload);
+          ingestedFilesUpsertOptions.push(options);
           return {
             select: () => ({
               single: () => Promise.resolve({ data: { id: recordFileId }, error: null }),
@@ -92,6 +107,8 @@ function makeFakeSupabase(overrides: {
     genericUpsertMock,
     verificationUpsertMock,
     ingestedFilesInsertPayloads,
+    ingestedFilesUpsertOptions,
+    findFileByHashFilters,
   } as const;
 }
 
@@ -346,5 +363,96 @@ describe("createSupabaseWriter", () => {
     expect(fake.ingestedFilesInsertPayloads).toHaveLength(2);
     expect(fake.ingestedFilesInsertPayloads[0]).toMatchObject({ source_ref: "key-a" });
     expect(fake.ingestedFilesInsertPayloads[1]).toMatchObject({ source_ref: "key-b" });
+  });
+});
+
+/**
+ * quick-261005-kz3 — a failed upload must not permanently block its own retry.
+ *
+ * `findFileByHash` matched on content_sha256 alone. A run that died after
+ * `recordFile` but before `finalizeFile` leaves the row at `pending`, and the
+ * unfiltered lookup then reported that half-written attempt as a prior
+ * successful upload. Five rows were stranded in production on 2026-10-05 —
+ * the oldest since 2 October — each permanently blocking the file that created
+ * it, with the UI saying "This file appears to have already been uploaded".
+ */
+describe("findFileByHash — only a completed ingest counts as already-uploaded", () => {
+  it("filters on status='done', not on the hash alone", async () => {
+    const fake = makeFakeSupabase({ findFileByHashResult: null });
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const writer = createSupabaseWriter(fake as any);
+    await writer.findFileByHash("deadbeef");
+
+    expect(fake.findFileByHashFilters).toEqual([
+      ["content_sha256", "deadbeef"],
+      ["status", "done"],
+    ]);
+  });
+
+  it("still short-circuits on a genuinely completed upload", async () => {
+    const fake = makeFakeSupabase({
+      findFileByHashResult: {
+        id: "done-row",
+        uploaded_at: "2026-10-05T09:53:45Z",
+        report_type: "apigee-stats",
+      },
+    });
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const writer = createSupabaseWriter(fake as any);
+    const result = await writer.findFileByHash("deadbeef");
+
+    expect(result).not.toBeNull();
+    expect(result?.id).toBe("done-row");
+  });
+
+  it("returns null when the only prior row is NOT done, so the retry proceeds", async () => {
+    // The query itself excludes non-done rows, so the DB returns nothing —
+    // which is exactly the behaviour the stranded `pending` rows needed.
+    const fake = makeFakeSupabase({ findFileByHashResult: null });
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const writer = createSupabaseWriter(fake as any);
+
+    expect(await writer.findFileByHash("hash-of-a-pending-row")).toBeNull();
+    expect(fake.findFileByHashFilters).toContainEqual(["status", "done"]);
+  });
+});
+
+describe("recordFile — reuses a stranded row rather than duplicating it", () => {
+  it("upserts on content_sha256 so the UNIQUE constraint cannot block a retry", async () => {
+    const fake = makeFakeSupabase({ recordFileId: "reused-row" });
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const writer = createSupabaseWriter(fake as any);
+
+    const id = await writer.recordFile({
+      fileName: "Safecypher Stats 0310 to 0410.xlsx",
+      contentSha256: "b53eee2b44cf",
+      uploadedBy: "user-1",
+      reportType: "apigee-stats",
+      bytes: new TextEncoder().encode("x"),
+    });
+
+    expect(id).toBe("reused-row");
+    expect(fake.ingestedFilesUpsertOptions).toEqual([
+      { onConflict: "content_sha256" },
+    ]);
+  });
+
+  it("resets the reused row to pending for the fresh attempt", async () => {
+    const fake = makeFakeSupabase();
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const writer = createSupabaseWriter(fake as any);
+
+    await writer.recordFile({
+      fileName: "Safecypher Stats 0310 to 0410.xlsx",
+      contentSha256: "b53eee2b44cf",
+      uploadedBy: "user-1",
+      reportType: "apigee-stats",
+      bytes: new TextEncoder().encode("x"),
+    });
+
+    expect(fake.ingestedFilesInsertPayloads[0]).toMatchObject({
+      content_sha256: "b53eee2b44cf",
+      status: "pending",
+    });
   });
 });

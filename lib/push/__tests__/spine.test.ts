@@ -113,7 +113,10 @@ function makeFakeInbox() {
  */
 function makeFakeIngestSupabase() {
   // Keyed by content_sha256 -> { id, uploaded_at, report_type }
-  const byHash = new Map<string, { id: string; uploaded_at: string; report_type: string | null }>();
+  const byHash = new Map<
+    string,
+    { id: string; uploaded_at: string; report_type: string | null; status: string }
+  >();
   // Keyed by id -> the full recorded insert payload, for provenance assertions.
   const byId = new Map<string, Record<string, unknown>>();
   let nextId = 1;
@@ -126,21 +129,42 @@ function makeFakeIngestSupabase() {
 
   const from = (table: string) => {
     if (table === "ingested_files") {
+      // quick-261005-kz3: findFileByHash now filters status='done' as well as
+      // the hash, and recordFile upserts on content_sha256. This stub models
+      // both, because the dedup assertion below depends on the real sequence:
+      // the first file only becomes `done` when finalizeFile patches it, and
+      // ONLY then does the second identical file short-circuit.
+      const filters: Record<string, string> = {};
+      const chainable = {
+        eq: (col: string, val: string) => {
+          filters[col] = val;
+          return {
+            ...chainable,
+            maybeSingle: async () => {
+              const row = byHash.get(filters.content_sha256);
+              if (!row) return { data: null, error: null };
+              if (filters.status && row.status !== filters.status) {
+                return { data: null, error: null };
+              }
+              return { data: row, error: null };
+            },
+          };
+        },
+      };
       return {
-        select: () => ({
-          eq: (_col: string, val: string) => ({
-            maybeSingle: async () => ({ data: byHash.get(val) ?? null, error: null }),
-          }),
-        }),
-        insert: (payload: Record<string, unknown>) => ({
+        select: () => chainable,
+        upsert: (payload: Record<string, unknown>) => ({
           select: () => ({
             single: async () => {
-              const id = `file-${nextId++}`;
+              const sha = payload.content_sha256 as string;
+              const existing = byHash.get(sha);
+              const id = existing?.id ?? `file-${nextId++}`;
               byId.set(id, { id, ...payload });
-              byHash.set(payload.content_sha256 as string, {
+              byHash.set(sha, {
                 id,
                 uploaded_at: new Date().toISOString(),
                 report_type: (payload.report_type as string | null) ?? null,
+                status: (payload.status as string) ?? "pending",
               });
               return { data: { id }, error: null };
             },
@@ -150,6 +174,13 @@ function makeFakeIngestSupabase() {
           eq: async (_col: string, id: string) => {
             const row = byId.get(id);
             if (row) Object.assign(row, patch);
+            // finalizeFile's status must reach the hash index too, or a
+            // completed file would never short-circuit a later identical one.
+            for (const entry of byHash.values()) {
+              if (entry.id === id && typeof patch.status === "string") {
+                entry.status = patch.status;
+              }
+            }
             return { error: null };
           },
         }),
@@ -158,9 +189,12 @@ function makeFakeIngestSupabase() {
     // verifications (and any other Wave-2 generic table) — a single-row
     // upsert stub is all this tracer needs; per-row de-dup is irrelevant
     // here since content_sha256 already short-circuits at the file level.
+    // quick-261005-fd9: the writer awaits .upsert(...) directly and reads
+    // `count` — it no longer chains .select("id").
     return {
-      upsert: (rows: Record<string, unknown>[]) => ({
-        select: async () => ({ data: rows.map((_, i) => ({ id: i + 1 })), error: null }),
+      upsert: async (rows: Record<string, unknown>[]) => ({
+        count: rows.length,
+        error: null,
       }),
     };
   };

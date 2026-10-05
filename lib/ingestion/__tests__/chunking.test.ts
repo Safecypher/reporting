@@ -80,11 +80,16 @@ function makeFake(opts: { failOnBatch?: number } = {}) {
 
   const from = vi.fn((table: string) => {
     if (table === "ingested_files") {
+      // findFileByHash chains two .eq() calls (hash AND status='done'), and
+      // recordFile upserts on content_sha256 — see quick-261005-kz3.
+      const chainable: Record<string, unknown> = {};
+      chainable.eq = () => ({
+        ...chainable,
+        maybeSingle: () => Promise.resolve({ data: null, error: null }),
+      });
       return {
-        select: () => ({
-          eq: () => ({ maybeSingle: () => Promise.resolve({ data: null, error: null }) }),
-        }),
-        insert: () => ({
+        select: () => chainable,
+        upsert: () => ({
           select: () => ({
             single: () => Promise.resolve({ data: { id: "file-1" }, error: null }),
           }),
