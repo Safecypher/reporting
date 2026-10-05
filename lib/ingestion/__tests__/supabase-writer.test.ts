@@ -24,6 +24,7 @@ function makeFakeSupabase(overrides: {
   const uploadMock = vi.fn().mockResolvedValue({ data: { path: "some/path" }, error: null });
   const updateEqMock = vi.fn().mockResolvedValue({ error: null });
   const genericUpsertMock = vi.fn();
+  const verificationUpsertMock = vi.fn();
   // Task 3 (09-01): capture the object handed to `.insert(...)` on
   // ingested_files, one payload per call, so provenance assertions can
   // inspect the exact fields the writer built — without disturbing the
@@ -53,9 +54,17 @@ function makeFakeSupabase(overrides: {
     }
     if (table === "verifications") {
       return {
-        upsert: () => ({
-          select: () => Promise.resolve({ data: insertedVerificationIds, error: null }),
-        }),
+        // quick-261005-fd9: the writer now awaits `.upsert(...)` directly and
+        // reads `count`, instead of chaining `.select("id")` and taking
+        // `data.length` — returning one id per inserted row was tens of
+        // thousands of ids for a single number at report scale.
+        upsert: (...args: unknown[]) => {
+          verificationUpsertMock(...args);
+          return Promise.resolve({
+            count: insertedVerificationIds.length,
+            error: null,
+          });
+        },
       };
     }
     // Any other table name is a Wave 2 report table hitting the generic
@@ -64,9 +73,7 @@ function makeFakeSupabase(overrides: {
     return {
       upsert: (...args: unknown[]) => {
         genericUpsertMock(table, ...args);
-        return {
-          select: () => Promise.resolve({ data: insertedGenericIds, error: null }),
-        };
+        return Promise.resolve({ count: insertedGenericIds.length, error: null });
       },
     };
   });
@@ -83,6 +90,7 @@ function makeFakeSupabase(overrides: {
     updateEqMock,
     uploadMock,
     genericUpsertMock,
+    verificationUpsertMock,
     ingestedFilesInsertPayloads,
   } as const;
 }
@@ -199,7 +207,7 @@ describe("createSupabaseWriter", () => {
     expect(fake.genericUpsertMock).toHaveBeenCalledWith(
       "dcvv_fetches",
       expect.any(Array),
-      { onConflict: "row_hash", ignoreDuplicates: true }
+      { onConflict: "row_hash", ignoreDuplicates: true, count: "exact" }
     );
   });
 

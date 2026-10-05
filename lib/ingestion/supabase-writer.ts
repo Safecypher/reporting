@@ -5,6 +5,39 @@ import type { IngestDeps, NormalisedVerificationRow, RejectedRow, ReportType } f
 /** Private Storage bucket created in the 01-03 migrations (public = false). */
 const REPORTS_BUCKET = "reports";
 
+/**
+ * Rows per PostgREST request when writing report rows (quick-261005-fd9).
+ *
+ * Both upserts below used to send EVERY row in a single request and then call
+ * `.select("id")`, which returned one id per inserted row purely so the
+ * return value could be `data.length`. Measured 2026-10-05, three TSYS
+ * "Safecypher Stats" files produced 43,383 / 45,367 / 53,876 rows each —
+ * against an `apigee_calls` table holding 28,998 rows in total, so one upload
+ * was ~1.6x the whole table in one request, with ~45,000 ids streamed back.
+ * `/api/ingest` answered 504 and the upload failed.
+ *
+ * 1000 keeps each request small enough to complete well inside the function
+ * budget while keeping the round-trip count modest (~45 for a file that size).
+ */
+export const UPSERT_CHUNK_SIZE = 1000;
+
+/**
+ * Splits rows into fixed-size batches. Exported for its tests: the boundary
+ * behaviour (exactly one chunk-size, one over, and empty) is what guarantees
+ * no row is dropped or sent twice, and that is not something to leave
+ * un-pinned on the path that writes financial data.
+ */
+export function chunkRows<T>(rows: T[], size: number = UPSERT_CHUNK_SIZE): T[][] {
+  if (size < 1) {
+    throw new Error(`chunkRows: size must be >= 1, received ${size}`);
+  }
+  const chunks: T[][] = [];
+  for (let i = 0; i < rows.length; i += size) {
+    chunks.push(rows.slice(i, i + size));
+  }
+  return chunks;
+}
+
 export function buildSecretClient(): SupabaseClient<Database> {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
   const secretKey = process.env.SUPABASE_SECRET_KEY;
@@ -166,24 +199,42 @@ export function createSupabaseWriter(
         throw new Error("upsertVerifications called before recordFile — no source_file_id available");
       }
 
-      const { data, error } = await supabase
-        .from("verifications")
-        .upsert(
-          rows.map((row) => ({
-            created_at: row.created_at,
-            raw_created_at: row.raw_created_at,
-            external_card_reference: row.external_card_reference,
-            cvi2_value: row.cvi2_value,
-            duration_ms: row.duration_ms,
-            authenticated: row.authenticated,
-            source_file_id: currentFileId as string,
-          })),
-          { onConflict: "row_hash", ignoreDuplicates: true }
-        )
-        .select("id");
+      // Chunked, and counted via `count: "exact"` rather than `.select("id")`
+      // (quick-261005-fd9). The old form returned one id per inserted row only
+      // to take its `.length`; at report scale that is tens of thousands of
+      // ids over the wire for a single number. `count` gives the same number —
+      // rows actually written, with `ignoreDuplicates` meaning duplicates are
+      // not counted — without the payload.
+      const payload = rows.map((row) => ({
+        created_at: row.created_at,
+        raw_created_at: row.raw_created_at,
+        external_card_reference: row.external_card_reference,
+        cvi2_value: row.cvi2_value,
+        duration_ms: row.duration_ms,
+        authenticated: row.authenticated,
+        source_file_id: currentFileId as string,
+      }));
 
-      if (error) throw error;
-      return data?.length ?? 0;
+      let written = 0;
+      for (const batch of chunkRows(payload)) {
+        const { count, error } = await supabase
+          .from("verifications")
+          .upsert(batch, {
+            onConflict: "row_hash",
+            ignoreDuplicates: true,
+            count: "exact",
+          });
+
+        // Throw on the failing batch rather than carrying on. Earlier batches
+        // stay written, which is safe precisely because the DB `row_hash`
+        // UNIQUE constraint makes a re-upload idempotent — the same reasoning
+        // that already justifies `upsert: true` on the Storage write. What
+        // must never happen is returning a count as though the whole file
+        // landed when part of it did not.
+        if (error) throw error;
+        written += count ?? 0;
+      }
+      return written;
     },
 
     /**
@@ -211,16 +262,30 @@ export function createSupabaseWriter(
       // GENERATED hash column remains the real, type-checked guarantee.
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const untypedSupabase = supabase as any;
-      const { data, error } = await untypedSupabase
-        .from(table)
-        .upsert(
-          rows.map((row) => ({ ...row, source_file_id: currentFileId as string })),
-          { onConflict: opts.onConflict, ignoreDuplicates: opts.ignoreDuplicates }
-        )
-        .select("id");
 
-      if (error) throw error;
-      return data?.length ?? 0;
+      // Chunked and counted without round-tripping ids — see the note on
+      // UPSERT_CHUNK_SIZE. This is the path every Wave 2 report takes,
+      // including apigee_calls, which is the one that actually broke.
+      // The push/drain route shares this writer, so it is fixed here too.
+      const payload = rows.map((row) => ({
+        ...row,
+        source_file_id: currentFileId as string,
+      }));
+
+      let written = 0;
+      for (const batch of chunkRows(payload)) {
+        const { count, error } = await untypedSupabase
+          .from(table)
+          .upsert(batch, {
+            onConflict: opts.onConflict,
+            ignoreDuplicates: opts.ignoreDuplicates,
+            count: "exact",
+          });
+
+        if (error) throw error;
+        written += count ?? 0;
+      }
+      return written;
     },
 
     async finalizeFile(

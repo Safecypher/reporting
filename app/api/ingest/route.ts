@@ -6,6 +6,17 @@ import { createSupabaseWriter } from "@/lib/ingestion/supabase-writer";
 // PapaParse + node:crypto (sha256) require the Node runtime, not Edge.
 export const runtime = "nodejs";
 
+/**
+ * quick-261005-fd9: this route had no maxDuration, so it ran on the platform
+ * default while the drain route already declared 60. Three TSYS "Safecypher
+ * Stats" files (43,383 / 45,367 / 53,876 rows each) answered 504 here on
+ * 2026-10-05. The real fix is the chunked upsert in lib/ingestion/
+ * supabase-writer.ts — a bigger budget alone would not have helped, since the
+ * write was one request with ~45,000 ids coming back. This matches the budget
+ * to the drain route so the manual path is not the stricter of the two.
+ */
+export const maxDuration = 60;
+
 /** A few MB is more than any daily report batch needs (T-05-01). */
 const MAX_FILE_SIZE_BYTES = 5 * 1024 * 1024;
 
