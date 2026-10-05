@@ -67,13 +67,14 @@
     {
       "number": "13",
       "name": "Async Ingestion — Return 202 and Process in the Background",
-      "status": "pending"
+      "status": "planned",
+      "note": "7 plans across 5 waves, plan-checker APPROVED 2026-10-05. Requirements INGEST-06..INGEST-11. Carries a live decision checkpoint in 13-05 on the measured Netlify ceiling (13-01); a BACKGROUND FUNCTIONS answer halts 13-05 and returns the phase for replanning."
     }
   ],
   "next": {
-    "command": "/gsd-plan-phase 13",
-    "label": "Plan Phase 13 — Async Ingestion",
-    "reason": "Phase 13 added 2026-10-05 from the async-ingestion todo; decisions resolved, not yet planned"
+    "command": "/gsd-execute-phase 13",
+    "label": "Execute Phase 13 — Async Ingestion",
+    "reason": "7 plans written and approved by the plan-checker; wave 1 measures the Netlify ceiling first"
   },
   "updated_at": "2026-10-05T15:51:05.410Z"
 }

@@ -800,10 +800,19 @@ is an internal architecture change only.
 | A2 | A new `processing_started_at` lease column (rather than a fourth `status` value) is the lower-risk schema change, based on reading `v_source_freshness` and `resolveSourceFreshness`'s actual match conditions this session. | Pattern 3 | Low — both code paths were read directly and confirmed to tolerate an unmatched status value; risk is limited to an unforeseen third reader of `ingested_files.status` not found by this session's grep. |
 | A3 | Unbounded concurrent phase-2 processing (once the upload loop's accidental pacing disappears) is acceptable at this project's stated ~6-files/day volume. | Pitfall 3 | Low at current volume; would need revisiting if push-path volume grows materially. |
 
-## Open Questions
+## Open Questions (RESOLVED)
 
-1. **Does the per-source freshness strip need its own "stuck pending" precedence
-   rule, or is the Slack alert (Pattern 5) the complete D-03 commitment?**
+Both questions below were settled before planning completed. Retained with their
+original reasoning for traceability; neither is open for execution.
+
+1. **RESOLVED (2026-10-05, user): both surfaces are required.** Does the
+   per-source freshness strip need its own "stuck pending" precedence rule, or is
+   the Slack alert (Pattern 5) the complete D-03 commitment?
+   - **Resolution:** the user chose the broader scope — a visible signal on
+     `/uploads` *in addition to* the Slack group, because the plain `Pending`
+     badge cannot distinguish "processing now" from "stuck for three days" and
+     someone reviewing days later has no Slack history to hand. See CONTEXT.md
+     D-03; built in plan 13-03.
    - What we know: CONTEXT.md D-03 commits only to the drain-sweep alert, mirroring
      `inboxStuck`. `resolveSourceFreshness` does not special-case a stuck `pending`
      row today and this research does not recommend changing it.
@@ -813,7 +822,14 @@ is an internal architecture change only.
    - Recommendation: confirm with the user during planning/discuss that the Slack
      alert alone satisfies D-03, or scope a follow-up.
 
-2. **What sweep-staleness threshold and lease-reclaim interval should the plan pick?**
+2. **RESOLVED (planner, plan 13-01): concrete constants chosen.** What
+   sweep-staleness threshold and lease-reclaim interval should the plan pick?
+   - **Resolution:** `PROCESSING_LEASE_SECONDS = 180`, `SWEEPABLE_AFTER_MINUTES = 10`,
+     `STUCK_PENDING_AFTER_HOURS = 6`, `MAX_PROCESSING_ATTEMPTS = 10`, all exported
+     from `lib/ingestion/pending-state.ts` with a SQL↔TS equality gate and a test
+     asserting lease < sweepable < stuck. The 180s lease sits well above the
+     measured ~38s worst case; the 6h stuck threshold is deliberately generous so a
+     file still converging across chained sub-26s attempts cannot false-alarm.
    - What we know: `fn_try_acquire_drain_lock`'s precedent uses 10 minutes for a
      once-daily job-level mutex; this phase's per-file lease is a different kind of
      thing (bounding a single file's processing attempt, not a whole job run) and the
