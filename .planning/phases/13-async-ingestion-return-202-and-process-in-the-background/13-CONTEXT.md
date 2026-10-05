@@ -50,6 +50,8 @@ and bounded; the processing gets its own budget and nobody watches a spinner.
 
 ### D-01: Processing is triggered by the client AND by a drain sweep
 
+- **D-01:** Background processing is triggered **both** by a client fire-and-forget request after the 202 **and** by a sweep of stale `pending` rows in the existing daily drain — both, not either. The two can race, so processing must be idempotent and concurrency-safe.
+
 Both, not either. Decided with the user 2026-10-05.
 
 - The browser fires a **non-blocking** request to the processing path straight
@@ -79,6 +81,8 @@ if `finalizeFile` is also made safe against two writers.
 
 ### D-02: Manual upload does not converge on the inbox bucket
 
+- **D-02:** Manual upload does **not** converge on the push path's `inbox` bucket this phase; it keeps its own storage path and processor, both still sharing `lib/ingestion`.
+
 Manual upload keeps its own storage path and its own processor. Both continue to
 share `lib/ingestion`'s `ingest()` internals. The push/drain path is not
 restructured — the only change it absorbs is the added sweep.
@@ -90,6 +94,8 @@ explicitly requires to keep working unchanged, in the same change that is
 already altering the manual path's contract. Two risky things at once.
 
 ### D-03: A `pending` row that never completes must be surfaced
+
+- **D-03:** A `pending` row that never completes must be surfaced on **two** surfaces: a `stuckPending` group in the existing grouped drain Slack alert, and a visible signal on `/uploads` distinguishing "processing now" from "stuck for days". No second cron job.
 
 This phase *creates* a new failure mode — `pending` becomes a normal
 intermediate state rather than a rare crash artefact — so it must also make a
@@ -111,6 +117,8 @@ the researcher's open question in favour of the broader scope):
 — **Reversibility:** reversible.
 
 ### D-05: Design for a 26s ceiling; measure it; background functions stay reopenable
+
+- **D-05:** Plan for a **26s** ceiling — assume the worst, so processing converges across multiple attempts rather than needing one clean ~38s run. Measure the real ceiling on the deployed site, and if 26s is confirmed, bring the Netlify background-function option back as a live decision.
 
 Decided with the user 2026-10-05, after the ceiling was investigated.
 
@@ -148,6 +156,8 @@ This is why the measurement is worth taking early.
 
 ### D-06: Edge runtime is ruled out, for two independent reasons
 
+- **D-06:** The **edge runtime is ruled out**: routes are pinned to `nodejs` because ExcelJS needs Node APIs, and edge allows 50ms CPU per request against a measured 240–370ms for one parse.
+
 Not available even as a fallback:
 
 1. Every route declares `export const runtime = "nodejs"`, pinned because
@@ -160,6 +170,8 @@ Not available even as a fallback:
 The edge response-header deadline of 40s is irrelevant given the above.
 
 ### D-04: Why not just tune the chunk size
+
+- **D-04:** **Chunk-size tuning is rejected** as the fix — it is a treadmill as volume grows, and the 2026-10-05 evidence shows the timeout does not track row count.
 
 Rejected as the primary fix, by the user, with reasons worth not re-litigating:
 

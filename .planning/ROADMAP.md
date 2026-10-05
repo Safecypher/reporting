@@ -213,10 +213,17 @@ with the push/drain path, which must keep working unchanged)
 
 **Decisions already taken** (2026-10-05, with the user — do not re-litigate):
 
-  - Phase-2 trigger is **client fire-and-forget plus a drain sweep**, not a
-    Netlify background function and not drain-only.
+  - Phase-2 trigger is **client fire-and-forget plus a drain sweep**, not
+    drain-only.
   - Manual upload does **not** converge on the push path's inbox bucket in this
     phase; that is recorded as a separate follow-up.
+  - **Reopenable, deliberately:** the Netlify background-function option was
+    rejected before the execution ceiling was investigated. Netlify's current
+    docs state a 60s synchronous limit while this project measured a ~26s cut
+    and 2026 forum traffic still describes a 26s maximum. The phase therefore
+    plans for 26s, measures the real ceiling first (plan 13-01), and if 26s is
+    confirmed brings background functions back as a live decision at plan
+    13-05's `checkpoint:decision` — see 13-CONTEXT.md D-05.
 
 **Plans**: 7 plans across 5 waves
 
