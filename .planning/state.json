@@ -67,14 +67,14 @@
     {
       "number": "13",
       "name": "Async Ingestion — Return 202 and Process in the Background",
-      "status": "planned",
-      "note": "7 plans across 5 waves, plan-checker APPROVED 2026-10-05. Requirements INGEST-06..INGEST-11. Carries a live decision checkpoint in 13-05 on the measured Netlify ceiling (13-01); a BACKGROUND FUNCTIONS answer halts 13-05 and returns the phase for replanning."
+      "status": "in_progress",
+      "note": "Wave 1 (13-01) complete and verified live: migration 0048 applied, claim contention proven first=1/second=0, ceiling MEASURED at ~30s. That falsified 13-05's single-attempt branch, and the user chose Netlify background functions (D-07). 13-05's checkpoint halted execution by design. 13-02/04/05/06/07 need replanning around the new entry point; 13-03 unaffected."
     }
   ],
   "next": {
-    "command": "/gsd-execute-phase 13",
-    "label": "Execute Phase 13 — Async Ingestion",
-    "reason": "7 plans written and approved by the plan-checker; wave 1 measures the Netlify ceiling first"
+    "command": "/gsd-plan-phase 13 --force",
+    "label": "Replan Phase 13 around background functions",
+    "reason": "D-07 changed the processing entry point; 13-05's halt condition returned the phase for replanning"
   },
   "updated_at": "2026-10-05T15:51:05.410Z"
 }

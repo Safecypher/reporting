@@ -154,6 +154,50 @@ materially more complex than a single-attempt one; building it and then
 discovering a 60s ceiling means carrying complexity that was never needed.
 This is why the measurement is worth taking early.
 
+### D-07: The ceiling is ~30s, measured. Processing moves to a Netlify background function.
+
+- **D-07:** The synchronous ceiling on this site is **~30 seconds, measured** — not the
+  60s the current Netlify docs state, and not the 26s the Pro forum traffic describes.
+  `maxDuration = 60` is not honoured. Against a ~38s worst-case file this falsifies the
+  single-attempt design, and the user chose **Netlify background functions** (15-minute
+  ceiling) over chained attempts. Supersedes D-01's rejection of background functions,
+  which was made before this evidence existed.
+
+**The measurement** (2026-10-06, deployed commit `7bc6414`, recorded in full in
+13-01-SUMMARY.md):
+
+| Rung (s) | Result |
+|---|---|
+| 10, 20, 26, 30 | returned a body (30 at 30,169ms, 76 real round-trips) |
+| 40, 40 retest, 50 | 504 at ~30.3s every time |
+
+The 504 body is an `Inactivity Timeout` page shaped like a proxy appliance, not a
+Netlify error, so the cut could have been the client's network. It is not: against a
+verified-zero idle baseline, the function's own Supabase round-trips stop at **32s**
+and never resume. Work stops server-side whether or not anyone reads the response.
+
+**Why background functions rather than chained attempts.** A 15-minute ceiling is 30×
+the measured limit, and Netlify background functions natively answer 202 immediately
+and continue asynchronously — the exact shape this phase wants, rather than a shape
+bolted onto a synchronous route. `lib/ingestion` is framework-agnostic by explicit
+design (INGEST-03), so the same code runs unchanged. It also removes the
+chained-attempt audit subtlety entirely: no chunk can migrate from `accepted` to
+`duplicate` across attempts, because there is only ever one attempt.
+
+**What it costs, stated plainly.** A Next App Router Route Handler cannot be a
+background function, so the processing entry point becomes a Netlify-specific function
+outside the App Router, and local development needs `netlify dev` to exercise it. That
+is a real platform coupling, accepted knowingly.
+
+— **Reversibility:** costly. The invocation convention is platform-specific; moving off
+Netlify would mean rebuilding the trigger (though not the ingestion logic, which stays
+framework-agnostic).
+
+**Consequence for the plans:** 13-05's decision checkpoint halted execution by design
+rather than improvising. 13-02, 13-04, 13-05, 13-06 and 13-07 need replanning around
+the new entry point. 13-01 is complete and unaffected. 13-03 (`/uploads` badge) reads
+`lib/ingestion/pending-state.ts`, which is already landed, and is unaffected.
+
 ### D-06: Edge runtime is ruled out, for two independent reasons
 
 - **D-06:** The **edge runtime is ruled out**: routes are pinned to `nodejs` because ExcelJS needs Node APIs, and edge allows 50ms CPU per request against a measured 240–370ms for one parse.
