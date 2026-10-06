@@ -198,6 +198,74 @@ rather than improvising. 13-02, 13-04, 13-05, 13-06 and 13-07 need replanning ar
 the new entry point. 13-01 is complete and unaffected. 13-03 (`/uploads` badge) reads
 `lib/ingestion/pending-state.ts`, which is already landed, and is unaffected.
 
+### D-08: The immediate trigger is fired server-side by `/api/ingest`, not by the browser
+
+- **D-08:** `/api/ingest` invokes the background function itself, server-side, authenticated
+  with a shared secret mirroring the existing `DRAIN_CRON_SECRET` idiom. The browser does
+  not call the background function.
+
+**Why this reinterprets D-01.** D-01's wording was "the client fires a non-blocking request".
+A bare Netlify function sits outside Next's routing tree and does not parse the
+`@supabase/ssr` auth cookie, so a browser-originated call cannot be authenticated the way a
+Route Handler call is — the alternative was minting a short-lived token just for this hop.
+
+Firing server-side serves D-01's *intent* (processing starts immediately, nobody watches a
+spinner) strictly better than its letter: it removes the closed-tab failure mode entirely,
+since the trigger no longer depends on the browser surviving past the 202.
+
+The drain sweep remains the second trigger exactly as D-01 requires. Two triggers, still.
+
+— **Reversibility:** reversible.
+
+### D-09: The existing drain loop converges on the background function too
+
+- **D-09:** `drainInbox`'s per-file `ingestOne` stops calling `ingest()` in-process and fires
+  the background function instead, the same way `/api/ingest` does. Decided with the user
+  2026-10-06 after the measurement exposed the exposure.
+
+**The problem this fixes, which predates this phase.** `app/api/ingest/drain/route.ts:127`
+calls `ingest()` in-process, and `lib/push/drain.ts:58-64` loops over every prefix and every
+object doing so sequentially in one request. Against the measured ~30s ceiling, a drain run
+carrying several files — or one large one — is cut mid-loop. The automated push path has the
+same disease as manual upload; it was simply invisible because nobody watches a spinner for it.
+
+**Scope note.** This is *trigger* convergence, not *storage* convergence. D-02 still stands:
+manual upload does NOT move to the `inbox` bucket. Both paths keep their own storage and
+their own entry points, and now share one asynchronous processor.
+
+**Stated concern, overruled by the user and proceeding at their direction.** This widens a
+phase that has already replanned once, and touches the push/drain code the source todo asked
+to keep working unchanged. The user's call: a live production risk is worth fixing now rather
+than carrying. The regression fence in the final plan matters more than ever because of it.
+
+— **Reversibility:** reversible per call site.
+
+### D-10: The live lease constants are wrong for a 15-minute ceiling and must be corrected
+
+- **D-10:** `PROCESSING_LEASE_SECONDS = 180`, `SWEEPABLE_AFTER_MINUTES = 10` and
+  `MAX_PROCESSING_ATTEMPTS = 10` were sized against a ~38s single-attempt world and are a
+  live correctness bug against a 900s background ceiling. The planner picks corrected values
+  and gates their ordering with a test.
+
+**The bug concretely.** A background function may legitimately run up to 15 minutes. With a
+180s lease, `fn_try_claim_ingested_file` will hand a second claim to another caller at the
+181st second while the first is still writing — two concurrent writers, which is precisely
+what the claim exists to prevent. The 10-minute sweepable age has the same shape: the sweep
+would retry a file that is still legitimately processing.
+
+**Required of the plan:** corrected values (research proposes ~1200s lease and max attempts
+down to 3-5 as starting points, not assertions), a follow-up migration changing
+`fn_try_claim_ingested_file`'s SQL default in lockstep with the TypeScript constant — the
+pair is already grep-gated equal and must stay so — and a test asserting
+`lease < sweepable < stuck` AND that the sweepable age exceeds the background-function
+ceiling, so no sweep can ever reclaim a file that is still running.
+
+Note the constants are already live: migration 0048 is applied and `pending-state.ts` shipped
+in 13-01. This is a correction to shipped work, not a greenfield choice.
+
+— **Reversibility:** reversible, but it is a live-schema change, so it needs the same
+catalog verification 0048 got.
+
 ### D-06: Edge runtime is ruled out, for two independent reasons
 
 - **D-06:** The **edge runtime is ruled out**: routes are pinned to `nodejs` because ExcelJS needs Node APIs, and edge allows 50ms CPU per request against a measured 240–370ms for one parse.
