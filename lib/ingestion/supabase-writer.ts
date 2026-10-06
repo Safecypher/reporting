@@ -1,6 +1,11 @@
 import { createClient as createSupabaseClient, type SupabaseClient } from "@supabase/supabase-js";
 import type { Database } from "@/types/db";
 import type { IngestDeps, NormalisedVerificationRow, RejectedRow, ReportType } from "./types";
+import { PROCESSING_LEASE_SECONDS } from "./pending-state";
+// Relative import, NEVER the "@/" alias (lib/ingestion must stay importable
+// by the Netlify background function's bundler, which resolves neither
+// Next.js module specifiers nor this project's tsconfig path alias — 13-05).
+import { pushRpc, pushTable } from "../push/tables";
 
 /** Private Storage bucket created in the 01-03 migrations (public = false). */
 const REPORTS_BUCKET = "reports";
@@ -98,6 +103,16 @@ export interface WriterProvenanceOptions {
   source?: "manual" | "push" | "email";
   sourceRef?: string;
   sourceCredentialId?: string;
+  /**
+   * Pre-seeds the writer's closure file-id variable from an EXISTING
+   * `ingested_files` row id, so the row-writing methods work in a process
+   * that never called `recordFile` — exactly and only the background
+   * function (13-05) resuming a file `claimForProcessing` already claimed.
+   * A writer constructed with this option never calls `recordFile` and
+   * never uploads to Storage; its `finalizeFile` is CONDITIONAL (see
+   * below). Omitted, the writer behaves byte-identically to today.
+   */
+  resumeFileId?: string;
 }
 
 /**
@@ -114,13 +129,19 @@ export interface WriterProvenanceOptions {
  * constructed per file (no cross-request AND no cross-file sharing — the
  * drain loop must construct one per object, never reuse one across a
  * batch, per 09-RESEARCH.md Pitfall 4).
+ *
+ * `recordFile` still sets the closure id when it runs, exactly as above —
+ * `options.resumeFileId` only matters when `recordFile` is never called in
+ * this writer's lifetime, which is exactly and only the background function
+ * in 13-05 resuming a file a prior request already recorded and claimed.
  */
 export function createSupabaseWriter(
   client?: SupabaseClient<Database>,
   options?: WriterProvenanceOptions
 ): IngestDeps {
   const supabase = client ?? buildSecretClient();
-  let currentFileId: string | null = null;
+  const resumeFileId = options?.resumeFileId ?? null;
+  let currentFileId: string | null = resumeFileId;
   const source = options?.source ?? "manual";
   const sourceRef = options?.sourceRef ?? null;
   const sourceCredentialId = options?.sourceCredentialId ?? null;
@@ -337,11 +358,131 @@ export function createSupabaseWriter(
 
       let lastError: unknown = null;
       for (let attempt = 0; attempt < 3; attempt++) {
-        const { error } = await supabase.from("ingested_files").update(update).eq("id", id);
+        let query = supabase.from("ingested_files").update(update).eq("id", id);
+        if (resumeFileId !== null) {
+          // T-13-35: a resumed writer's finalize is CONDITIONAL on the row
+          // still being pending. A processing attempt whose lease has
+          // expired could in principle still be alive; an unconditional
+          // finalize from such a stale attempt would overwrite the audit
+          // counts a later successful attempt already wrote. Filtering on
+          // pending makes the stale finalize a no-op instead. The
+          // push/drain writer never passes a resume id, so its finalize
+          // keeps today's unconditional form, unchanged.
+          query = query.eq("status", "pending");
+        }
+        const { error } = await query;
         if (!error) return;
         lastError = error;
       }
       throw lastError;
+    },
+  };
+}
+
+/**
+ * Discriminated result of a claim attempt (`fn_try_claim_ingested_file`,
+ * migration 0048/0049). `claimed: false` is an ordinary outcome — losing a
+ * claim to a concurrent caller or a row that is no longer `pending` — not an
+ * exception. A claim function returning an error (a broken database) throws
+ * instead, so that is never mistaken for a lost claim.
+ */
+export type ClaimForProcessingResult = { claimed: true; attempts: number } | { claimed: false };
+
+/**
+ * The fields `processClaimedFile`/`runPendingFile` (13-05) need to resume a
+ * file: enough to re-dispatch to the right handler and fetch its bytes back,
+ * plus the attempt count for the stuck-pending surfaces (13-04/13-06).
+ */
+export interface PendingFileRow {
+  fileName: string;
+  reportType: ReportType | null;
+  storagePath: string | null;
+  status: string;
+  uploadedAt: string;
+  processingAttempts: number;
+}
+
+/**
+ * The capabilities the processing path needs that `ingest()` must never
+ * have: claim, load, download and release. Deliberately NOT part of
+ * `IngestDeps` — see `createPendingFileAccess`'s own doc comment below.
+ */
+export interface PendingFileAccess {
+  claimForProcessing(id: string): Promise<ClaimForProcessingResult>;
+  loadPendingFile(id: string): Promise<PendingFileRow | null>;
+  downloadStoredBytes(path: string): Promise<Uint8Array>;
+  releaseClaim(id: string): Promise<void>;
+}
+
+/**
+ * A sibling factory to `createSupabaseWriter` in this same module, built
+ * for the same reason: shared client construction and the same documented
+ * untyped-accessor discipline, with none of `createSupabaseWriter`'s
+ * provenance/writer concerns. Kept OFF `IngestDeps` deliberately —
+ * `IngestDeps` is the contract `ingest()` is pure over and every handler's
+ * `upsert` receives; widening it would force every existing fake in the
+ * ingestion test suite to grow four methods it has no use for, and would
+ * hand the parsing layer a claim primitive it has no business holding.
+ *
+ * Routes the two RPC functions migration 0048/0049 created through
+ * `pushRpc` — the same documented untyped-RPC escape hatch the drain lock
+ * already uses (`fn_try_acquire_drain_lock`/`fn_release_drain_lock`), for
+ * the same reason: the generated database types will not know these
+ * signatures until they are regenerated (retired once `types/db.ts` is
+ * regenerated against the live schema). `loadPendingFile`'s select is
+ * routed through `pushTable` for the same reason — `processing_attempts`
+ * is not yet in the generated `Database` types either.
+ */
+export function createPendingFileAccess(client?: SupabaseClient<Database>): PendingFileAccess {
+  const supabase = client ?? buildSecretClient();
+
+  return {
+    async claimForProcessing(id: string): Promise<ClaimForProcessingResult> {
+      // The lease window is passed explicitly rather than relying on the
+      // SQL default: the default exists so the function is usable from a
+      // psql session, but the application should be unambiguous about
+      // which window it is asking for — read from the imported constant,
+      // never a literal, since 13-02 already moved this number once.
+      const { data, error } = await pushRpc(supabase, "fn_try_claim_ingested_file", {
+        p_id: id,
+        p_lease_seconds: PROCESSING_LEASE_SECONDS,
+      });
+      if (error) throw error;
+      const rows = (data ?? []) as { claimed_id: string; attempts: number }[];
+      if (rows.length === 0) return { claimed: false };
+      return { claimed: true, attempts: rows[0].attempts };
+    },
+
+    async loadPendingFile(id: string): Promise<PendingFileRow | null> {
+      const { data, error } = await pushTable(supabase, "ingested_files")
+        .select("file_name, report_type, storage_path, status, uploaded_at, processing_attempts")
+        .eq("id", id)
+        .maybeSingle();
+      if (error) throw error;
+      if (!data) return null;
+      return {
+        fileName: data.file_name as string,
+        reportType: (data.report_type as ReportType | null) ?? null,
+        storagePath: (data.storage_path as string | null) ?? null,
+        status: data.status as string,
+        uploadedAt: data.uploaded_at as string,
+        processingAttempts: data.processing_attempts as number,
+      };
+    },
+
+    async downloadStoredBytes(path: string): Promise<Uint8Array> {
+      const { data, error } = await supabase.storage.from(REPORTS_BUCKET).download(path);
+      if (error) throw error;
+      return new Uint8Array(await data.arrayBuffer());
+    },
+
+    async releaseClaim(id: string): Promise<void> {
+      // Calls the already-proven-live SQL function (13-02 Task 3) rather
+      // than re-implementing its pending-status guard in TypeScript — the
+      // guard against disturbing an already-finalized row is the function
+      // body itself, not something this layer re-asserts.
+      const { error } = await pushRpc(supabase, "fn_release_ingested_file_claim", { p_id: id });
+      if (error) throw error;
     },
   };
 }

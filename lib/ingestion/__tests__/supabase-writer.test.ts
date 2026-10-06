@@ -531,6 +531,7 @@ describe("recordFile — reuses a stranded row rather than duplicating it", () =
 describe("createSupabaseWriter({ resumeFileId }) — a writer that can resume a file it did not record", () => {
   it("upsertVerifications succeeds with no prior recordFile call, stamping rows with the resumed id", async () => {
     const fake = makeFakeSupabase({ insertedVerificationIds: [{ id: 1 }] });
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const writer = createSupabaseWriter(fake as any, { resumeFileId: "resumed-file-1" });
 
     const inserted = await writer.upsertVerifications([sampleRow]);
@@ -544,6 +545,7 @@ describe("createSupabaseWriter({ resumeFileId }) — a writer that can resume a 
 
   it("upsertRows succeeds with no prior recordFile call, stamping rows with the resumed id", async () => {
     const fake = makeFakeSupabase({ insertedGenericIds: [{ id: 1 }] });
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const writer = createSupabaseWriter(fake as any, { resumeFileId: "resumed-file-2" });
 
     const inserted = await writer.upsertRows(
@@ -562,6 +564,7 @@ describe("createSupabaseWriter({ resumeFileId }) — a writer that can resume a 
 
   it("finalizeFile succeeds with no prior recordFile call, filtered on BOTH the id and a pending status", async () => {
     const fake = makeFakeSupabase();
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const writer = createSupabaseWriter(fake as any, { resumeFileId: "resumed-file-3" });
 
     await writer.finalizeFile("resumed-file-3", {
@@ -581,6 +584,7 @@ describe("createSupabaseWriter({ resumeFileId }) — a writer that can resume a 
 
   it("never calls recordFile and never uploads to Storage across a resumed writer's whole lifetime", async () => {
     const fake = makeFakeSupabase({ insertedVerificationIds: [{ id: 1 }], insertedGenericIds: [{ id: 1 }] });
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const writer = createSupabaseWriter(fake as any, { resumeFileId: "resumed-file-4" });
 
     await writer.upsertVerifications([sampleRow]);
@@ -599,6 +603,7 @@ describe("createSupabaseWriter({ resumeFileId }) — a writer that can resume a 
 
   it("chunking is unchanged for a resumed writer: 2,500 rows produce three batches of 1000, 1000 and 500", async () => {
     const fake = makeFakeSupabase({ insertedGenericIds: [{ id: 1 }] });
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const writer = createSupabaseWriter(fake as any, { resumeFileId: "resumed-file-5" });
     const rows = Array.from({ length: 2500 }, (_, i) => ({ n: i }));
 
@@ -615,6 +620,7 @@ describe("createSupabaseWriter({ resumeFileId }) — a writer that can resume a 
 describe("createSupabaseWriter() without resumeFileId — unchanged for the push/drain and manual paths", () => {
   it("upsertRows still throws the existing message when recordFile has not run", async () => {
     const fake = makeFakeSupabase();
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const writer = createSupabaseWriter(fake as any);
 
     await expect(
@@ -624,6 +630,7 @@ describe("createSupabaseWriter() without resumeFileId — unchanged for the push
 
   it("finalizeFile issues an update filtered on the id ALONE — byte-identical to today", async () => {
     const fake = makeFakeSupabase();
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const writer = createSupabaseWriter(fake as any);
 
     await writer.finalizeFile("file-1", {
@@ -651,6 +658,7 @@ describe("createPendingFileAccess", () => {
       error: null,
     });
     const fake = makeFakeSupabase({ rpcImpl });
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const access = createPendingFileAccess(fake as any);
 
     const result = await access.claimForProcessing("file-9");
@@ -665,6 +673,7 @@ describe("createPendingFileAccess", () => {
   it("reports not-claimed and no error when the claim function returns an empty array", async () => {
     const rpcImpl = vi.fn().mockResolvedValue({ data: [], error: null });
     const fake = makeFakeSupabase({ rpcImpl });
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const access = createPendingFileAccess(fake as any);
 
     const result = await access.claimForProcessing("file-10");
@@ -675,6 +684,7 @@ describe("createPendingFileAccess", () => {
   it("throws when the claim function returns an error — a broken database is never mistaken for a lost claim", async () => {
     const rpcImpl = vi.fn().mockResolvedValue({ data: null, error: new Error("db unreachable") });
     const fake = makeFakeSupabase({ rpcImpl });
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const access = createPendingFileAccess(fake as any);
 
     await expect(access.claimForProcessing("file-11")).rejects.toThrow("db unreachable");
@@ -691,6 +701,7 @@ describe("createPendingFileAccess", () => {
         processing_attempts: 1,
       },
     });
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const access = createPendingFileAccess(fake as any);
 
     const row = await access.loadPendingFile("file-12");
@@ -708,6 +719,7 @@ describe("createPendingFileAccess", () => {
 
   it("loadPendingFile returns null for a row that does not exist", async () => {
     const fake = makeFakeSupabase({ loadPendingFileResult: null });
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const access = createPendingFileAccess(fake as any);
 
     expect(await access.loadPendingFile("missing")).toBeNull();
@@ -718,6 +730,7 @@ describe("createPendingFileAccess", () => {
     const fake = makeFakeSupabase({
       downloadResult: { data: { arrayBuffer: async () => bytes.buffer as ArrayBuffer }, error: null },
     });
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const access = createPendingFileAccess(fake as any);
 
     const result = await access.downloadStoredBytes("deadbeef/file.csv");
@@ -731,6 +744,7 @@ describe("createPendingFileAccess", () => {
     const fake = makeFakeSupabase({
       downloadResult: { data: null, error: new Error("object not found") },
     });
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const access = createPendingFileAccess(fake as any);
 
     await expect(access.downloadStoredBytes("missing/file.csv")).rejects.toThrow("object not found");
@@ -739,6 +753,7 @@ describe("createPendingFileAccess", () => {
   it("releaseClaim invokes the release function with the id", async () => {
     const rpcImpl = vi.fn().mockResolvedValue({ data: null, error: null });
     const fake = makeFakeSupabase({ rpcImpl });
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const access = createPendingFileAccess(fake as any);
 
     await access.releaseClaim("file-13");
