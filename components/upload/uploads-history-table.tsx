@@ -18,6 +18,7 @@ import {
   FAILED_STATUS_LABEL,
   REJECTED_STATUS,
   formatCount,
+  formatPendingCaption,
   type CombinedHistoryRow,
 } from "@/lib/upload/history";
 
@@ -25,13 +26,36 @@ import {
 const COLUMN_COUNT = 8;
 
 /**
- * Local 4-state badge for the ingestion domain (done/failed/pending/
- * rejected) — deliberately NOT `components/dashboard/status-badge.tsx`,
- * which is typed to `ReconciliationStatus` (a different domain: ok/
- * needs_review/mismatch/no_source_data) and must not be widened to cover
- * ingestion states.
+ * Local badge for the ingestion domain (done/failed/pending-processing/
+ * pending-stuck/rejected) — deliberately NOT
+ * `components/dashboard/status-badge.tsx`, which is typed to
+ * `ReconciliationStatus` (a different domain: ok/needs_review/mismatch/
+ * no_source_data) and must not be widened to cover ingestion states.
+ *
+ * The done, failed and rejected branches are byte-identical to before this
+ * plan. The former single Pending fall-through is now two states, both
+ * derived from `pendingState` (plan 13-04, INGEST-10, D-03 surface 2) rather
+ * than guessed from `status` alone:
+ *
+ * - "processing": the same restrained, muted treatment the old Pending
+ *   badge had — a file being worked on is not a problem and must not read
+ *   as one.
+ * - "stuck": the existing destructive treatment the Failed branch already
+ *   uses — same visual weight as a parse failure, because a file stuck for
+ *   hours/days is a problem of the same order.
+ *
+ * A null or unrecognised `pendingState` (including any status this table
+ * does not otherwise name) renders the processing badge as the
+ * conservative default — never stuck. Manufacturing an alarm from missing
+ * information is worse than under-reporting one (T-13-41).
  */
-function StatusBadge({ status }: { status: string }) {
+function StatusBadge({
+  status,
+  pendingState,
+}: {
+  status: string;
+  pendingState: CombinedHistoryRow["pendingState"];
+}) {
   if (status === "done") {
     return (
       <Badge
@@ -59,9 +83,16 @@ function StatusBadge({ status }: { status: string }) {
       </Badge>
     );
   }
+  if (pendingState === "stuck") {
+    return (
+      <Badge variant="outline" className="border-destructive/30 bg-destructive/10 text-destructive">
+        Stuck
+      </Badge>
+    );
+  }
   return (
     <Badge variant="outline" className="text-muted-foreground">
-      Pending
+      Processing
     </Badge>
   );
 }
@@ -157,14 +188,27 @@ function SourceReferenceDetail({ sourceRef }: { sourceRef: string }) {
 }
 
 /**
- * Uploads-history table (D-15/D-16/D-17). Server-Component-fed — the caller
- * (`app/(dashboard)/uploads/page.tsx`) merges `ingested_files` and
+ * Uploads-history table (D-15/D-16/D-17, plan 13-04). Server-Component-fed —
+ * the caller (`app/(dashboard)/uploads/page.tsx`) merges `ingested_files` and
  * `push_rejections` via `mergeHistory` and passes the combined rows in;
  * this component fetches nothing. The empty state is gated on the combined
  * length: a morning where every delivery was refused and no real upload
  * exists must show those rejection rows, never "No uploads yet".
+ *
+ * `asOf` is the SAME evaluation instant the page passed into `mergeHistory`
+ * (as an ISO string, since a `Date` does not cross the Server/Client
+ * Component boundary) — parsed once here, not read from the clock, so this
+ * component never computes the current time itself. Every row's caption is
+ * resolved against that one instant.
  */
-export function UploadsHistoryTable({ rows }: { rows: CombinedHistoryRow[] }) {
+export function UploadsHistoryTable({
+  rows,
+  asOf,
+}: {
+  rows: CombinedHistoryRow[];
+  asOf: string;
+}) {
+  const asOfDate = new Date(asOf);
   // Independent per-row toggle state (D-17) — several rows may be expanded
   // at once; this is deliberately not single-open accordion behaviour.
   const [expandedIds, setExpandedIds] = useState<Set<string>>(new Set());
@@ -210,6 +254,7 @@ export function UploadsHistoryTable({ rows }: { rows: CombinedHistoryRow[] }) {
           const key = `${row.kind}-${row.id}`;
           const canExpand = row.sourceRef !== null;
           const expanded = canExpand && expandedIds.has(key);
+          const pendingCaption = formatPendingCaption(row, asOfDate);
 
           return (
             <Fragment key={key}>
@@ -241,7 +286,12 @@ export function UploadsHistoryTable({ rows }: { rows: CombinedHistoryRow[] }) {
                   })}
                 </TableCell>
                 <TableCell>
-                  <StatusBadge status={row.status} />
+                  <StatusBadge status={row.status} pendingState={row.pendingState} />
+                  {pendingCaption && (
+                    <p className="mt-1 text-xs font-light text-muted-foreground">
+                      {pendingCaption}
+                    </p>
+                  )}
                 </TableCell>
                 <CountCell count={row.accepted} />
                 <CountCell count={row.duplicate} />
