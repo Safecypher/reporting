@@ -68,13 +68,13 @@
       "number": "13",
       "name": "Async Ingestion — Return 202 and Process in the Background",
       "status": "in_progress",
-      "note": "Wave 1 (13-01) complete and verified live: migration 0048 applied, claim contention proven first=1/second=0, ceiling MEASURED at ~30s. That falsified 13-05's single-attempt branch, and the user chose Netlify background functions (D-07). 13-05's checkpoint halted execution by design. 13-02/04/05/06/07 need replanning around the new entry point; 13-03 unaffected."
+      "note": "Replanned 2026-10-06 around the Netlify background-function entry point (D-07..D-10) after 13-01's measurement put the synchronous ceiling at ~30s. 8 plans across 5 waves; 13-01 executed. 13-08 is the phase fence and the deployed proof that closes SC-1 — it was missing after the planner stalled and was caught by the plan-checker, not by the orchestrator's own verification."
     }
   ],
   "next": {
-    "command": "/gsd-plan-phase 13 --force",
-    "label": "Replan Phase 13 around background functions",
-    "reason": "D-07 changed the processing entry point; 13-05's halt condition returned the phase for replanning"
+    "command": "/gsd-execute-phase 13",
+    "label": "Execute Phase 13 from wave 2",
+    "reason": "13-01 done; 13-02..13-08 replanned around background functions and structurally valid"
   },
   "updated_at": "2026-10-05T15:51:05.410Z"
 }

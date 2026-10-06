@@ -108,13 +108,13 @@ Deferred to a later milestone. Tracked but not in this roadmap.
 | FY-02 | Phase 11 | Pending |
 | DOC-01 | Phase 11 | Pending |
 | DATA-08 | Phase 12 | Pending |
-| INGEST-06 | Phase 13 | Pending — plan 13-05 |
-| INGEST-07 | Phase 13 | Pending — plan 13-06; its real proof is the deployed large-file run, not the unit suite |
-| INGEST-08 | Phase 13 | Pending — plans 13-02, 13-03, 13-05, 13-07 |
-| INGEST-09 | Phase 13 | Pending — plan 13-07 |
-| INGEST-10 | Phase 13 | Pending — plan 13-04 |
-| INGEST-11 | Phase 13 | Pending — gated per plan (13-03, 13-07) |
-| INGEST-12 | Phase 13 | Pending — plan 13-07; added 2026-10-06 when the ceiling measurement exposed that the drain ingests in-process inside the same ~30s-capped request (D-09) |
+| INGEST-06 | Phase 13 | Pending — closes in plan 13-05; re-observed live at the 13-08 gate |
+| INGEST-07 | Phase 13 | Pending — built in 13-06, but CLOSES in plan 13-08: the deployed large-file run with a human watching is the only honest proof, not the unit suite |
+| INGEST-08 | Phase 13 | Pending — plans 13-02, 13-03, 13-05, 13-07; audit invariant re-observed live at the 13-08 gate |
+| INGEST-09 | Phase 13 | Pending — built in 13-07; a real Slack message reaching a real channel is proven at the 13-08 gate |
+| INGEST-10 | Phase 13 | Pending — built in 13-04; proven on the deployed site at the 13-08 gate, where one row is observed stuck on both surfaces |
+| INGEST-11 | Phase 13 | Pending — gated per plan (13-03, 13-07); the phase-wide handler blob fence and install-nothing gate are 13-08 Task 1 |
+| INGEST-12 | Phase 13 | Pending — plan 13-07 (added 2026-10-06 when the ceiling measurement exposed that the drain ingests in-process inside the same ~30s-capped request, D-09); a real push draining through the background function is proven at the 13-08 gate |
 
 **Coverage:**
 
