@@ -170,7 +170,7 @@ order or in parallel with 9–11 without blocking them.
 | 10. Freshness & Loud Absence | v1.1 | 6/6 | Needs Review | 2026-09-30 |
 | 11. Disclosure Fixes — FY Caption & Counterparty Rename | v1.1 | 0/TBD | Not started | - |
 | 12. Verification Timezone Confirmation | v1.1 | 0/TBD | Not started | - |
-| 13. Async Ingestion — Return 202 and Process in the Background | v1.1 | 0/TBD | Not started | - |
+| 13. Async Ingestion — Return 202 and Process in the Background | v1.1 | 2/8 | In Progress | - |
 
 | Milestone | Phases | Plans | Status |
 |-----------|--------|-------|--------|
@@ -226,11 +226,11 @@ with the push/drain path, which must keep working unchanged)
     13-05's `checkpoint:decision` — see 13-CONTEXT.md D-05.
 
 **Requirements**: INGEST-06 … INGEST-12 (INGEST-12 added 2026-10-06 — see D-09)
-**Plans**: 8 plans across 5 waves — replanned 2026-10-06 around the background-function
+**Plans**: 2/8 plans executed across 5 waves — replanned 2026-10-06 around the background-function
 entry point after the measured ~30s ceiling falsified the synchronous design (D-07).
 
   - [x] 13-01-PLAN.md — the lease column and the measured Netlify ceiling (wave 1) — **complete**
-  - [ ] 13-02-PLAN.md — resize the lease for a 15-minute world (wave 2)
+  - [x] 13-02-PLAN.md — resize the lease for a 15-minute world (wave 2)
   - [ ] 13-03-PLAN.md — the seam: a writer that resumes, and `ingest()` split in two (wave 2)
   - [ ] 13-04-PLAN.md — `/uploads` tells "processing now" from "stuck since Tuesday" (wave 2)
   - [ ] 13-05-PLAN.md — the background function, and a real deploy that proves it (wave 3)

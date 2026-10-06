@@ -51,8 +51,7 @@
     {
       "number": "10",
       "name": "Freshness & Loud Absence",
-      "status": "in_progress",
-      "note": "6/6 plans executed and verified at code level 2026-09-30; 10-VERIFICATION.md is human_needed with 3 outstanding human items (real Slack message, live cron reschedule via the app request path, seven-point visual walkthrough). Not 'complete' until those close."
+      "status": "pending"
     },
     {
       "number": "11",
@@ -67,14 +66,13 @@
     {
       "number": "13",
       "name": "Async Ingestion — Return 202 and Process in the Background",
-      "status": "in_progress",
-      "note": "Replanned 2026-10-06 around the Netlify background-function entry point (D-07..D-10) after 13-01's measurement put the synchronous ceiling at ~30s. 8 plans across 5 waves, plan-checker APPROVED on re-check. 13-01 executed; 13-02..13-08 ready. 13-08 is the phase fence and the deployed proof that closes SC-1."
+      "status": "pending"
     }
   ],
   "next": {
-    "command": "/gsd-execute-phase 13",
-    "label": "Execute Phase 13 from wave 2",
-    "reason": "13-01 done; 13-02..13-08 replanned around background functions and structurally valid"
+    "command": "/gsd:progress --next",
+    "label": "Advance to the next step",
+    "reason": "Phase 13 of 5 · 67% · executing"
   },
-  "updated_at": "2026-10-05T15:51:05.410Z"
+  "updated_at": "2026-10-06T15:34:43.381Z"
 }
