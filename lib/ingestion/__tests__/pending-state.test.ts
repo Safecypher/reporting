@@ -2,7 +2,6 @@ import { describe, expect, it } from "vitest";
 
 import {
   BACKGROUND_FUNCTION_CEILING_SECONDS,
-  INVOCATION_RETRY_DELAY_SECONDS,
   MAX_PROCESSING_ATTEMPTS,
   PROCESSING_LEASE_SECONDS,
   STUCK_PENDING_AFTER_HOURS,
@@ -32,6 +31,18 @@ const MINUTE = 60 * SECOND;
 const HOUR = 60 * MINUTE;
 const DAY = 24 * HOUR;
 
+/**
+ * Netlify's documented background-function invocation-retry delay: a
+ * failed invocation is retried after one minute, then two minutes after
+ * that — three minutes (180s) can elapse before a legitimate attempt is
+ * even running. [CITED: Netlify background-functions documentation, the
+ * same source `BACKGROUND_FUNCTION_CEILING_SECONDS`'s doc comment cites.]
+ * Not exported from `pending-state.ts` itself — it is a platform fact
+ * used only to state this one test's margin requirement, not a threshold
+ * the module's own logic reads.
+ */
+const NETLIFY_INVOCATION_RETRY_DELAY_SECONDS = 60 + 2 * 60;
+
 function facts(overrides: Partial<PendingFileFacts>): PendingFileFacts {
   return {
     status: "pending",
@@ -53,7 +64,7 @@ describe("constants — the ordering that keeps the design coherent", () => {
     const marginSeconds =
       PROCESSING_LEASE_SECONDS - BACKGROUND_FUNCTION_CEILING_SECONDS;
     expect(marginSeconds).toBeGreaterThanOrEqual(
-      INVOCATION_RETRY_DELAY_SECONDS,
+      NETLIFY_INVOCATION_RETRY_DELAY_SECONDS,
     );
   });
 
@@ -84,7 +95,6 @@ describe("constants — the ordering that keeps the design coherent", () => {
 
   it("exports every threshold as a plain number", () => {
     expect(typeof BACKGROUND_FUNCTION_CEILING_SECONDS).toBe("number");
-    expect(typeof INVOCATION_RETRY_DELAY_SECONDS).toBe("number");
     expect(typeof PROCESSING_LEASE_SECONDS).toBe("number");
     expect(typeof SWEEPABLE_AFTER_MINUTES).toBe("number");
     expect(typeof STUCK_PENDING_AFTER_HOURS).toBe("number");

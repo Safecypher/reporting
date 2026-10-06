@@ -14,57 +14,100 @@
  */
 
 /**
+ * Netlify's documented, non-configurable background-function execution
+ * ceiling: fifteen minutes. [CITED: Netlify background-functions
+ * documentation]. The same documentation states that if an invocation
+ * itself fails to start, the platform retries after one minute, and then
+ * two minutes after that — three minutes of possible delay before a
+ * legitimate attempt is even running, which is why
+ * `PROCESSING_LEASE_SECONDS` below gives the lease more margin over this
+ * ceiling than the ceiling alone would need.
+ *
+ * This is a platform fact, not a tuning knob — every threshold in this
+ * module is derived from it by a stated argument below, and the ordering
+ * test compares against this name rather than a magic number.
+ *
+ * D-07 moved processing from a synchronous route (~26-38s worst case) to a
+ * Netlify background function whose legitimate single attempt may run up
+ * to this ceiling. Plan 13-01's `PROCESSING_LEASE_SECONDS = 180` was sized
+ * for the old world; this constant exists so the correction can be stated
+ * and gated against a name.
+ */
+export const BACKGROUND_FUNCTION_CEILING_SECONDS = 900;
+
+/**
  * The lease window: how long a claim (`ingested_files.processing_started_at`)
  * stays live before it is reclaimable by another caller.
  *
- * 180 seconds. The measured worst case for a whole file is ~38 seconds and a
- * single attempt is hard-bounded well below that by plan 13-05, so 180s is
- * several times longer than any attempt can legitimately run — a live
- * attempt can never have its claim stolen. It is also short enough that an
- * abandoned claim is reclaimable within minutes rather than hours.
- * `fn_try_acquire_drain_lock` (0040) uses ten minutes for a job-level mutex
- * that runs once a day; a per-file lease bounding one attempt is a smaller
- * thing and gets a proportionately smaller number.
+ * 1200 seconds (20 minutes). A single legitimate attempt is now a Netlify
+ * background function that may run up to `BACKGROUND_FUNCTION_CEILING_SECONDS`
+ * (900s). The lease must therefore strictly exceed the ceiling, or a second
+ * caller can claim the same file via `fn_try_claim_ingested_file` while the
+ * first is still genuinely running — exactly the double-writer bug this
+ * constant exists to prevent (D-10, RESEARCH Pitfall 1). 1200 gives the
+ * ceiling plus the platform's documented invocation-retry delay (up to
+ * three minutes, per `BACKGROUND_FUNCTION_CEILING_SECONDS`'s doc comment —
+ * covering an invocation that itself starts late and still needs its full
+ * attempt) plus a small margin, so a claim taken at second 0 is still live
+ * at second 899 of a legitimate attempt, and even a delayed one still
+ * holds its lease when it finishes.
  *
  * MUST equal the `p_lease_seconds` default in
- * `supabase/migrations/0048_ingest_processing_lease.sql`'s
- * `fn_try_claim_ingested_file` — a drifted pair is the one way this design
- * can produce two concurrent writers (a grep gate in this plan's Task 1
- * asserts the equality).
+ * `supabase/migrations/0049_ingest_lease_window_for_background_functions.sql`'s
+ * `fn_try_claim_ingested_file` — a drifted pair is the single way this
+ * design can hand two writers the same file, and the pair is grep-gated
+ * equal by this plan's Task 1/Task 2.
  */
-export const PROCESSING_LEASE_SECONDS = 180;
+export const PROCESSING_LEASE_SECONDS = 1200;
 
 /**
  * How old a `pending` row with no live lease must be before the drain
  * sweep's listing query considers it a candidate at all.
  *
- * 10 minutes. Far past any plausible in-flight first attempt, so the sweep
- * never races a browser that fired seconds ago. The lease already makes
- * that race safe (Pattern 3); this is the second, cheaper guard that keeps
- * the sweep's listing query from even selecting such a row.
+ * 30 minutes. Strictly past the 20-minute lease, so a row the listing query
+ * selects can never be under a live lease even if the lease check were
+ * somehow wrong, and strictly past `BACKGROUND_FUNCTION_CEILING_SECONDS`
+ * (15 minutes), so the sweep cannot fire a trigger at a file that is still
+ * legitimately running (D-10). The drain runs once a day, so widening this
+ * window from the previous ten minutes to thirty changes nothing about how
+ * quickly a stranded file is actually recovered in practice — on either
+ * number, a file stranded at 15:55 waits for tomorrow's run.
  */
-export const SWEEPABLE_AFTER_MINUTES = 10;
+export const SWEEPABLE_AFTER_MINUTES = 30;
 
 /**
  * How old a `pending` row with no live lease must be before it is surfaced
  * as genuinely stuck (D-03) rather than merely still converging.
  *
- * 6 hours. The drain runs once a day at 16:00 UTC. A file that arrived this
- * morning and is still `pending` by then genuinely failed, and six hours is
- * generous enough that a file converging across chained attempts under a
- * ~26s ceiling is not mistaken for a dead one — the false-alarm RESEARCH
- * Pitfall 1 warns this threshold must avoid.
+ * 6 hours. Under D-07 a healthy file succeeds in exactly one attempt — the
+ * background-function ceiling is thirty times the measured worst-case file
+ * — so an attempt count above one means a previous attempt genuinely
+ * failed. Six hours is longer than any legitimate retry saga
+ * `MAX_PROCESSING_ATTEMPTS` permits (four attempts at a twenty-minute lease
+ * cannot span more than about eighty minutes of wall clock, comfortably
+ * inside six hours) and shorter than the gap between daily drain runs, so a
+ * file that arrived this morning and is still pending at 16:00 UTC
+ * genuinely failed.
  */
 export const STUCK_PENDING_AFTER_HOURS = 6;
 
 /**
- * The ceiling on self-chained continuations plan 13-05 may build.
+ * The cap on claim attempts before the drain sweep stops retrying a file.
  *
- * 10 attempts. Far more than any 44-batch file needs at a bounded slice
- * each; a file still unfinished after ten claims is not converging and
- * should be surfaced rather than retried forever.
+ * 4. Sized for a world with ONE attempt per success, not chained slices:
+ * under D-07 a healthy file succeeds in exactly one attempt, because the
+ * background-function ceiling is thirty times the measured worst-case
+ * file. An attempt count above one therefore means a previous attempt
+ * genuinely failed, and four is one real attempt plus three retries. Four
+ * attempts at a twenty-minute lease cannot span more than about eighty
+ * minutes of wall clock, comfortably inside `STUCK_PENDING_AFTER_HOURS`, so
+ * the stuck alert never fires at a file that is still legitimately
+ * retrying.
+ *
+ * Consulted only by `isSweepable` — a capped file stops being retried but
+ * does not stop being reported; see that function's doc comment.
  */
-export const MAX_PROCESSING_ATTEMPTS = 10;
+export const MAX_PROCESSING_ATTEMPTS = 4;
 
 const ONE_SECOND_MS = 1000;
 const ONE_MINUTE_MS = 60 * ONE_SECOND_MS;
@@ -117,6 +160,13 @@ function hasLiveLease(processingStartedAt: Date | null, asOf: Date): boolean {
  * `STUCK_PENDING_AFTER_HOURS` returns `"stuck"`; anything younger returns
  * `"processing"` (a fresh, unclaimed row is presumed to be about to be
  * picked up, not yet abandoned).
+ *
+ * Deliberately unaffected by `MAX_PROCESSING_ATTEMPTS`: a row that has
+ * burned the attempt cap still resolves exactly as its lease/age would
+ * otherwise say. The cap stops the sweep from retrying a file
+ * (`isSweepable`); it must not also stop the file from being reported,
+ * or a deterministically-failing file would silently disappear from both
+ * surfaces that read this resolver instead of surfacing as stuck.
  */
 export function resolvePendingState(
   facts: PendingFileFacts,
@@ -141,9 +191,20 @@ export function resolvePendingState(
  * the drain sweep's listing query to pick it up as a candidate to claim and
  * process. A `done`/`failed`/rejected row is never sweepable at any age —
  * there is nothing left to do with it.
+ *
+ * Also false once `processingAttempts` reaches `MAX_PROCESSING_ATTEMPTS`,
+ * checked after the status check and before the lease check, and
+ * independently of it — a capped row is not sweepable whether or not it
+ * currently holds a live lease. This is deliberately a sweep rule, not a
+ * `resolvePendingState` rule: a capped file should stop being retried, but
+ * it must not stop being REPORTED. It is exactly the file the stuck alert
+ * exists for, and suppressing it from both surfaces would let a
+ * deterministically broken file silently disappear instead of surfacing as
+ * stuck once it crosses `STUCK_PENDING_AFTER_HOURS`.
  */
 export function isSweepable(facts: PendingFileFacts, asOf: Date): boolean {
   if (facts.status !== "pending") return false;
+  if (facts.processingAttempts >= MAX_PROCESSING_ATTEMPTS) return false;
   if (hasLiveLease(facts.processingStartedAt, asOf)) return false;
 
   const ageMs = asOf.getTime() - facts.uploadedAt.getTime();
