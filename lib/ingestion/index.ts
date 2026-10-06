@@ -7,6 +7,8 @@ import { removedCardsHandler } from "./handlers/removed-cards";
 import { verificationHandler } from "./handlers/verification";
 import { sha256 } from "./hash";
 import type {
+  ClaimedFile,
+  ClaimFileResult,
   HeaderSignature,
   IngestDeps,
   IngestionInput,
@@ -83,33 +85,43 @@ async function extractHeaderSignature(
 }
 
 /**
- * The single shared ingestion entry point (INGEST-03). Every source
- * (manual drag-and-drop today, an automated file-drop/webhook adapter
- * later) constructs an `IngestionInput` and calls this function — no
- * parsing, validation, normalisation, or DB-write logic lives anywhere
- * else. The DB writer is injected via `deps` so this module never imports
- * a Supabase client and stays pure/unit-testable.
+ * The cheap half of ingestion (13-03): sha256 → `findFileByHash`
+ * short-circuit → classify → `recordFile`. Everything here is fast enough
+ * to run inside a synchronous request; everything after `recordFile` is
+ * the expensive half (`processClaimedFile` below).
  *
- * Invariant (CR-02): every parsed row is accounted for —
- *   accepted + duplicates + rejected + excluded === total parsed rows.
- * Nothing is ever silently dropped. `excluded` = valid rows removed by the
- * DATA-06 data-window cutoff; `rejected` = malformed rows (with reasons).
+ * Returns a discriminated `ClaimFileResult`. `already-uploaded` and
+ * `unrecognised` carry a fully-formed terminal `IngestionResult` — the
+ * same objects this function used to return directly before the split.
+ * `claimed` carries everything `processClaimedFile` needs.
+ *
+ * The unrecognised-report-type branch stays inside `claimFile` and
+ * terminates here, never deferred to `processClaimedFile`: a 202 body has
+ * no field for an immediate terminal failure, and there is no parsing work
+ * to defer for a file nothing will ever parse. Deferring it would hand the
+ * processing path one more case to special-case and would leave the row at
+ * `pending`, where the stuck-pending alert would later report a file that
+ * was never going to succeed as a failure to converge (13-RESEARCH.md
+ * Pitfall 3).
  */
-export async function ingest(input: IngestionInput, deps: IngestDeps): Promise<IngestionResult> {
+export async function claimFile(input: IngestionInput, deps: IngestDeps): Promise<ClaimFileResult> {
   const contentSha256 = sha256(input.bytes);
 
   const existing = await deps.findFileByHash(contentSha256);
   if (existing) {
     return {
-      // Report the real recorded type, not null (IN-02).
-      reportType: existing.report_type,
-      accepted: 0,
-      duplicates: 0,
-      rejected: 0,
-      excluded: 0,
-      rejectReasons: [],
-      ingestedFileId: existing.id,
-      alreadyUploaded: { date: existing.uploaded_at },
+      kind: "already-uploaded",
+      result: {
+        // Report the real recorded type, not null (IN-02).
+        reportType: existing.report_type,
+        accepted: 0,
+        duplicates: 0,
+        rejected: 0,
+        excluded: 0,
+        rejectReasons: [],
+        ingestedFileId: existing.id,
+        alreadyUploaded: { date: existing.uploaded_at },
+      },
     };
   }
 
@@ -149,13 +161,16 @@ export async function ingest(input: IngestionInput, deps: IngestDeps): Promise<I
       status: "failed",
     });
     return {
-      reportType: null,
-      accepted: 0,
-      duplicates: 0,
-      rejected: 0,
-      excluded: 0,
-      rejectReasons,
-      ingestedFileId,
+      kind: "unrecognised",
+      result: {
+        reportType: null,
+        accepted: 0,
+        duplicates: 0,
+        rejected: 0,
+        excluded: 0,
+        rejectReasons,
+        ingestedFileId,
+      },
     };
   }
 
@@ -169,6 +184,34 @@ export async function ingest(input: IngestionInput, deps: IngestDeps): Promise<I
     bytes: input.bytes,
   });
 
+  return {
+    kind: "claimed",
+    claim: { ingestedFileId, reportType, bytes: input.bytes, fileName: input.fileName },
+  };
+}
+
+/**
+ * The expensive half of ingestion (13-03): handler lookup by report type →
+ * guarded parse → validate → normalise → upsert → finalize. Never calls
+ * `recordFile` — the row was already recorded by `claimFile`.
+ *
+ * Looks its handler up from the registry BY REPORT TYPE rather than
+ * receiving one, so a caller holding nothing but a report type string read
+ * back from a database row (the background function, 13-05, via
+ * `runPendingFile`) can drive it with no dependency on `claimFile` having
+ * run in the same process.
+ */
+export async function processClaimedFile(claim: ClaimedFile, deps: IngestDeps): Promise<IngestionResult> {
+  const handler = REPORT_HANDLERS.find((h) => h.reportType === claim.reportType);
+  if (!handler) {
+    // Unreachable in practice: claimFile only produces a `claimed` result
+    // for a report type a registered handler just matched. Fail loudly
+    // rather than silently stranding the file if the registry and the
+    // claim ever disagree (e.g. a future handler removed without a
+    // corresponding data migration).
+    throw new Error(`processClaimedFile: no handler registered for report type "${claim.reportType}"`);
+  }
+
   // CR-01: classify() can match on filename alone, so the file may still be
   // unparsable here (missing columns, corrupt, not-yet-implemented parser).
   // Guard this parse — an unguarded throw would leave the audit row stuck at
@@ -176,11 +219,11 @@ export async function ingest(input: IngestionInput, deps: IngestDeps): Promise<I
   // as "already uploaded".
   let rawRows: Record<string, unknown>[];
   try {
-    rawRows = (await handler.parse(input.bytes, input.fileName)).rawRows;
+    rawRows = (await handler.parse(claim.bytes, claim.fileName)).rawRows;
   } catch (err) {
     const reason = err instanceof Error ? err.message : "unparsable file";
     const rejectReasons: RejectedRow[] = [{ row: 0, reasons: [reason] }];
-    await deps.finalizeFile(ingestedFileId, {
+    await deps.finalizeFile(claim.ingestedFileId, {
       accepted: 0,
       duplicates: 0,
       rejected: 0,
@@ -189,13 +232,13 @@ export async function ingest(input: IngestionInput, deps: IngestDeps): Promise<I
       status: "failed",
     });
     return {
-      reportType,
+      reportType: claim.reportType,
       accepted: 0,
       duplicates: 0,
       rejected: 0,
       excluded: 0,
       rejectReasons,
-      ingestedFileId,
+      ingestedFileId: claim.ingestedFileId,
     };
   }
 
@@ -213,15 +256,44 @@ export async function ingest(input: IngestionInput, deps: IngestDeps): Promise<I
     rejectReasons: rejected,
     status: "done" as const,
   };
-  await deps.finalizeFile(ingestedFileId, counts);
+  await deps.finalizeFile(claim.ingestedFileId, counts);
 
   return {
-    reportType,
+    reportType: claim.reportType,
     accepted: inserted,
     duplicates,
     rejected: rejected.length,
     excluded: excludedPreWindow,
     rejectReasons: rejected,
-    ingestedFileId,
+    ingestedFileId: claim.ingestedFileId,
   };
+}
+
+/**
+ * The single shared ingestion entry point (INGEST-03). Every source
+ * (manual drag-and-drop today, an automated file-drop/webhook adapter
+ * later) constructs an `IngestionInput` and calls this function — no
+ * parsing, validation, normalisation, or DB-write logic lives anywhere
+ * else. The DB writer is injected via `deps` so this module never imports
+ * a Supabase client and stays pure/unit-testable.
+ *
+ * Invariant (CR-02): every parsed row is accounted for —
+ *   accepted + duplicates + rejected + excluded === total parsed rows.
+ * Nothing is ever silently dropped. `excluded` = valid rows removed by the
+ * DATA-06 data-window cutoff; `rejected` = malformed rows (with reasons).
+ *
+ * As of 13-03, this function is a short composition of `claimFile` and
+ * `processClaimedFile` above — its signature, return shape and externally
+ * observable behaviour are unchanged, so the push/drain path (which still
+ * calls only this function, and will until 13-07) sees no behavioural
+ * change at all. The split exists so a background function (13-05) can
+ * call `processClaimedFile` alone, resuming a file a prior request already
+ * claimed.
+ */
+export async function ingest(input: IngestionInput, deps: IngestDeps): Promise<IngestionResult> {
+  const claimResult = await claimFile(input, deps);
+  if (claimResult.kind !== "claimed") {
+    return claimResult.result;
+  }
+  return processClaimedFile(claimResult.claim, deps);
 }

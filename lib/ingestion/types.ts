@@ -85,6 +85,37 @@ export interface IngestionResult {
 }
 
 /**
+ * What `claimFile` hands to `processClaimedFile` for the one kind that
+ * needs further work (13-03). Carries the bytes and file name alongside the
+ * claimed id and report type so `processClaimedFile` can look its handler
+ * up by report type alone and parse — a caller holding only a database row
+ * (the background function, 13-05) can rebuild this shape from
+ * `loadPendingFile` + `downloadStoredBytes` with no other dependency on
+ * `claimFile` itself.
+ */
+export interface ClaimedFile {
+  ingestedFileId: string;
+  reportType: ReportType;
+  bytes: Uint8Array;
+  fileName: string;
+}
+
+/**
+ * The discriminated result of `claimFile` (13-03) — exactly one of three
+ * kinds. `already-uploaded` and `unrecognised` carry a fully-formed
+ * terminal `IngestionResult` — the same objects `ingest()`'s early returns
+ * build today. `claimed` carries everything `processClaimedFile` needs to
+ * finish the file. The unrecognised-report-type branch stays terminal
+ * INSIDE `claimFile` and is never deferred to the `claimed` kind — there is
+ * no phase two for a file nothing will ever parse (13-RESEARCH.md
+ * Pitfall 3).
+ */
+export type ClaimFileResult =
+  | { kind: "already-uploaded"; result: IngestionResult }
+  | { kind: "unrecognised"; result: IngestionResult }
+  | { kind: "claimed"; claim: ClaimedFile };
+
+/**
  * A normalised verification row, ready to be written to the `verifications`
  * table. `row_hash` is intentionally NOT part of this shape — it is a
  * Postgres `GENERATED ALWAYS ... STORED` column computed by the database,
