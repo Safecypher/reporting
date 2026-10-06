@@ -1,5 +1,11 @@
 import { describe, it, expect, vi } from "vitest";
-import { createSupabaseWriter } from "../supabase-writer";
+import {
+  createSupabaseWriter,
+  createPendingFileAccess,
+  chunkRows,
+  UPSERT_CHUNK_SIZE,
+} from "../supabase-writer";
+import { PROCESSING_LEASE_SECONDS } from "../pending-state";
 import type { NormalisedVerificationRow } from "../types";
 
 /**
@@ -13,18 +19,27 @@ function makeFakeSupabase(overrides: {
   recordFileId?: string;
   insertedVerificationIds?: { id: number }[];
   insertedGenericIds?: { id: number }[];
+  // Task 1 (13-03): the pending-file-access surface's test knobs.
+  rpcImpl?: (fn: string, args: Record<string, unknown> | undefined) => Promise<{ data: unknown; error: unknown }>;
+  loadPendingFileResult?: Record<string, unknown> | null;
+  downloadResult?: { data: { arrayBuffer: () => Promise<ArrayBuffer> } | null; error: unknown };
 } = {}) {
   const {
     findFileByHashResult = null,
     recordFileId = "file-1",
     insertedVerificationIds = [],
     insertedGenericIds = [],
+    rpcImpl = () => Promise.resolve({ data: [], error: null }),
+    loadPendingFileResult = null,
+    downloadResult = { data: { arrayBuffer: async () => new ArrayBuffer(0) }, error: null },
   } = overrides;
 
   const uploadMock = vi.fn().mockResolvedValue({ data: { path: "some/path" }, error: null });
-  const updateEqMock = vi.fn().mockResolvedValue({ error: null });
+  const downloadMock = vi.fn().mockResolvedValue(downloadResult);
+  const updateEqMock = vi.fn();
   const genericUpsertMock = vi.fn();
   const verificationUpsertMock = vi.fn();
+  const rpcMock = vi.fn(rpcImpl);
   // Task 3 (09-01): capture the object handed to `.insert(...)` on
   // ingested_files, one payload per call, so provenance assertions can
   // inspect the exact fields the writer built — without disturbing the
@@ -32,6 +47,11 @@ function makeFakeSupabase(overrides: {
   const ingestedFilesInsertPayloads: Record<string, unknown>[] = [];
   const ingestedFilesUpsertOptions: unknown[] = [];
   const findFileByHashFilters: [string, unknown][] = [];
+  // Task 1 (13-03): one entry per completed `.update(...).eq(...)...` chain,
+  // in call order, so a test can assert whether a finalize was filtered on
+  // the id alone (push/drain, unresumed) or on id + pending status (resumed).
+  const updateCallsLog: [string, unknown][][] = [];
+  const pendingSelectFilters: [string, unknown][] = [];
 
   const from = vi.fn((table: string) => {
     if (table === "ingested_files") {
@@ -50,7 +70,24 @@ function makeFakeSupabase(overrides: {
         },
       };
       return {
-        select: () => chainable,
+        // Task 1 (13-03): `loadPendingFile` selects a different column list
+        // (it includes `processing_attempts`, a column findFileByHash never
+        // reads) — branch on that to give it its own chain and its own
+        // configurable result, without disturbing findFileByHash's shape.
+        select: (columns?: string) => {
+          if (columns && columns.includes("processing_attempts")) {
+            const pendingChain = {
+              eq: (column: string, value: unknown) => {
+                pendingSelectFilters.push([column, value]);
+                return pendingChain;
+              },
+              maybeSingle: () =>
+                Promise.resolve({ data: loadPendingFileResult, error: null }),
+            };
+            return pendingChain;
+          }
+          return chainable;
+        },
         // recordFile upserts on content_sha256 now, so a retry reuses the row
         // left behind by an attempt that died mid-write.
         upsert: (payload: Record<string, unknown>, options?: unknown) => {
@@ -62,9 +99,32 @@ function makeFakeSupabase(overrides: {
             }),
           };
         },
-        update: () => ({
-          eq: updateEqMock,
-        }),
+        // Task 1 (13-03): chainable AND awaitable, so finalizeFile's
+        // `.update(update).eq("id", id)` (unresumed) and
+        // `.update(update).eq("id", id).eq("status", "pending")` (resumed)
+        // both work against the same stub. `updateEqMock` keeps recording
+        // every individual `.eq()` call (preserves the pre-existing
+        // `toHaveBeenCalledWith("id", "file-1")` assertion unchanged);
+        // `updateCallsLog` additionally captures the full filter set per
+        // completed call, which is what the new resumed/unresumed tests read.
+        update: () => {
+          const filters: [string, unknown][] = [];
+          const chain = {
+            eq: (column: string, value: unknown) => {
+              filters.push([column, value]);
+              updateEqMock(column, value);
+              return chain;
+            },
+            then: (
+              resolve: (value: { error: null }) => unknown,
+              reject?: (reason: unknown) => unknown
+            ) => {
+              updateCallsLog.push([...filters]);
+              return Promise.resolve({ error: null }).then(resolve, reject);
+            },
+          };
+          return chain;
+        },
       };
     }
     if (table === "verifications") {
@@ -96,19 +156,24 @@ function makeFakeSupabase(overrides: {
   const storage = {
     from: vi.fn(() => ({
       upload: uploadMock,
+      download: downloadMock,
     })),
   };
 
   return {
     from,
     storage,
+    rpc: rpcMock,
     updateEqMock,
     uploadMock,
+    downloadMock,
     genericUpsertMock,
     verificationUpsertMock,
     ingestedFilesInsertPayloads,
     ingestedFilesUpsertOptions,
     findFileByHashFilters,
+    updateCallsLog,
+    pendingSelectFilters,
   } as const;
 }
 
@@ -454,5 +519,239 @@ describe("recordFile — reuses a stranded row rather than duplicating it", () =
       content_sha256: "b53eee2b44cf",
       status: "pending",
     });
+  });
+});
+
+/**
+ * Task 1 (13-03): a writer that can pick up a file it did not record. The
+ * seam this task cuts — `createSupabaseWriter(client, { resumeFileId })` —
+ * is what lets the processing path write report rows against a file id the
+ * current process never called `recordFile` for.
+ */
+describe("createSupabaseWriter({ resumeFileId }) — a writer that can resume a file it did not record", () => {
+  it("upsertVerifications succeeds with no prior recordFile call, stamping rows with the resumed id", async () => {
+    const fake = makeFakeSupabase({ insertedVerificationIds: [{ id: 1 }] });
+    const writer = createSupabaseWriter(fake as any, { resumeFileId: "resumed-file-1" });
+
+    const inserted = await writer.upsertVerifications([sampleRow]);
+
+    expect(inserted).toBe(1);
+    expect(fake.verificationUpsertMock).toHaveBeenCalledWith(
+      expect.arrayContaining([expect.objectContaining({ source_file_id: "resumed-file-1" })]),
+      expect.anything()
+    );
+  });
+
+  it("upsertRows succeeds with no prior recordFile call, stamping rows with the resumed id", async () => {
+    const fake = makeFakeSupabase({ insertedGenericIds: [{ id: 1 }] });
+    const writer = createSupabaseWriter(fake as any, { resumeFileId: "resumed-file-2" });
+
+    const inserted = await writer.upsertRows(
+      "dcvv_fetches",
+      [{ timestamp: "2026-08-13T00:00:00Z" }],
+      { onConflict: "row_hash", ignoreDuplicates: true }
+    );
+
+    expect(inserted).toBe(1);
+    expect(fake.genericUpsertMock).toHaveBeenCalledWith(
+      "dcvv_fetches",
+      expect.arrayContaining([expect.objectContaining({ source_file_id: "resumed-file-2" })]),
+      expect.anything()
+    );
+  });
+
+  it("finalizeFile succeeds with no prior recordFile call, filtered on BOTH the id and a pending status", async () => {
+    const fake = makeFakeSupabase();
+    const writer = createSupabaseWriter(fake as any, { resumeFileId: "resumed-file-3" });
+
+    await writer.finalizeFile("resumed-file-3", {
+      accepted: 1,
+      duplicates: 0,
+      rejected: 0,
+      excluded: 0,
+      rejectReasons: [],
+      status: "done",
+    });
+
+    expect(fake.updateCallsLog).toContainEqual([
+      ["id", "resumed-file-3"],
+      ["status", "pending"],
+    ]);
+  });
+
+  it("never calls recordFile and never uploads to Storage across a resumed writer's whole lifetime", async () => {
+    const fake = makeFakeSupabase({ insertedVerificationIds: [{ id: 1 }], insertedGenericIds: [{ id: 1 }] });
+    const writer = createSupabaseWriter(fake as any, { resumeFileId: "resumed-file-4" });
+
+    await writer.upsertVerifications([sampleRow]);
+    await writer.upsertRows("dcvv_fetches", [{ a: 1 }], { onConflict: "row_hash", ignoreDuplicates: true });
+    await writer.finalizeFile("resumed-file-4", {
+      accepted: 1,
+      duplicates: 0,
+      rejected: 0,
+      excluded: 0,
+      rejectReasons: [],
+      status: "done",
+    });
+
+    expect(fake.uploadMock).not.toHaveBeenCalled();
+  });
+
+  it("chunking is unchanged for a resumed writer: 2,500 rows produce three batches of 1000, 1000 and 500", async () => {
+    const fake = makeFakeSupabase({ insertedGenericIds: [{ id: 1 }] });
+    const writer = createSupabaseWriter(fake as any, { resumeFileId: "resumed-file-5" });
+    const rows = Array.from({ length: 2500 }, (_, i) => ({ n: i }));
+
+    await writer.upsertRows("dcvv_fetches", rows, { onConflict: "row_hash", ignoreDuplicates: true });
+
+    expect(fake.genericUpsertMock).toHaveBeenCalledTimes(3);
+    const batchSizes = fake.genericUpsertMock.mock.calls.map(
+      (call) => (call[1] as unknown[]).length
+    );
+    expect(batchSizes).toEqual([1000, 1000, 500]);
+  });
+});
+
+describe("createSupabaseWriter() without resumeFileId — unchanged for the push/drain and manual paths", () => {
+  it("upsertRows still throws the existing message when recordFile has not run", async () => {
+    const fake = makeFakeSupabase();
+    const writer = createSupabaseWriter(fake as any);
+
+    await expect(
+      writer.upsertRows("dcvv_fetches", [{ a: 1 }], { onConflict: "row_hash", ignoreDuplicates: true })
+    ).rejects.toThrow(/before recordFile/);
+  });
+
+  it("finalizeFile issues an update filtered on the id ALONE — byte-identical to today", async () => {
+    const fake = makeFakeSupabase();
+    const writer = createSupabaseWriter(fake as any);
+
+    await writer.finalizeFile("file-1", {
+      accepted: 1,
+      duplicates: 0,
+      rejected: 0,
+      excluded: 0,
+      rejectReasons: [],
+      status: "done",
+    });
+
+    expect(fake.updateCallsLog).toContainEqual([["id", "file-1"]]);
+  });
+});
+
+/**
+ * Task 1 (13-03): `createPendingFileAccess` — the four capabilities the
+ * processing path needs that `ingest()` must never have. A sibling factory
+ * in the same module, deliberately not part of `IngestDeps`.
+ */
+describe("createPendingFileAccess", () => {
+  it("claimForProcessing invokes the claim function with the id and the imported lease constant, reporting a claimed result with the attempt count", async () => {
+    const rpcImpl = vi.fn().mockResolvedValue({
+      data: [{ claimed_id: "file-9", attempts: 2 }],
+      error: null,
+    });
+    const fake = makeFakeSupabase({ rpcImpl });
+    const access = createPendingFileAccess(fake as any);
+
+    const result = await access.claimForProcessing("file-9");
+
+    expect(rpcImpl).toHaveBeenCalledWith("fn_try_claim_ingested_file", {
+      p_id: "file-9",
+      p_lease_seconds: PROCESSING_LEASE_SECONDS,
+    });
+    expect(result).toEqual({ claimed: true, attempts: 2 });
+  });
+
+  it("reports not-claimed and no error when the claim function returns an empty array", async () => {
+    const rpcImpl = vi.fn().mockResolvedValue({ data: [], error: null });
+    const fake = makeFakeSupabase({ rpcImpl });
+    const access = createPendingFileAccess(fake as any);
+
+    const result = await access.claimForProcessing("file-10");
+
+    expect(result).toEqual({ claimed: false });
+  });
+
+  it("throws when the claim function returns an error — a broken database is never mistaken for a lost claim", async () => {
+    const rpcImpl = vi.fn().mockResolvedValue({ data: null, error: new Error("db unreachable") });
+    const fake = makeFakeSupabase({ rpcImpl });
+    const access = createPendingFileAccess(fake as any);
+
+    await expect(access.claimForProcessing("file-11")).rejects.toThrow("db unreachable");
+  });
+
+  it("loadPendingFile selects file name, report type, storage path, status, uploaded at and attempt count", async () => {
+    const fake = makeFakeSupabase({
+      loadPendingFileResult: {
+        file_name: "daily-ver-report_2026-08-13.csv",
+        report_type: "verification",
+        storage_path: "deadbeef/daily-ver-report_2026-08-13.csv",
+        status: "pending",
+        uploaded_at: "2026-08-13T00:00:00Z",
+        processing_attempts: 1,
+      },
+    });
+    const access = createPendingFileAccess(fake as any);
+
+    const row = await access.loadPendingFile("file-12");
+
+    expect(row).toEqual({
+      fileName: "daily-ver-report_2026-08-13.csv",
+      reportType: "verification",
+      storagePath: "deadbeef/daily-ver-report_2026-08-13.csv",
+      status: "pending",
+      uploadedAt: "2026-08-13T00:00:00Z",
+      processingAttempts: 1,
+    });
+    expect(fake.pendingSelectFilters).toEqual([["id", "file-12"]]);
+  });
+
+  it("loadPendingFile returns null for a row that does not exist", async () => {
+    const fake = makeFakeSupabase({ loadPendingFileResult: null });
+    const access = createPendingFileAccess(fake as any);
+
+    expect(await access.loadPendingFile("missing")).toBeNull();
+  });
+
+  it("downloadStoredBytes reads from the reports bucket and returns bytes", async () => {
+    const bytes = new TextEncoder().encode("a,b,c");
+    const fake = makeFakeSupabase({
+      downloadResult: { data: { arrayBuffer: async () => bytes.buffer as ArrayBuffer }, error: null },
+    });
+    const access = createPendingFileAccess(fake as any);
+
+    const result = await access.downloadStoredBytes("deadbeef/file.csv");
+
+    expect(fake.storage.from).toHaveBeenCalledWith("reports");
+    expect(fake.downloadMock).toHaveBeenCalledWith("deadbeef/file.csv");
+    expect(Array.from(result)).toEqual(Array.from(bytes));
+  });
+
+  it("downloadStoredBytes throws on a Storage error", async () => {
+    const fake = makeFakeSupabase({
+      downloadResult: { data: null, error: new Error("object not found") },
+    });
+    const access = createPendingFileAccess(fake as any);
+
+    await expect(access.downloadStoredBytes("missing/file.csv")).rejects.toThrow("object not found");
+  });
+
+  it("releaseClaim invokes the release function with the id", async () => {
+    const rpcImpl = vi.fn().mockResolvedValue({ data: null, error: null });
+    const fake = makeFakeSupabase({ rpcImpl });
+    const access = createPendingFileAccess(fake as any);
+
+    await access.releaseClaim("file-13");
+
+    expect(rpcImpl).toHaveBeenCalledWith("fn_release_ingested_file_claim", { p_id: "file-13" });
+  });
+});
+
+describe("chunkRows / UPSERT_CHUNK_SIZE — unchanged by this plan (quick-261005-fd9)", () => {
+  it("still chunks at 1000", () => {
+    expect(UPSERT_CHUNK_SIZE).toBe(1000);
+    expect(chunkRows(Array.from({ length: 2500 }, (_, i) => i)).map((c) => c.length)).toEqual([
+      1000, 1000, 500,
+    ]);
   });
 });
