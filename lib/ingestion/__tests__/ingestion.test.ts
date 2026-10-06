@@ -6,8 +6,8 @@ import { classify } from "../classify";
 import { sha256 } from "../hash";
 import { parseVerification, validateVerificationRows } from "../parsers/verification";
 import { normaliseVerification } from "../normalise";
-import { ingest } from "../index";
-import type { IngestDeps, NormalisedVerificationRow, ReportType } from "../types";
+import { ingest, claimFile, processClaimedFile } from "../index";
+import type { ClaimedFile, IngestDeps, NormalisedVerificationRow, ReportType } from "../types";
 
 const FIXTURE_PATH = join(__dirname, "verification.fixture.csv");
 const fixtureBytes = new Uint8Array(readFileSync(FIXTURE_PATH));
@@ -270,6 +270,140 @@ describe("ingest", () => {
     expect(result.rejectReasons[0].reasons).toContain("unrecognised report type");
     // Audit integrity: an unrecognised file must never be marked a successful import.
     expect(deps.finalizedStatus()).toBe("failed");
+  });
+});
+
+/**
+ * Task 2 (13-03): `claimFile` and `processClaimedFile` — the split that
+ * proves `ingest()` is now a composition. Every pre-existing `ingest` case
+ * above stays unedited and still passes; these cases drive the two new
+ * exports directly.
+ */
+describe("claimFile", () => {
+  it("returns a claimed result carrying the ingested file id and report type for the real fixture, recording the file but never upserting or finalizing", async () => {
+    const deps = makeFakeDeps();
+    const result = await claimFile(
+      { fileName: "daily-ver-report_2026-08-13.csv", bytes: fixtureBytes, uploadedBy: "user-1" },
+      deps
+    );
+    expect(result.kind).toBe("claimed");
+    if (result.kind !== "claimed") throw new Error("expected a claimed result");
+    expect(result.claim.ingestedFileId).toBeTruthy();
+    expect(result.claim.reportType).toBe("verification");
+    expect(result.claim.fileName).toBe("daily-ver-report_2026-08-13.csv");
+    // No upsert, no finalize — processClaimedFile owns both.
+    expect(deps.storedRows.length).toBe(0);
+    expect(deps.finalizedStatus()).toBeNull();
+  });
+
+  it("a second call for the same bytes returns an already-uploaded result whose payload carries the real recorded report type, not null, and performs no recordFile", async () => {
+    const deps = makeFakeDeps();
+    await claimFile(
+      { fileName: "daily-ver-report_2026-08-13.csv", bytes: fixtureBytes, uploadedBy: "user-1" },
+      deps
+    );
+    const recordedFilesAfterFirst = deps.filesByHash.size;
+
+    const second = await claimFile(
+      { fileName: "daily-ver-report_2026-08-13.csv", bytes: fixtureBytes, uploadedBy: "user-1" },
+      deps
+    );
+
+    expect(second.kind).toBe("already-uploaded");
+    if (second.kind !== "already-uploaded") throw new Error("expected an already-uploaded result");
+    expect(second.result.reportType).toBe("verification");
+    expect(second.result.alreadyUploaded).toBeDefined();
+    // No second recordFile call — filesByHash gained no new entry.
+    expect(deps.filesByHash.size).toBe(recordedFilesAfterFirst);
+  });
+
+  it("an unrecognised file returns an unrecognised result with a null report type, and the fake deps show the file WAS recorded and finalized as failed", async () => {
+    const deps = makeFakeDeps();
+    const unknownCsv = "a,b\n1,2\n";
+    const result = await claimFile(
+      { fileName: "unknown.csv", bytes: new TextEncoder().encode(unknownCsv), uploadedBy: "user-1" },
+      deps
+    );
+    expect(result.kind).toBe("unrecognised");
+    if (result.kind !== "unrecognised") throw new Error("expected an unrecognised result");
+    expect(result.result.reportType).toBeNull();
+    expect(result.result.rejectReasons[0].reasons).toContain("unrecognised report type");
+    // This branch stays terminal INSIDE claimFile — recorded AND finalized here.
+    expect(result.result.ingestedFileId).not.toBeNull();
+    expect(deps.finalizedStatus()).toBe("failed");
+  });
+
+  it("classifies rather than propagating when bytes are corrupt enough to make signature extraction throw", async () => {
+    const deps = makeFakeDeps();
+    // ZIP-magic-byte (XLSX) prefix with no valid XLSX body — extractHeaderSignature's
+    // workbook.xlsx.load throws; claimFile's existing defensive catch must still
+    // classify (to unrecognised, since no handler matches a bogus signature)
+    // rather than letting the throw escape (T-02-02, preserved by the split).
+    const corruptXlsxBytes = new Uint8Array([0x50, 0x4b, 0x03, 0x04, 0xff, 0xff, 0xff]);
+    const result = await claimFile(
+      { fileName: "whatever.xlsx", bytes: corruptXlsxBytes, uploadedBy: "user-1" },
+      deps
+    );
+    expect(result.kind).toBe("unrecognised");
+  });
+});
+
+describe("processClaimedFile", () => {
+  it("given the verification fixture's bytes and a claimed id, produces the same counts the whole-pipeline ingest() produces, finalizes as done, and never calls recordFile", async () => {
+    const deps = makeFakeDeps();
+    const claimResult = await claimFile(
+      { fileName: "daily-ver-report_2026-08-13.csv", bytes: fixtureBytes, uploadedBy: "user-1" },
+      deps
+    );
+    if (claimResult.kind !== "claimed") throw new Error("expected a claimed result");
+    const recordedFilesBeforeProcessing = deps.filesByHash.size;
+
+    const result = await processClaimedFile(claimResult.claim, deps);
+
+    expect(result.reportType).toBe("verification");
+    expect(result.accepted).toBe(2);
+    expect(result.duplicates).toBe(0);
+    expect(result.rejected).toBe(0);
+    expect(result.excluded).toBe(23);
+    expect(result.accepted + result.duplicates + result.rejected + result.excluded).toBe(25);
+    expect(deps.finalizedStatus()).toBe("done");
+    // No second recordFile call during processing.
+    expect(deps.filesByHash.size).toBe(recordedFilesBeforeProcessing);
+  });
+
+  it("finalizes as failed with the parse error as the reason when the content cannot be parsed, without throwing", async () => {
+    const deps = makeFakeDeps();
+    const claim: ClaimedFile = {
+      ingestedFileId: "file-x",
+      reportType: "verification",
+      bytes: new TextEncoder().encode("wrong,header\n1,2\n"),
+      fileName: "daily-ver-report-old-format.csv",
+    };
+
+    const result = await processClaimedFile(claim, deps);
+
+    expect(result.accepted).toBe(0);
+    expect(result.rejectReasons.length).toBeGreaterThan(0);
+    expect(deps.finalizedStatus()).toBe("failed");
+  });
+
+  it("resolves its handler from the registry by report type alone, so a caller holding only a report type string can drive it", async () => {
+    const deps = makeFakeDeps();
+    // Constructed directly, bypassing claimFile entirely — exactly the shape
+    // runPendingFile (13-05's background function) builds from a database
+    // row: nothing but an id, a report type string, bytes and a file name.
+    const claim: ClaimedFile = {
+      ingestedFileId: "file-y",
+      reportType: "verification",
+      bytes: fixtureBytes,
+      fileName: "daily-ver-report_2026-08-13.csv",
+    };
+
+    const result = await processClaimedFile(claim, deps);
+
+    expect(result.reportType).toBe("verification");
+    expect(result.accepted).toBe(2);
+    expect(deps.finalizedStatus()).toBe("done");
   });
 });
 
