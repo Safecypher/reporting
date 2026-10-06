@@ -55,6 +55,7 @@ govern — what the endpoint promises and whether its reported outcome is true. 
 - [ ] **INGEST-09**: A `pending` row that never completes is surfaced in the existing grouped drain Slack alert, not left silently stranded
 - [ ] **INGEST-10**: `/uploads` distinguishes a file processing right now from one stuck for days, without a Slack message to hand
 - [ ] **INGEST-11**: No regression to the `status = 'done'` de-dup filter, `recordFile`'s upsert on `content_sha256`, the chunked writes, or the push/drain path
+- [ ] **INGEST-12**: The push/drain path no longer runs the ingestion pipeline inside its own request — it claims each file and fires the background function, the same way `/api/ingest` does, so a push-delivered file is not bound by the measured ~30s synchronous ceiling
 
 ### Disclosure
 
@@ -107,12 +108,13 @@ Deferred to a later milestone. Tracked but not in this roadmap.
 | FY-02 | Phase 11 | Pending |
 | DOC-01 | Phase 11 | Pending |
 | DATA-08 | Phase 12 | Pending |
-| INGEST-06 | Phase 13 | Pending — plan 13-02 |
-| INGEST-07 | Phase 13 | Pending — plan 13-04; its real proof is the deployed large-file run in plan 13-07, not the unit suite |
-| INGEST-08 | Phase 13 | Pending — plans 13-02, 13-05, 13-06 |
-| INGEST-09 | Phase 13 | Pending — plan 13-06 |
-| INGEST-10 | Phase 13 | Pending — plan 13-03 |
-| INGEST-11 | Phase 13 | Pending — gated per plan, with the full check in plan 13-07 |
+| INGEST-06 | Phase 13 | Pending — plan 13-05 |
+| INGEST-07 | Phase 13 | Pending — plan 13-06; its real proof is the deployed large-file run, not the unit suite |
+| INGEST-08 | Phase 13 | Pending — plans 13-02, 13-03, 13-05, 13-07 |
+| INGEST-09 | Phase 13 | Pending — plan 13-07 |
+| INGEST-10 | Phase 13 | Pending — plan 13-04 |
+| INGEST-11 | Phase 13 | Pending — gated per plan (13-03, 13-07) |
+| INGEST-12 | Phase 13 | Pending — plan 13-07; added 2026-10-06 when the ceiling measurement exposed that the drain ingests in-process inside the same ~30s-capped request (D-09) |
 
 **Coverage:**
 

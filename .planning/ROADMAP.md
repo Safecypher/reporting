@@ -225,12 +225,14 @@ with the push/drain path, which must keep working unchanged)
     confirmed brings background functions back as a live decision at plan
     13-05's `checkpoint:decision` — see 13-CONTEXT.md D-05.
 
-**Plans**: 7 plans across 5 waves
+**Requirements**: INGEST-06 … INGEST-12 (INGEST-12 added 2026-10-06 — see D-09)
+**Plans**: 7 plans across 4 waves — replanned 2026-10-06 around the background-function
+entry point after the measured ~30s ceiling falsified the synchronous design (D-07).
 
-  - [ ] 13-01-PLAN.md — the lease column and the measured Netlify ceiling (wave 1)
-  - [ ] 13-02-PLAN.md — tracer: split `ingest()`, the 202, and the processing route (wave 2)
-  - [ ] 13-03-PLAN.md — `/uploads` tells "processing now" from "stuck for days" (wave 2)
-  - [ ] 13-04-PLAN.md — the client: fire-and-forget, follow the status, report the truth (wave 3)
-  - [ ] 13-05-PLAN.md — convergence across attempts, gated on the measured ceiling (wave 3)
-  - [ ] 13-06-PLAN.md — the drain sweep and the stuck-pending Slack line (wave 4)
-  - [ ] 13-07-PLAN.md — no regression, and the deployed 44-batch proof (wave 5)
+  - [x] 13-01-PLAN.md — the lease column and the measured Netlify ceiling (wave 1) — **complete**
+  - [ ] 13-02-PLAN.md — resize the lease for a 15-minute world (wave 2)
+  - [ ] 13-03-PLAN.md — the seam: a writer that resumes, and `ingest()` split in two (wave 2)
+  - [ ] 13-04-PLAN.md — `/uploads` tells "processing now" from "stuck since Tuesday" (wave 2)
+  - [ ] 13-05-PLAN.md — the background function, and a real deploy that proves it (wave 3)
+  - [ ] 13-06-PLAN.md — the browser follows the file and reports the truth (wave 4)
+  - [ ] 13-07-PLAN.md — the drain converges, sweeps what was lost, and says so in Slack (wave 4)
