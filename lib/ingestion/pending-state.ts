@@ -29,9 +29,9 @@
  *
  * D-07 moved processing from a synchronous route (~26-38s worst case) to a
  * Netlify background function whose legitimate single attempt may run up
- * to this ceiling. Plan 13-01's `PROCESSING_LEASE_SECONDS = 180` was sized
- * for the old world; this constant exists so the correction can be stated
- * and gated against a name.
+ * to this ceiling. The lease window below was previously sized for the old
+ * world; this constant exists so the correction can be stated and gated
+ * against a name.
  */
 export const BACKGROUND_FUNCTION_CEILING_SECONDS = 900;
 
