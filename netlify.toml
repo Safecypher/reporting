@@ -1,0 +1,17 @@
+# Functions-only configuration (13-05). This repository has never had a
+# netlify.toml before this plan -- every build setting currently lives in
+# the Netlify dashboard. Deliberately restricted to a [functions] block and
+# NOTHING ELSE: no [build] section, so introducing this file cannot
+# silently override dashboard build settings nobody in this plan has
+# reviewed. Do not pin the Next.js adapter plugin either -- Netlify's own
+# docs say not to, and it auto-installs at build time regardless.
+[functions]
+  directory = "netlify/functions"
+  node_bundler = "esbuild"
+  # Precaution, not a confirmed fix (13-RESEARCH.md "Runtime and
+  # bundling"): esbuild can generate faulty dynamic-require code when it
+  # bundles CommonJS packages with conditional requires -- exactly the
+  # shape of the dynamic `import("exceljs")` in lib/ingestion/index.ts.
+  # Marking a package external costs nothing if it turns out not to have
+  # needed it; Task 3's real deploy is what decides.
+  external_node_modules = ["exceljs", "papaparse"]
