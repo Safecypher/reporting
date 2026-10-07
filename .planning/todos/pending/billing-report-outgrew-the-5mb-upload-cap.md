@@ -72,6 +72,19 @@ from the browser, bypassing the function entirely. Phase 13's async work does no
 either way: it moved processing off the request, but the bytes still travel through
 the route handler.
 
+## BLOCKED BY A MORE SERIOUS DEFECT — read first
+
+`billing-transaction-id-is-not-unique.md` (added 2026-10-07, severity critical).
+`transactionId` is reused for genuinely different transactions, and the
+`UNIQUE (transaction_id)` index plus `ignoreDuplicates: true` silently discards ~3.8% of
+every billing file — 3,685 rows in the 07 Oct file alone, of which 1,067 disagree with the
+kept row about `authorised`.
+
+**Do not lift the cap before the dedup key is settled.** Lifting it first would ingest the
+~97,000-row backlog with that 3.8% loss baked in, and it would look like success because
+`rows_duplicate` absorbs it. That is strictly worse than the current state: billing data
+that is quietly wrong is harder to notice than billing data that is absent.
+
 ## Immediate data gap
 
 Separate from the permanent fix: 2026-10-03..2026-10-06 billing figures still need to
