@@ -8,12 +8,22 @@
  * both read from one place and cannot drift apart, and so the logic is
  * testable without a DOM.
  */
-import type { IngestionResult } from "@/lib/ingestion/types";
+import type { IngestionResult, ReportType } from "@/lib/ingestion/types";
 
-/** One file's terminal outcome in a batch upload. Every file the user handed
- *  to the dropzone produces exactly one of these — none are dropped silently. */
+/** One file's outcome in a batch upload. Every file the user handed to the
+ *  dropzone produces exactly one of these — none are dropped silently.
+ *
+ *  `"pending"` is deliberately NOT a terminal outcome — it is what a 202
+ *  becomes (13-06, INGEST-07): the file was accepted for processing but
+ *  nothing is known about its real outcome yet. It carries the file id and
+ *  the report type the 202 classified it as, and no message — there is
+ *  neither an error nor a result yet, and inventing placeholder copy here is
+ *  exactly how a processing state quietly becomes indistinguishable from a
+ *  failure in the summary line. The dropzone replaces a `"pending"` outcome
+ *  with a `"result"` or `"failed"` one once the file settles. */
 export type BatchFileOutcome =
   | { fileName: string; kind: "result"; result: IngestionResult }
+  | { fileName: string; kind: "pending"; fileId: string; reportType: ReportType }
   | { fileName: string; kind: "failed"; message: string }
   | { fileName: string; kind: "skipped"; message: string };
 
@@ -21,6 +31,7 @@ export interface BatchTotals {
   files: number; // every outcome, whatever its kind
   imported: number; // kind "result", reportType !== null, no alreadyUploaded
   alreadyUploaded: number; // kind "result" with alreadyUploaded set
+  pending: number; // kind "pending" — files accepted for processing whose outcome is not yet known
   unrecognised: number; // kind "result", reportType === null, no alreadyUploaded
   failed: number; // kind "failed" — the request did not return a result
   skipped: number; // kind "skipped" — never uploaded (accept-filter rejected)
@@ -34,6 +45,15 @@ export const UPLOAD_FAILED_MESSAGE =
   "Upload failed. This file couldn't be processed — try again, and if it keeps happening, check the file isn't corrupted.";
 
 export const FILTER_REJECTED_MESSAGE = "Not a CSV or XLSX file. This file wasn't uploaded.";
+
+/** Per-file copy for a `"pending"` outcome, whether the follow loop is still
+ * actively polling or has given up waiting (13-06). Honest in both cases —
+ * the file genuinely may still be processing either way — and never
+ * failure copy: the client's patience running out is not evidence of
+ * anything about the file. Points at the one place that carries the real
+ * answer once this tab stops watching. */
+export const STILL_PROCESSING_MESSAGE =
+  "Still processing. Check the upload history below for its outcome.";
 
 /** Maps an `/api/ingest` non-ok HTTP status to fixed, curated copy — the
  * response body is never parsed or rendered (T-ILI-02), so no server-side
@@ -62,6 +82,7 @@ export function summariseBatch(outcomes: BatchFileOutcome[]): BatchTotals {
     files: 0,
     imported: 0,
     alreadyUploaded: 0,
+    pending: 0,
     unrecognised: 0,
     failed: 0,
     skipped: 0,
@@ -81,6 +102,19 @@ export function summariseBatch(outcomes: BatchFileOutcome[]): BatchTotals {
 
     if (outcome.kind === "skipped") {
       totals.skipped += 1;
+      continue;
+    }
+
+    // The file that produced the 2026-10-05 report — 43,383 rows parsed,
+    // 41,239 accepted, status done — was shown to the user as a failure
+    // because every function in this module assumed an outcome it could
+    // see was an outcome that was finished. A pending outcome has no
+    // result to read and no counts to sum, so it must not fall through to
+    // the "result" branch below — it increments its own bucket and stops
+    // here, counted in no other bucket. A handful of lines of branching is
+    // the whole fix on this side.
+    if (outcome.kind === "pending") {
+      totals.pending += 1;
       continue;
     }
 
@@ -115,13 +149,19 @@ export function formatBatchProgress(index: number, total: number, fileName: stri
 }
 
 /** The imported clause is unconditional — a batch that imported nothing must
- * say so rather than fall silent. The other four clauses drop out when
- * their count is 0, so the sentence never trails a stray separator. */
+ * say so rather than fall silent. The other five clauses drop out when
+ * their count is 0, so the sentence never trails a stray separator. The
+ * pending clause sits after already-uploaded and before unrecognised, so
+ * the sentence reads in the order a user cares about: what landed, what was
+ * already there, what is still working, what went wrong. */
 export function formatBatchFileCounts(totals: BatchTotals): string {
   const clauses = [`${formatCount(totals.imported)} ${pluralizeFile(totals.imported)} imported`];
 
   if (totals.alreadyUploaded > 0) {
     clauses.push(`${formatCount(totals.alreadyUploaded)} already uploaded`);
+  }
+  if (totals.pending > 0) {
+    clauses.push(`${formatCount(totals.pending)} ${pluralizeFile(totals.pending)} pending`);
   }
   if (totals.unrecognised > 0) {
     clauses.push(`${formatCount(totals.unrecognised)} unrecognised`);
@@ -168,7 +208,14 @@ export function formatZoneErrorMessage(totals: BatchTotals): string {
 }
 
 /** The error condition wins over the empty-import condition — a batch with
- * even one failure/unrecognised/skipped file is not a clean success. */
+ * even one failure/unrecognised/skipped file is not a clean success.
+ *
+ * `pending` deliberately contributes to neither `problemCount` nor the
+ * empty-import check below: a batch with problems is still an error
+ * (pending or not), a batch of nothing but pending and imported files is
+ * not an error, and a batch of nothing but pending files takes the
+ * informational tone — `imported` stays 0 for it, so it falls to "info" —
+ * because no claim of success can honestly be made yet. */
 export function batchToastTone(totals: BatchTotals): "success" | "info" | "error" {
   const problemCount = totals.failed + totals.unrecognised + totals.skipped;
   if (problemCount > 0) return "error";
