@@ -72,7 +72,25 @@ export const config = {
   // path that matches nothing in `public/` 404s rather than resolving.
   // Assets in `public/` are public by construction — they are served by the
   // CDN to anyone with the URL regardless of this matcher.
+  // 13-05: `.netlify/functions/*` is excluded for exactly the reason
+  // `api/push` and `api/ingest/drain` already are — those endpoints
+  // authenticate themselves and have no session to gate. Verified live
+  // before the fix: a POST to
+  // `/.netlify/functions/ingest-process-background` was answered
+  // `307 -> /login`, so the background function was unreachable by the
+  // server-side trigger that invokes it. The function is not a page and
+  // never has a signed-in caller — `/api/ingest` fires it machine-to-
+  // machine with a bearer token.
+  //
+  // This is a deliberate loosening of the auth gate and it is NOT a hole:
+  // `netlify/functions/ingest-process-background.mts` performs its own
+  // authentication first (missing or wrong `Authorization: Bearer
+  // $INGEST_PROCESS_SECRET` -> 401; unset secret -> 500, so a
+  // misconfigured deploy fails closed rather than open; malformed fileId
+  // -> 400). That is the same posture the drain cron relies on with
+  // `DRAIN_CRON_SECRET`. The prefix is full-segment anchored, so it cannot
+  // match a lookalike application route.
   matcher: [
-    "/((?!_next/static|_next/image|favicon.ico|login(?:/|$)|auth/confirm(?:/|$)|auth/code(?:/|$)|api/push(?:/|$)|api/ingest/drain(?:/|$)|.*\\.(?:svg|png|jpg|jpeg|gif|webp|avif|ico|woff2?|ttf|otf|txt|xml|webmanifest)$).*)",
+    "/((?!_next/static|_next/image|favicon.ico|login(?:/|$)|auth/confirm(?:/|$)|auth/code(?:/|$)|api/push(?:/|$)|api/ingest/drain(?:/|$)|\\.netlify/functions(?:/|$)|.*\\.(?:svg|png|jpg|jpeg|gif|webp|avif|ico|woff2?|ttf|otf|txt|xml|webmanifest)$).*)",
   ],
 };

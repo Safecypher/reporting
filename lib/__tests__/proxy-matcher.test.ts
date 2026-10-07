@@ -87,11 +87,30 @@ describe("proxy matcher — paths that MUST stay excluded", () => {
     "/auth/code/",
     "/api/push",
     "/api/ingest/drain",
+    "/.netlify/functions/ingest-process-background",
     "/favicon.ico",
     "/_next/static/chunk.js",
     "/_next/image",
   ])("%s is not gated", (path) => {
     expect(isGated(path)).toBe(false);
+  });
+
+  it("excludes every function under .netlify/functions, not just the named one (13-05)", () => {
+    // The 307 -> /login on this exact path is what made the background
+    // function unreachable from the server-side trigger. Each function
+    // authenticates itself with its own bearer secret.
+    expect(isGated("/.netlify/functions/ingest-process-background")).toBe(false);
+    expect(isGated("/.netlify/functions/ingest-process-background/")).toBe(false);
+    expect(isGated("/.netlify/functions/some-future-function")).toBe(false);
+  });
+
+  it("keeps full-segment anchoring on the .netlify exclusion — a lookalike route stays gated (13-05)", () => {
+    // The exclusion must not become a prefix hole: an application route
+    // that merely starts with the same characters is still a page and
+    // must still be gated.
+    expect(isGated("/.netlify/functionsomething")).toBe(true);
+    expect(isGated("/.netlifyx/functions/x")).toBe(true);
+    expect(isGated("/netlify/functions/x")).toBe(true);
   });
 
   it("excludes the two public/ assets whose 307 caused the broken logo", () => {
