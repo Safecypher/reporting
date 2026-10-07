@@ -319,3 +319,128 @@ None beyond what this plan's own `<threat_model>` already registers (T-13-61 thr
 *Phase: 13-async-ingestion-return-202-and-process-in-the-background*
 *Plan: 08*
 *Task 1 completed: 2026-10-07. Tasks 2-3 outstanding — orchestrator action required.*
+
+
+---
+
+## Task 2 — Live Verification (orchestrator + user, 2026-10-07): PASSED
+
+Deployed commit `c724468` on `https://screporting.netlify.app`. 13-06's presence on the
+deployed build was confirmed before the run by calling `GET /api/ingest/status?ids=...`
+in a signed-in browser — an endpoint that exists only in 13-06 — which returned
+`[{"id":"07b83238-…","status":"done","report_type":"apigee-stats","rows_accepted":56452,
+"rows_duplicate":4392,"rows_rejected":0,"rows_excluded":0}]`.
+
+### Baseline, taken before anything was attempted
+
+```
+pending rows    0
+total files     190
+apigee_calls    334717
+latest upload   2026-10-07 13:20:31.245734+00
+```
+
+Zero pending rows, so every row appearing afterwards is attributable to this run. NOTE:
+the plan specifies a Supabase `edge_logs` idle baseline. Those log tables are not
+reachable through this project's Supabase MCP connection (`edge_logs` and `postgres_logs`
+both report "does not exist"), so the row-level baseline above was used instead. It is
+more direct evidence for this particular claim, but it is a substitution and is recorded
+as one.
+
+### File choice — route 2, with the mutation recorded
+
+No never-ingested Stats file existed: today's (`0610 to 0710`) was ingested at 13:20 and
+the original culprit has been `done` since 2026-10-05. Route 2 from the plan's Part B was
+used, with the user's explicit approval.
+
+`ingested_files.content_sha256` for `0a46b1e0-72f3-4dd8-b3dc-3cdbf2e75f4c`
+(`Safecypher Stats 0310 to 0410.xlsx`) was temporarily re-pointed to a sentinel string
+that carried its own restore value, so the hash short-circuit would miss. The row was NOT
+deleted — all six report tables declare `source_file_id ... references ingested_files(id)`
+with no cascade, and that refusal is correct.
+
+### The drop, watched (user at the browser)
+
+Subject: `Safecypher Stats 0310 to 0410.xlsx` — 43,383 rows, the exact file that produced
+the defect this phase exists for.
+
+1. **Time from drop to acknowledgement: too quick to measure.** The ~38 seconds of parsing
+   that used to sit inside that wait is gone from the request entirely.
+2. **Batch panel at that moment, verbatim:** `Uploading and processing file 1 of 1 - <filename>`
+3. **Second `/uploads` tab while processing:** did NOT show the file as processing — see
+   the UNOBSERVED finding below.
+4. **Batch panel when it settled, verbatim:** `Import complete - 0 rows accepted. 43383 duplicates. 0 rejected.`
+   **Elapsed from drop to settled: 47.5 seconds.**
+5. **Did "Upload failed" or any failure copy appear at any point? NO.**
+
+### The row, read back
+
+```
+id                     4115f6b0-e36f-44d3-ad13-a0ada17b63f5
+file_name              Safecypher Stats 0310 to 0410.xlsx
+status                 done
+uploaded_at            2026-10-07 14:59:40.79866+00
+processing_started_at  2026-10-07 14:59:43.821312+00
+processing_attempts    1
+rows_accepted          0
+rows_duplicate         43383
+rows_rejected          0
+claim latency          3.02 s
+```
+
+**Screen and database agree exactly**, and `rows_duplicate` is precisely the 43,383 rows
+the original file parses to. Every row deduplicated because each report table's row hash
+is unique globally rather than per file — the audit invariant doing its job — and the
+numbers still came out exact, which is what makes this a real test rather than a soft one.
+
+### Verdict on SC-1
+
+**PASS, on the literal wording, not the weaker fallback ending.** The panel reached a real
+terminal outcome inside the follow loop's budget; it did not expire into an honest
+still-processing message. 47.5 seconds of work completed on a site that cuts a synchronous
+function at approximately 30 seconds. The browser was once told "Upload failed. This file
+couldn't be processed" for 43,383 rows that had landed perfectly; those same 43,383 rows
+now report truthfully.
+
+### UNOBSERVED — INGEST-10's processing half
+
+Observation 3 did not pass and is NOT recorded as passed. The second `/uploads` tab, opened
+before the drop specifically to watch the row mid-flight, never showed the file as
+processing — it reflected the file only after the work had finished, on a manual refresh.
+
+`/uploads` is server-rendered with no polling, so a tab opened before an upload serves
+stale HTML. 13-04's badges are correctly implemented and DO render on a fresh load; nothing
+causes the page to re-render while state changes. The retrospective half of INGEST-10
+(someone reviewing days later sees a stuck badge) is intact; the live half has never been
+observed on a genuinely in-flight file.
+
+Captured as `.planning/todos/pending/uploads-page-does-not-live-update-processing-state.md`.
+
+### Cleanup, verified
+
+The new row (`4115f6b0-…`) was deleted — guarded by a `not exists` check confirming zero
+`apigee_calls` referenced it, which held because every row was a duplicate. The original
+`content_sha256` was then restored on `0a46b1e0-…` (deletion first, because restoring the
+hash while both rows existed would collide on the content-hash uniqueness `recordFile`
+upserts against).
+
+Post-run state:
+
+```
+total_files      191   (190 baseline + removed-cards-report_2026-10-07.csv, a genuine
+                        daily upload by the user at 15:03, unrelated to this test)
+pending_rows     0
+apigee_calls     334717   (unchanged from baseline — no business data altered)
+sentinels_left   0
+culprit_rows     1        (the original row, hash restored, 41239 accepted / 2144 duplicate)
+```
+
+Incidental confirmation: that `removed-cards-report_2026-10-07.csv` upload went through the
+new async path correctly — 82 rows accepted, one attempt, 0.8s claim latency — so ordinary
+daily work is unaffected by the phase.
+
+### Still outstanding
+
+Task 3 (the Slack stuck-pending line, the push-delivery drain, and the six-source smoke)
+has NOT been run. It requires `SLACK_WEBHOOK_URL` set in Netlify and a redeploy,
+`DRAIN_CRON_SECRET`, Slack channel access, and a push credential.
