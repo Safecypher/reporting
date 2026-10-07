@@ -38,6 +38,17 @@ export interface WrongStateGroups {
   failedToParse: FailedToParseGroupItem[];
   neverArrived: NeverArrivedGroupItem[];
   inboxStuck: InboxStuckGroup | null;
+  /**
+   * A `pending` ingested-file row that never finished processing (13-07,
+   * D-03). Reuses `InboxStuckGroup`'s shape verbatim rather than declaring a
+   * second count-and-since type — the two groups genuinely are the same
+   * shape (a count and an oldest-since timestamp), and a second type would
+   * only invite them to drift apart. The count/since are computed upstream
+   * by the drain route via the SAME shared resolver `/uploads` reads
+   * (`lib/ingestion/pending-state.ts`'s `countStuckPendingFiles`) — this
+   * function does no age arithmetic of its own for either group.
+   */
+  stuckPending: InboxStuckGroup | null;
   hasAnything: boolean;
 }
 
@@ -62,6 +73,16 @@ export function groupWrongStates(
   items: FreshnessResolution[],
   stuckCount: number,
   stuckSince: string | null,
+  /** The stuck-pending count (13-07, D-03) — a pending `ingested_files` row
+   * that never finished processing. Carried through unchanged into
+   * `stuckPending` below; this function performs no age arithmetic of its
+   * own, because that judgement was already made by the shared resolver
+   * before this function was called. Defaulted to 0/null (not required) so
+   * the drain route's call site can be rewired in its own plan (13-07 Task 3)
+   * without this signature change itself breaking that file's typecheck in
+   * the meantime. */
+  stuckPendingCount: number = 0,
+  stuckPendingSince: string | null = null,
 ): WrongStateGroups {
   const byReportType = new Map(items.map((item) => [item.reportType, item]));
 
@@ -99,11 +120,17 @@ export function groupWrongStates(
   }
 
   const inboxStuck: InboxStuckGroup | null = stuckCount > 0 ? { count: stuckCount, since: stuckSince } : null;
+  const stuckPending: InboxStuckGroup | null =
+    stuckPendingCount > 0 ? { count: stuckPendingCount, since: stuckPendingSince } : null;
 
   const hasAnything =
-    overdue.length > 0 || failedToParse.length > 0 || neverArrived.length > 0 || inboxStuck !== null;
+    overdue.length > 0 ||
+    failedToParse.length > 0 ||
+    neverArrived.length > 0 ||
+    inboxStuck !== null ||
+    stuckPending !== null;
 
-  return { overdue, failedToParse, neverArrived, inboxStuck, hasAnything };
+  return { overdue, failedToParse, neverArrived, inboxStuck, stuckPending, hasAnything };
 }
 
 /**
@@ -139,6 +166,18 @@ export function formatSlackAlertText(groups: WrongStateGroups): string | null {
 
   if (groups.inboxStuck) {
     lines.push(`Inbox: ${groups.inboxStuck.count} objects stuck`);
+  }
+
+  if (groups.stuckPending) {
+    // A different kind of wrongness from the Inbox line above: these are
+    // uploads that were ACCEPTED and then never finished processing — not
+    // objects still sitting undrained. The since clause is omitted
+    // entirely when null rather than rendering a fabricated time (the same
+    // discipline `parseDeliveredAt` already follows for the Inbox group).
+    const { count, since } = groups.stuckPending;
+    const unit = count === 1 ? "upload" : "uploads";
+    const sinceClause = since ? `, oldest arrived ${since}` : "";
+    lines.push(`Stuck pending: ${count} ${unit} never finished processing${sinceClause}`);
   }
 
   lines.push(UPLOADS_LINK);

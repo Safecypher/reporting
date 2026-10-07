@@ -1,7 +1,12 @@
 import { createClient as createSupabaseClient, type SupabaseClient } from "@supabase/supabase-js";
 import type { Database } from "@/types/db";
 import type { IngestDeps, NormalisedVerificationRow, RejectedRow, ReportType } from "./types";
-import { PROCESSING_LEASE_SECONDS } from "./pending-state";
+import {
+  PROCESSING_LEASE_SECONDS,
+  SWEEPABLE_AFTER_MINUTES,
+  STUCK_PENDING_AFTER_HOURS,
+  MAX_PROCESSING_ATTEMPTS,
+} from "./pending-state";
 // Relative import, NEVER the "@/" alias (lib/ingestion must stay importable
 // by the Netlify background function's bundler, which resolves neither
 // Next.js module specifiers nor this project's tsconfig path alias — 13-05).
@@ -412,6 +417,33 @@ export interface PendingFileAccess {
   loadPendingFile(id: string): Promise<PendingFileRow | null>;
   downloadStoredBytes(path: string): Promise<Uint8Array>;
   releaseClaim(id: string): Promise<void>;
+  /**
+   * The drain sweep's (13-07) "oldest pending rows" listing. Selects pending
+   * rows whose upload time is at or before `asOf` minus
+   * `SWEEPABLE_AFTER_MINUTES`, whose `processing_attempts` is below
+   * `MAX_PROCESSING_ATTEMPTS` (mirroring `isSweepable`'s own rule by
+   * importing the constant, never restating the number), ordered by upload
+   * time ascending, limited to `limit` rows. Oldest first is deliberate: a
+   * bounded sweep should spend its budget on the files that have been
+   * waiting longest, and a deterministic order means two runs reporting the
+   * same backlog behave the same way. `asOf` is taken as a parameter rather
+   * than read from the clock so the sweep, the stuck count and the
+   * freshness read can all be resolved against one evaluation instant.
+   */
+  listSweepableFiles(asOf: Date, limit: number): Promise<string[]>;
+  /**
+   * The drain's stuck-pending Slack group (13-07, D-03), mirroring the
+   * shape the inbox-stuck group already uses: a count and a since. Counts
+   * pending rows at or past `STUCK_PENDING_AFTER_HOURS` with no live lease
+   * (a live lease always means "processing", never "stuck" — the same rule
+   * `resolvePendingState` applies), and returns the oldest `uploaded_at`
+   * among them. Returns `{ count: 0, since: null }` rather than inventing a
+   * time when nothing qualifies. Deliberately does NOT filter on the
+   * attempt cap — a file that has burned every retry is exactly the file
+   * this alert exists for; the cap stops the sweep from retrying it, not
+   * from being reported.
+   */
+  countStuckPendingFiles(asOf: Date): Promise<{ count: number; since: string | null }>;
 }
 
 /**
@@ -483,6 +515,50 @@ export function createPendingFileAccess(client?: SupabaseClient<Database>): Pend
       // body itself, not something this layer re-asserts.
       const { error } = await pushRpc(supabase, "fn_release_ingested_file_claim", { p_id: id });
       if (error) throw error;
+    },
+
+    async listSweepableFiles(asOf: Date, limit: number): Promise<string[]> {
+      // The partial index 0048 created (idx_ingested_files_pending_uploaded_at)
+      // is exactly this query's index — status='pending', ordered by
+      // uploaded_at. The attempt-cap filter imports MAX_PROCESSING_ATTEMPTS
+      // rather than restating a number, so a future correction to that
+      // constant (13-02 already moved it once) cannot leave this query out
+      // of step with isSweepable's own rule.
+      const cutoff = new Date(asOf.getTime() - SWEEPABLE_AFTER_MINUTES * 60_000).toISOString();
+      const { data, error } = await pushTable(supabase, "ingested_files")
+        .select("id")
+        .eq("status", "pending")
+        .lt("processing_attempts", MAX_PROCESSING_ATTEMPTS)
+        .lte("uploaded_at", cutoff)
+        .order("uploaded_at", { ascending: true })
+        .limit(limit);
+      if (error) throw error;
+      return ((data ?? []) as { id: string }[]).map((row) => row.id);
+    },
+
+    async countStuckPendingFiles(asOf: Date): Promise<{ count: number; since: string | null }> {
+      // Mirrors resolvePendingState: a row only counts as stuck when it is
+      // BOTH past the stuck age AND not under a live lease — a lease taken
+      // moments ago by a legitimately-running attempt must never be
+      // reported as abandoned just because the row is old. The attempt cap
+      // is deliberately NOT part of this filter (see the interface doc
+      // comment above): a capped file is exactly what this alert exists
+      // for.
+      const stuckCutoff = new Date(asOf.getTime() - STUCK_PENDING_AFTER_HOURS * 3_600_000).toISOString();
+      const leaseCutoff = new Date(asOf.getTime() - PROCESSING_LEASE_SECONDS * 1000).toISOString();
+      const { data, error, count } = await pushTable(supabase, "ingested_files")
+        .select("uploaded_at", { count: "exact" })
+        .eq("status", "pending")
+        .lte("uploaded_at", stuckCutoff)
+        .or(`processing_started_at.is.null,processing_started_at.lt.${leaseCutoff}`)
+        .order("uploaded_at", { ascending: true })
+        .limit(1);
+      if (error) throw error;
+      const rows = (data ?? []) as { uploaded_at: string }[];
+      return {
+        count: count ?? 0,
+        since: rows.length > 0 ? rows[0].uploaded_at : null,
+      };
     },
   };
 }
