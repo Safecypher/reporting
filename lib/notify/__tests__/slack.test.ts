@@ -36,12 +36,13 @@ const ALL_CURRENT: FreshnessResolution[] = [
 
 describe("groupWrongStates", () => {
   it("all six items Current, stuckCount 0 -> nothing wrong, hasAnything is false", () => {
-    const groups = groupWrongStates(ALL_CURRENT, 0, null);
+    const groups = groupWrongStates(ALL_CURRENT, 0, null, 0, null);
     expect(groups.hasAnything).toBe(false);
     expect(groups.overdue).toEqual([]);
     expect(groups.failedToParse).toEqual([]);
     expect(groups.neverArrived).toEqual([]);
     expect(groups.inboxStuck).toBeNull();
+    expect(groups.stuckPending).toBeNull();
   });
 
   it("two items Overdue -> one overdue group listing both, in SOURCE_ORDER order regardless of input order, each with its last covered day", () => {
@@ -55,7 +56,7 @@ describe("groupWrongStates", () => {
     // verification (SOURCE_ORDER index 0) in the INPUT.
     const reversed = [...items].reverse();
 
-    const groups = groupWrongStates(reversed, 0, null);
+    const groups = groupWrongStates(reversed, 0, null, 0, null);
     expect(groups.hasAnything).toBe(true);
     expect(groups.overdue).toEqual([
       { label: "Verification", lastCoveredDay: "Fri 26 Sep" },
@@ -68,7 +69,7 @@ describe("groupWrongStates", () => {
     const billingIdx = items.findIndex((i) => i.reportType === "billing");
     items[billingIdx] = item("billing", "Billing", "Failed to parse", "Arrived Sat 26 Sep, 08:14");
 
-    const groups = groupWrongStates(items, 0, null);
+    const groups = groupWrongStates(items, 0, null, 0, null);
     expect(groups.hasAnything).toBe(true);
     expect(groups.failedToParse).toEqual([{ label: "Billing", fileCount: 1 }]);
     expect(groups.overdue).toEqual([]);
@@ -79,7 +80,7 @@ describe("groupWrongStates", () => {
     const idx = items.findIndex((i) => i.reportType === "removed-cards");
     items[idx] = item("removed-cards", "Removed cards", "Disabled", "Monitoring off");
 
-    const groups = groupWrongStates(items, 0, null);
+    const groups = groupWrongStates(items, 0, null, 0, null);
     expect(groups.hasAnything).toBe(false);
     expect(groups.overdue).toEqual([]);
     expect(groups.failedToParse).toEqual([]);
@@ -91,19 +92,47 @@ describe("groupWrongStates", () => {
     const idx = items.findIndex((i) => i.reportType === "apigee-stats");
     items[idx] = item("apigee-stats", "APIGEE stats", "No report received", null);
 
-    const groups = groupWrongStates(items, 0, null);
+    const groups = groupWrongStates(items, 0, null, 0, null);
     expect(groups.hasAnything).toBe(true);
     expect(groups.neverArrived).toEqual([{ label: "APIGEE stats" }]);
     expect(groups.overdue).toEqual([]);
   });
 
   it("stuckCount 3 with everything else healthy -> hasAnything is true and only the inbox group is populated", () => {
-    const groups = groupWrongStates(ALL_CURRENT, 3, "2026-09-26T06:14:00Z");
+    const groups = groupWrongStates(ALL_CURRENT, 3, "2026-09-26T06:14:00Z", 0, null);
     expect(groups.hasAnything).toBe(true);
     expect(groups.overdue).toEqual([]);
     expect(groups.failedToParse).toEqual([]);
     expect(groups.neverArrived).toEqual([]);
     expect(groups.inboxStuck).toEqual({ count: 3, since: "2026-09-26T06:14:00Z" });
+    expect(groups.stuckPending).toBeNull();
+  });
+
+  it("a zero stuck-pending count produces a null group, and the has-anything flag is unchanged by it", () => {
+    const groups = groupWrongStates(ALL_CURRENT, 0, null, 0, "2026-09-26T06:14:00Z");
+    expect(groups.stuckPending).toBeNull();
+    expect(groups.hasAnything).toBe(false);
+  });
+
+  it("a stuck-pending count of two with everything else healthy makes the has-anything flag true with only that group populated", () => {
+    const groups = groupWrongStates(ALL_CURRENT, 0, null, 2, "2026-09-26T06:14:00Z");
+    expect(groups.hasAnything).toBe(true);
+    expect(groups.overdue).toEqual([]);
+    expect(groups.failedToParse).toEqual([]);
+    expect(groups.neverArrived).toEqual([]);
+    expect(groups.inboxStuck).toBeNull();
+    expect(groups.stuckPending).toEqual({ count: 2, since: "2026-09-26T06:14:00Z" });
+  });
+
+  it("the stuck-pending count and since are carried through unchanged -- no age arithmetic of its own", () => {
+    const groups = groupWrongStates(ALL_CURRENT, 0, null, 7, "2026-01-01T00:00:00.000Z");
+    expect(groups.stuckPending).toEqual({ count: 7, since: "2026-01-01T00:00:00.000Z" });
+  });
+
+  it("a non-null stuck-pending since carries through even when the count argument alone would already make hasAnything true via inboxStuck", () => {
+    const groups = groupWrongStates(ALL_CURRENT, 3, "2026-09-25T00:00:00Z", 1, null);
+    expect(groups.inboxStuck).toEqual({ count: 3, since: "2026-09-25T00:00:00Z" });
+    expect(groups.stuckPending).toEqual({ count: 1, since: null });
   });
 });
 
@@ -117,6 +146,7 @@ describe("formatSlackAlertText", () => {
       failedToParse: [],
       neverArrived: [],
       inboxStuck: null,
+      stuckPending: null,
       hasAnything: true,
     });
     expect(text).toBe(
@@ -131,6 +161,7 @@ describe("formatSlackAlertText", () => {
       failedToParse: [{ label: "billing", fileCount: 2 }],
       neverArrived: [],
       inboxStuck: null,
+      stuckPending: null,
       hasAnything: true,
     });
     expect(twoFiles).toBe("Failed to parse: billing (2 files)\nhttps://screporting.netlify.app/uploads");
@@ -140,6 +171,7 @@ describe("formatSlackAlertText", () => {
       failedToParse: [{ label: "billing", fileCount: 1 }],
       neverArrived: [],
       inboxStuck: null,
+      stuckPending: null,
       hasAnything: true,
     });
     expect(oneFile).toBe("Failed to parse: billing\nhttps://screporting.netlify.app/uploads");
@@ -151,6 +183,7 @@ describe("formatSlackAlertText", () => {
       failedToParse: [],
       neverArrived: [],
       inboxStuck: { count: 3, since: "2026-09-26T06:14:00Z" },
+      stuckPending: null,
       hasAnything: true,
     });
     expect(text).toBe("Inbox: 3 objects stuck\nhttps://screporting.netlify.app/uploads");
@@ -162,11 +195,13 @@ describe("formatSlackAlertText", () => {
       failedToParse: [{ label: "billing", fileCount: 1 }],
       neverArrived: [],
       inboxStuck: null,
+      stuckPending: null,
       hasAnything: true,
     });
     expect(text).not.toContain("Overdue:");
     expect(text).not.toContain("No report received:");
     expect(text).not.toContain("Inbox:");
+    expect(text).not.toContain("Stuck pending:");
   });
 
   it("always ends with the /uploads link on its own final line", () => {
@@ -175,6 +210,7 @@ describe("formatSlackAlertText", () => {
       failedToParse: [{ label: "billing", fileCount: 2 }],
       neverArrived: [{ label: "apigee-stats" }],
       inboxStuck: { count: 3, since: "2026-09-26T06:14:00Z" },
+      stuckPending: { count: 2, since: "2026-09-26T06:14:00Z" },
       hasAnything: true,
     });
     const lines = text!.split("\n");
@@ -184,6 +220,7 @@ describe("formatSlackAlertText", () => {
       "Failed to parse: billing (2 files)",
       "No report received: apigee-stats",
       "Inbox: 3 objects stuck",
+      "Stuck pending: 2 uploads never finished processing, oldest arrived 2026-09-26T06:14:00Z",
       "https://screporting.netlify.app/uploads",
     ]);
   });
@@ -194,9 +231,101 @@ describe("formatSlackAlertText", () => {
       failedToParse: [],
       neverArrived: [],
       inboxStuck: null,
+      stuckPending: null,
       hasAnything: false,
     });
     expect(text).toBeNull();
+  });
+
+  it("emits a stuck-pending line naming the count, using singular and plural correctly at one and at two", () => {
+    const one = formatSlackAlertText({
+      overdue: [],
+      failedToParse: [],
+      neverArrived: [],
+      inboxStuck: null,
+      stuckPending: { count: 1, since: null },
+      hasAnything: true,
+    });
+    expect(one).toBe("Stuck pending: 1 upload never finished processing\nhttps://screporting.netlify.app/uploads");
+
+    const two = formatSlackAlertText({
+      overdue: [],
+      failedToParse: [],
+      neverArrived: [],
+      inboxStuck: null,
+      stuckPending: { count: 2, since: null },
+      hasAnything: true,
+    });
+    expect(two).toBe("Stuck pending: 2 uploads never finished processing\nhttps://screporting.netlify.app/uploads");
+  });
+
+  it("names when the oldest one arrived when a since is present, and omits that clause entirely when it is null", () => {
+    const withSince = formatSlackAlertText({
+      overdue: [],
+      failedToParse: [],
+      neverArrived: [],
+      inboxStuck: null,
+      stuckPending: { count: 1, since: "2026-10-05T12:00:00.000Z" },
+      hasAnything: true,
+    });
+    expect(withSince).toBe(
+      "Stuck pending: 1 upload never finished processing, oldest arrived 2026-10-05T12:00:00.000Z\n" +
+        "https://screporting.netlify.app/uploads",
+    );
+
+    const withoutSince = formatSlackAlertText({
+      overdue: [],
+      failedToParse: [],
+      neverArrived: [],
+      inboxStuck: null,
+      stuckPending: { count: 1, since: null },
+      hasAnything: true,
+    });
+    expect(withoutSince).not.toContain("oldest arrived");
+    expect(withoutSince).not.toContain("null");
+  });
+
+  it("the stuck-pending line appears AFTER the inbox line and BEFORE the trailing link", () => {
+    const text = formatSlackAlertText({
+      overdue: [],
+      failedToParse: [],
+      neverArrived: [],
+      inboxStuck: { count: 1, since: null },
+      stuckPending: { count: 1, since: null },
+      hasAnything: true,
+    });
+    const lines = text!.split("\n");
+    const inboxIdx = lines.findIndex((l) => l.startsWith("Inbox:"));
+    const stuckPendingIdx = lines.findIndex((l) => l.startsWith("Stuck pending:"));
+    const linkIdx = lines.indexOf("https://screporting.netlify.app/uploads");
+    expect(inboxIdx).toBeGreaterThanOrEqual(0);
+    expect(stuckPendingIdx).toBeGreaterThan(inboxIdx);
+    expect(linkIdx).toBeGreaterThan(stuckPendingIdx);
+  });
+
+  it("the stuck-pending line is omitted entirely when the group is null", () => {
+    const text = formatSlackAlertText({
+      overdue: [],
+      failedToParse: [],
+      neverArrived: [],
+      inboxStuck: { count: 1, since: null },
+      stuckPending: null,
+      hasAnything: true,
+    });
+    expect(text).not.toContain("Stuck pending:");
+  });
+
+  it("a stuck-pending count of two with everything else null still produces a message (it alone is sufficient reason to post)", () => {
+    const text = formatSlackAlertText({
+      overdue: [],
+      failedToParse: [],
+      neverArrived: [],
+      inboxStuck: null,
+      stuckPending: { count: 2, since: "2026-10-06T00:00:00.000Z" },
+      hasAnything: true,
+    });
+    expect(text).not.toBeNull();
+    expect(text).toContain("Stuck pending: 2 uploads never finished processing");
   });
 });
 
