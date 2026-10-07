@@ -11,8 +11,16 @@ resolves_phase:
 
 `MAX_FILE_SIZE_BYTES = 5 * 1024 * 1024` in `app/api/ingest/route.ts` (mirrored
 client-side in `lib/upload/batch.ts`) rejects the cumulative billing report, which
-has grown past 5MB. The current file is ~8.1MB and is refused immediately in the
-browser, before any request is made.
+has grown past 5MB. The current file is ~8.1MB and is rejected SERVER-SIDE with a 413, by the
+handler's Content-Length check, before the body is buffered. Observed in the
+browser console on 2026-10-07:
+
+    Failed to load resource: the server responded with a status of 413 ()
+    https://screporting.netlify.app/api/ingest
+
+`describeIngestFailure(413)` then renders "File too large. Report files should be
+at most a few MB." The client-side guard in `lib/upload/batch.ts` mirrors the
+message, not the refusal.
 
 ## Evidence (live database, 2026-10-07)
 
@@ -45,16 +53,24 @@ review) as a resource-exhaustion defence, with the comment "A few MB is more tha
 daily report batch needs (T-05-01)". The cumulative billing report falsified that
 assumption.
 
-Netlify's synchronous function request payload ceiling sits not far above 5MB (bodies
-are base64-encoded in transit, which inflates them) and is the likely original reason
-for the number. **Confirm the exact current limit against Netlify's documentation
-before designing anything.** If it holds, no constant value makes an 8.1MB upload work
-through `/api/ingest` — it needs a direct-to-Storage signed upload from the browser,
-bypassing the function. Phase 13's async work does not help: it moved processing off
-the request, but the bytes still travel through the route handler.
+Netlify's synchronous function request payload ceiling sits somewhere above 5MB
+(bodies are base64-encoded in transit, which inflates them) and is the likely original
+reason for the number. **Confirm the exact current limit against Netlify's
+documentation before designing anything.**
 
-Raising the constant alone would turn a clear client-side refusal into a confusing
-mid-upload failure.
+Evidence that bears on this, gathered 2026-10-07: the 8.1MB request REACHED our route
+handler — the 413 came from our own Content-Length check, not from the platform. So
+the platform did not refuse the request outright at that size. That is a point in
+favour of simply raising the cap, and against the assumption that only a
+direct-to-Storage signed upload can work. It is not conclusive: a Content-Length
+header is read before the body is transferred, so the platform may still refuse the
+full 8.1MB body once it actually streams. Test with the cap raised before concluding
+either way.
+
+If the platform limit does bite, the fallback is a direct-to-Storage signed upload
+from the browser, bypassing the function entirely. Phase 13's async work does not help
+either way: it moved processing off the request, but the bytes still travel through
+the route handler.
 
 ## Immediate data gap
 
