@@ -166,7 +166,11 @@ See `key-decisions` in the frontmatter above — summarised: the trigger's failu
 
 None beyond the one self-caught deviation above. Both tasks' automated `<verify>` gates pass in full.
 
-## Outstanding: Task 3 — the real deploy and its falsification walkthrough
+## Task 3 — the real deploy and its falsification walkthrough (PERFORMED BY ORCHESTRATOR 2026-10-07, PASSED)
+
+**See "## Task 3 — Live Verification" at the end of this file for what was actually observed.** The section immediately below is the executor's handover, preserved verbatim as the record of what was unproven at handover time.
+
+### Handover (historical — all items below are now resolved)
 
 **NOT performed by this agent.** Task 3 is `type="checkpoint:human-action"` with `gate="blocking-human"` and an explicit `<precondition>` naming three things this worktree executor does not hold: push access to `origin/main`, access to the Netlify dashboard for this site, and Supabase MCP/SQL-editor access to read `ingested_files` rows and `edge_logs`. The dispatch prompt that spawned this agent explicitly states Task 3 "is not yours" and must never be claimed done by a subagent.
 
@@ -233,9 +237,169 @@ None beyond what this plan's own `<threat_model>` already registers (T-13-43 thr
 - Route claim-before-trigger ordering gate — ORDER_OK
 - Route secret-read gate — 1 (nonzero)
 - Route no-secret-in-log gate — 0
-- **Task 3 — NOT run, NOT claimed. See "Outstanding: Task 3" above.**
+- **Task 3 — RUN BY ORCHESTRATOR 2026-10-07, PASSED. See "Task 3 — Live Verification" below.**
 
 ---
 *Phase: 13-async-ingestion-return-202-and-process-in-the-background*
 *Plan: 05*
-*Tasks 1-2 completed: 2026-10-06. Task 3 outstanding — orchestrator required.*
+*Tasks 1-2 completed: 2026-10-06. Task 3 completed by orchestrator: 2026-10-07.*
+
+
+---
+
+## Task 3 — Live Verification
+
+Performed by the orchestrator on 2026-10-07, against the deployed site
+`https://screporting.netlify.app`. Every figure below is pasted observation, not a
+claim that a check passed.
+
+### Part A — deploy
+
+Pushed `e5aec52..cd19e20` to `origin/main` (Netlify builds `origin/main`).
+`INGEST_PROCESS_SECRET` was generated and set by the user in Netlify's environment
+variables with Functions scope, and in local `.env.local`. The secret value is not
+recorded anywhere in this repository.
+
+### Part B — routing: FAILED FIRST, then fixed
+
+The first probe against the deployed function failed:
+
+```
+POST https://screporting.netlify.app/.netlify/functions/ingest-process-background
+HTTP/2 307
+location: /login
+```
+
+`proxy.ts`'s matcher caught the function path before Netlify could route it. The
+server-side trigger in `/api/ingest` was therefore firing into a redirect, and every
+upload would have sat at `pending` forever. This is the exact symptom the plan
+predicted for this failure class.
+
+Fixed in commit `727990f` by excluding `.netlify/functions` from the matcher — the
+same exclusion `api/push` and `api/ingest/drain` already carry, for the same reason
+(the endpoint authenticates itself and has no session to gate). Three tests pin the
+lookalike cases as still gated. `proxy.ts` was NOT in this plan's declared
+`files_modified`; this is a recorded deviation, justified as the blocker the plan's
+own deploy probe was designed to surface.
+
+After redeploy the same request reached the function.
+
+### Part C — authentication: NOT VERIFIABLE OVER HTTP (plan's probe design was wrong)
+
+The plan's Task 3 instructions specify four curl probes expecting `401` / `400`.
+**Those responses are unobservable by any caller.** Netlify's `-background` suffix
+means the platform answers an empty `202` the instant the function is invoked, before
+the handler runs. Observed:
+
+```
+no Authorization header        -> HTTP 202
+Authorization: Bearer <wrong>  -> HTTP 202
+GET instead of POST            -> HTTP 202
+```
+
+The function's own code comment already states this ("The platform has ALREADY
+answered an empty 202 to whatever caller invoked this function, the instant it was
+invoked, before any of this code ran"), so the implementation understood the contract
+— only the handover's probe instructions did not. **Anyone reading a 202 here as an
+auth failure would be wrong.**
+
+This is an observability gap, not a security gap. Auth is verified structurally
+instead:
+
+- `verifyIngestProcessSecret` is called FIRST, before body parsing and before any
+  Supabase client is constructed (`ingest-process-background.mts` step 1).
+- It compares `timingSafeEqual` over SHA digests — constant-time and length-safe.
+- An unset secret returns `not-configured` -> HTTP 500, so a misconfigured deploy
+  fails closed, never open.
+- 15 unit tests cover the module.
+
+**Not independently confirmed:** that an unauthenticated invocation performs zero
+database work. The intended third-party evidence was a Supabase `edge_logs` baseline,
+but the log tables are not reachable through this project's Supabase MCP connection
+(`edge_logs`/`postgres_logs` both report "does not exist"). This assertion currently
+rests on code structure plus unit tests. Recorded as a known limit rather than marked
+verified.
+
+### Part D — a real file, end to end: PASSED
+
+Today's TSYS Stats workbook, uploaded through `/uploads` by the user at
+13:20:31 UTC. (The first attempt used an already-ingested file and was correctly
+refused by the `findFileByHash` short-circuit — itself a live confirmation that
+13-03's `claimFile` `already-uploaded` result still maps to the existing 200 shape.)
+
+```
+file_name                           Safecypher Stats 0610 to 0710.xlsx
+report_type                         apigee-stats
+status                              done
+uploaded_at                         2026-10-07 13:20:31.245734+00
+processing_started_at               2026-10-07 13:20:34.101154+00
+processing_attempts                 1
+rows_accepted                       56452
+rows_duplicate                      4392
+rows_rejected                       0
+total_parsed                        60844
+rows actually in apigee_calls       56452
+claim latency                       2.86 s
+```
+
+Observed progression:
+
+```
+t+24.4s   status=pending   processing_attempts=1   (claimed, running)
+t+32.8s   status=pending   (past the ~30s synchronous ceiling, still alive)
+t+46.5s   status=pending
+t+54.2s   status=pending
+t+74.9s   status=done      rows_accepted=56452
+```
+
+**The processing span was between 51s and 72s** (last observed `pending` at 54.2s
+after upload, `done` by 74.9s; processing began 2.86s after upload). 13-01 measured
+this site cutting synchronous functions at approximately 30 seconds. The work ran for
+roughly twice that and completed.
+
+What this settles, each of which was genuinely open before this run:
+
+1. **ExcelJS bundles correctly under Netlify's esbuild.** The
+   `external_node_modules = ["exceljs", "papaparse"]` entry in `netlify.toml` —
+   explicitly "a precaution, not a confirmed fix" — is confirmed sufficient. 60,844
+   rows parsed from a multi-tab workbook inside the function.
+2. **Work survives past the synchronous ceiling.** This is the phase's whole thesis
+   (SC-2, INGEST-06) and the reason 43,383 rows were once reported as a failed upload.
+3. **The resumed writer is correct.** `rows_accepted` (56,452) equals the rows
+   actually present in `apigee_calls` for this file id (56,452). A writer constructed
+   with `resumeFileId`, in a process that never called `recordFile`, wrote the right
+   rows and finalized the right counts — 13-03's single most likely quiet failure.
+4. **The claim was taken exactly once.** `processing_attempts = 1`, no double-writer,
+   under the corrected 1200s lease from 13-02.
+
+### Part E — idempotency: PARTIAL
+
+A re-fire of the completed file by curl was not run: it requires the bearer secret,
+which the orchestrator does not hold. The database-level guarantee is already proven
+independently — 13-02's live contention probe returned `done_row_blocked=0`, i.e. a
+`done` row is never claimable at any lease age — and the content-hash short-circuit
+was confirmed in practice by the refused duplicate upload described in Part D.
+
+### Known consequence of deploying this plan without 13-06
+
+`/api/ingest` now answers `202` with `{ fileId, reportType, status: "pending" }`. The
+browser code has not yet been taught that shape, and `response.ok` is true for 202, so
+the client takes its success path and dereferences fields the body no longer carries.
+Observed in production immediately after the successful upload above:
+
+```
+TypeError: undefined is not an object (evaluating 'e.rejectReasons.length')
+Dashboard segment error: TypeError: undefined is not an object (evaluating 'e.rejectReasons.length')
+Error: Minified React error #418
+```
+
+Crash site: `components/upload/upload-result.tsx:97`, `result.rejectReasons.length`.
+The data is unaffected — the upload above landed completely and correctly; only the
+client's reporting of it crashes, which is the same class of lie this phase exists to
+end, inverted.
+
+**`components/upload/upload-result.tsx` is NOT in plan 13-06's declared
+`files_modified`.** 13-06 must either render a pending result through a different
+component or widen its scope to cover this file; closing the 202 loop in
+`dropzone.tsx` and `batch.ts` alone would leave this crash site reachable. Flagged
+into 13-06's dispatch.
