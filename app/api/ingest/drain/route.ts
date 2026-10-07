@@ -1,29 +1,79 @@
 /**
- * Phase 10 (FRESH-04, D-4/D-10/D-12): after `drainInbox` returns, this route
- * writes exactly one `alert_runs` evidence row per non-409 run BEFORE
- * attempting any Slack post, then posts at most one grouped message when
- * something is wrong. The `alert_runs` write is deliberately ordered ahead
- * of `postSlackAlert` in this file (see below) so a timeout, a network
- * stall or a Slack outage can cost the notification but never the evidence
- * that a check ran and what it found.
+ * The one daily job (migration 0043's "EXACTLY ONE JOB" rule): claims each
+ * inbox object and hands the work to the background function (D-09),
+ * sweeps stale `pending` rows that never got started (13-07), checks
+ * freshness, writes its evidence, then posts at most one grouped Slack
+ * message.
+ *
+ * D-09: the per-object step below no longer runs the whole ingestion
+ * pipeline in-process. It claims the file and fires the background-function
+ * trigger exactly as `/api/ingest` does — so a push-delivered file is no
+ * longer bound by the measured ~30-second synchronous ceiling that
+ * falsified the original single-attempt design (13-01/D-07). This is
+ * TRIGGER convergence, not STORAGE convergence: manual upload still does
+ * not move onto the inbox bucket (D-02), and both paths keep their own
+ * storage and entry points, sharing one asynchronous processor.
+ *
+ * 13-07: the sweep fires the background-function trigger for pending rows
+ * old enough that neither the client's fire-and-forget request nor a prior
+ * sweep ever started them — it never processes in-process, for the same
+ * reason the per-object step above does not: this route is itself a
+ * Next.js Route Handler bound by the same measured ceiling. The sweep sits
+ * in its own guard, after the held-mutex short-circuit and before the
+ * freshness read, so a sweep failure can never blank the freshness alert
+ * and a freshness failure can never hide that the sweep ran (T-10-13,
+ * mirroring 10-03's own reasoning for the freshness read itself).
+ *
+ * The `alert_runs` write is deliberately ordered ahead of any Slack post
+ * attempt in this file (see below) so a timeout, a network stall or a Slack
+ * outage can cost the notification but never the evidence that a check ran
+ * and what it found (D-10).
  */
 import { NextResponse } from "next/server";
 import { timingSafeEqual } from "node:crypto";
-import { ingest } from "@/lib/ingestion";
-import { createSupabaseWriter, buildSecretClient } from "@/lib/ingestion/supabase-writer";
+import { claimFile } from "@/lib/ingestion";
+import { triggerBackgroundProcessing } from "@/lib/ingestion/process-trigger";
+// Namespace import (not named) for both of these: this file's own ordering
+// gates assert the real CALL to the sweep sits after the held-mutex
+// short-circuit, and the real CALL to the Slack post sits after the
+// alert_runs insert -- a named import of either identifier would plant
+// that identifier's text at the top of the file, ahead of both checks, and
+// make the gate measure an import statement instead of the call it exists
+// to order.
+import * as pendingRunner from "@/lib/ingestion/pending-runner";
+import { createSupabaseWriter, createPendingFileAccess, buildSecretClient } from "@/lib/ingestion/supabase-writer";
 import { pushRpc } from "@/lib/push/tables";
 import { hashToken } from "@/lib/push/tokens";
 import { drainInbox, type DrainDeps } from "@/lib/push/drain";
 import { fetchFreshnessStripData } from "@/lib/dashboard/freshness";
-import { groupWrongStates, formatSlackAlertText, postSlackAlert } from "@/lib/notify/slack";
+import * as notifySlack from "@/lib/notify/slack";
 
-// ExcelJS/PapaParse parsing inside ingest() requires the Node runtime.
+/**
+ * The sweep's own bounds (T-13-55/T-13-56): a small file count and a
+ * wall-clock budget well short of this route's own 60s request budget,
+ * which it already shares with the drain core, the freshness read and a
+ * Slack post that can itself take seconds. Firing a trigger is a single
+ * short round trip rather than a parse, so the budget goes much further
+ * than it would have under an in-process sweep — but it is still finite,
+ * and the alert that follows is what must survive it.
+ */
+const DRAIN_SWEEP_FILE_LIMIT = 20;
+const DRAIN_SWEEP_BUDGET_MS = 20_000;
+
+// This route no longer parses a single report row (D-09) -- the Node
+// runtime is kept for node:crypto's timingSafeEqual and the Supabase
+// server client, not for ExcelJS/PapaParse, which now run only inside the
+// background function this route triggers.
 export const runtime = "nodejs";
 // Matches pg_net's 60000ms wait (0043) -- removes any dependence on
 // whatever Netlify's platform default happens to be, so the function
 // cannot be killed after drainInbox succeeds but before the alert_runs row
 // lands (the worst-shaped failure, since it would lose exactly the
-// evidence D-10 exists to capture).
+// evidence D-10 exists to capture). This budget is shared by the drain
+// core, the sweep (bounded well below it, see DRAIN_SWEEP_BUDGET_MS above),
+// the freshness read and a Slack post that can itself take seconds -- none
+// of which scale with the size of any individual delivered file now that
+// row-writing happens in the background function instead of this request.
 export const maxDuration = 60;
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -56,6 +106,21 @@ function parseDeliveredAt(key: string): string | null {
   if (!match) return null;
   const [, y, mo, d, h, mi, s] = match;
   return `${y}-${mo}-${d}T${h}:${mi}:${s}Z`;
+}
+
+/**
+ * Joins two independent error facts into the one `alert_runs.error` text
+ * column, never letting the second overwrite the first (13-07). Before the
+ * sweep/stuck-count guards existed, this route's only possible `error` was
+ * the freshness read's, and it was always either present with no post
+ * attempted, or absent with a post attempted -- the two never needed to
+ * coexist. Now a sweep or stuck-count failure can be recorded on the insert
+ * while freshness still succeeds and a Slack post is still attempted, so
+ * the post-outcome update must APPEND its own result rather than replace
+ * whatever the insert already wrote.
+ */
+function appendError(base: string | null, extra: string | null): string | null {
+  return [base, extra].filter((e): e is string => e !== null && e !== undefined && e !== "").join("; ") || null;
 }
 
 export async function POST(request: Request) {
@@ -124,10 +189,58 @@ export async function POST(request: Request) {
         sourceCredentialId,
       });
       const baseName = objectKey.split("/").pop() ?? objectKey;
-      return ingest(
+
+      // D-09: claims the file (cheap -- hash, classify, record) and hands
+      // processing to the background function, instead of running the
+      // whole pipeline in-process. This is what removes the drain from the
+      // measured ~30s synchronous ceiling (13-RESEARCH.md Pitfall 2) --
+      // exactly the exposure that falsified /api/ingest's original design.
+      const claimResult = await claimFile(
         { fileName: baseName, bytes, contentType: undefined, uploadedBy: null },
         writer
       );
+
+      if (claimResult.kind !== "claimed") {
+        // Already-uploaded / unrecognised: terminal inside claimFile, same
+        // as /api/ingest's own early return -- there is no processing left
+        // to start, so no trigger is fired.
+        return claimResult.result;
+      }
+
+      // Fire the trigger the SAME way /api/ingest does (D-08/D-09): read the
+      // secret and the canonical origin here, await briefly, log and
+      // swallow any failure. A failed or not-configured trigger must never
+      // fail this drain run -- the row is already correctly pending, and
+      // the sweep below (and tomorrow's run) is the backstop.
+      const triggerResult = await triggerBackgroundProcessing(claimResult.claim.ingestedFileId, {
+        fetchImpl: fetch,
+        origin: process.env.NEXT_PUBLIC_SITE_URL,
+        secret: process.env.INGEST_PROCESS_SECRET,
+      });
+      if (triggerResult.outcome !== "fired") {
+        console.error(
+          "[drain] background trigger did not fire",
+          claimResult.claim.ingestedFileId,
+          triggerResult.outcome,
+          triggerResult.outcome === "failed" ? triggerResult.message : undefined
+        );
+      }
+
+      // Resolving here is still a TERMINAL outcome for the drain's loop and
+      // the object is still removed (DrainDeps.ingestOne's contract,
+      // unchanged) -- whether or not the trigger fired. The bytes are
+      // already in the reports bucket and the row is already pending, so a
+      // file whose background processing is later lost is recoverable from
+      // there, by the sweep below, which does not care where the file came
+      // from. Leaving the object in the inbox instead would make the
+      // inbox-stuck alert fire at a perfectly recoverable file, and Phase
+      // 9's contract treats a left object as a delivery that was not
+      // ingested -- which would be false.
+      return {
+        ingestedFileId: claimResult.claim.ingestedFileId,
+        reportType: claimResult.claim.reportType,
+        status: "pending",
+      };
     },
   };
 
@@ -152,8 +265,71 @@ export async function POST(request: Request) {
     .sort();
   const inboxOldestStuckAt = stuckTimestamps.length > 0 ? stuckTimestamps[0] : null;
 
+  // One evaluation instant (13-07), taken right after the short-circuit and
+  // used by the sweep, the stuck count and the freshness read alike -- a
+  // run straddling a threshold boundary cannot report two different views
+  // of the same second.
+  const asOf = new Date();
+  const pendingAccess = createPendingFileAccess(supabase);
+  const triggerForSweep: pendingRunner.SweepTrigger = (fileId) =>
+    triggerBackgroundProcessing(fileId, {
+      fetchImpl: fetch,
+      origin: process.env.NEXT_PUBLIC_SITE_URL,
+      secret: process.env.INGEST_PROCESS_SECRET,
+    });
+
+  // The sweep: its own guard, beside (not inside) the freshness read's, for
+  // the same reason 10-03 arranged the freshness read beside the drain
+  // itself (T-10-13) -- a sweep failure must not blank the freshness alert,
+  // and a freshness failure must not hide that the sweep ran. Sits AFTER
+  // the held-mutex short-circuit (never before -- two concurrent runs
+  // sweeping the same rows would make the evidence table's one-row-per-run
+  // meaning a lie) and fires rather than processes: this route is itself
+  // bound by the same measured ~30s ceiling that falsified the original
+  // synchronous design, so parsing a stale file here would relocate this
+  // phase's defect from the upload to the daily job (13-RESEARCH.md
+  // Pitfall 2). Note what this run's own just-claimed files look like to
+  // the sweep: pending, unleased, seconds old -- and the sweepable age is
+  // thirty minutes, so the sweep cannot collide with the work this very
+  // run just started. That is the threshold doing its job, not an accident
+  // of ordering.
+  let sweepError: string | null = null;
+  try {
+    await pendingRunner.sweepPendingFiles(pendingAccess, triggerForSweep, {
+      asOf,
+      fileLimit: DRAIN_SWEEP_FILE_LIMIT,
+      budgetMs: DRAIN_SWEEP_BUDGET_MS,
+      clock: () => Date.now(),
+    });
+  } catch (err) {
+    sweepError = err instanceof Error ? err.message : String(err);
+    console.error("[drain] sweep failed", sweepError);
+  }
+
+  // The stuck-pending count: its own guard too, AFTER the sweep (so a file
+  // the sweep just started this instant is not reported as stuck in the
+  // same breath) and computed from the rows' own age and lease through the
+  // shared resolver (`countStuckPendingFiles`) -- never from what the sweep
+  // had budget to attempt. A deferred file is not a stuck file; conflating
+  // them would make the alert fire every time the backlog was larger than
+  // one run's budget. Recorded on the evidence row's reasons below
+  // regardless of whether the freshness read itself succeeds -- neither
+  // guard may swallow the other's result.
+  let stuckPendingCount = 0;
+  let stuckPendingSince: string | null = null;
+  let stuckCountError: string | null = null;
+  try {
+    const stuck = await pendingAccess.countStuckPendingFiles(asOf);
+    stuckPendingCount = stuck.count;
+    stuckPendingSince = stuck.since;
+  } catch (err) {
+    stuckCountError = err instanceof Error ? err.message : String(err);
+    console.error("[drain] stuck-pending count failed", stuckCountError);
+  }
+
   let alertText: string | null = null;
   const reasons: Record<string, unknown> = {};
+  if (stuckPendingCount > 0) reasons.stuckPending = stuckPendingCount;
   let freshnessError: string | null = null;
 
   try {
@@ -181,18 +357,36 @@ export async function POST(request: Request) {
         ? freshnessData.error
         : new Error(String(freshnessData.error));
     }
-    const groups = groupWrongStates(freshnessData.items, inboxStuckCount, inboxOldestStuckAt);
-    alertText = formatSlackAlertText(groups);
+    const groups = notifySlack.groupWrongStates(
+      freshnessData.items,
+      inboxStuckCount,
+      inboxOldestStuckAt,
+      stuckPendingCount,
+      stuckPendingSince
+    );
+    alertText = notifySlack.formatSlackAlertText(groups);
     if (groups.overdue.length > 0) reasons.overdue = groups.overdue.map((o) => o.label);
     if (groups.failedToParse.length > 0) reasons.failedToParse = groups.failedToParse.map((f) => f.label);
     if (groups.neverArrived.length > 0) reasons.neverArrived = groups.neverArrived.map((n) => n.label);
     if (groups.inboxStuck) reasons.inboxStuck = groups.inboxStuck.count;
+    // groups.stuckPending was already folded into `reasons` above (before
+    // this try block even ran) so it survives a freshness-read failure --
+    // restated here is unnecessary and would be redundant with that earlier
+    // assignment, so it is deliberately not repeated.
   } catch (err) {
     // A freshness read failure must never turn a successful drain into a
     // failed request (T-10-13) -- log and record, never propagate.
     freshnessError = err instanceof Error ? err.message : String(err);
     console.error("[drain] freshness read failed", freshnessError);
   }
+
+  // Combine every independent guard's failure into one evidence-row error
+  // string -- sweep, stuck-count and freshness are each allowed to fail
+  // without swallowing either of the others' results (T-10-13), but
+  // `alert_runs.error` is a single text column, so whichever of them failed
+  // is recorded together rather than only the last one checked.
+  const combinedError =
+    [sweepError, stuckCountError, freshnessError].filter((e): e is string => e !== null).join("; ") || null;
 
   // Write the alert_runs row FIRST, before attempting any post (D-10): a
   // timeout, a network stall or a Slack outage can then cost only the
@@ -215,7 +409,7 @@ export async function POST(request: Request) {
         posted: false,
         http_status: null,
         response_body: null,
-        error: freshnessError,
+        error: combinedError,
       })
       .select("id")
       .single();
@@ -247,18 +441,27 @@ export async function POST(request: Request) {
       if (!webhookUrl) {
         // Fail closed, but visibly: a missing env var must not be silently
         // identical to a healthy week (mirrors the DRAIN_CRON_SECRET
-        // fail-closed convention above).
+        // fail-closed convention above). Appended to, never replacing, any
+        // sweep/stuck-count/freshness error already on the row (13-07) --
+        // an unconfigured webhook is a second, independent fact, not a
+        // reason to erase the first one.
         await alertRunsTable(supabase)
-          .update({ posted: false, error: "SLACK_WEBHOOK_URL is not configured" })
+          .update({ posted: false, error: appendError(combinedError, "SLACK_WEBHOOK_URL is not configured") })
           .eq("id", rowId);
       } else {
-        const postResult = await postSlackAlert(webhookUrl, alertText);
+        const postResult = await notifySlack.postSlackAlert(webhookUrl, alertText);
+        // 13-07: appended to, never replacing, combinedError -- a
+        // successful Slack post (postResult.error null) must not silently
+        // erase a sweep/stuck-count failure already recorded on this row.
+        // T-10-13's own evidence-first discipline is about to be silently
+        // defeated otherwise: the row would read as if nothing but the
+        // post itself was ever checked.
         await alertRunsTable(supabase)
           .update({
             posted: true,
             http_status: postResult.status === 0 ? null : postResult.status,
             response_body: postResult.body ?? null,
-            error: postResult.error ?? null,
+            error: appendError(combinedError, postResult.error ?? null),
           })
           .eq("id", rowId);
       }
