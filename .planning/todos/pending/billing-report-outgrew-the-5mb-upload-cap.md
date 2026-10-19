@@ -89,3 +89,13 @@ that is quietly wrong is harder to notice than billing data that is absent.
 
 Separate from the permanent fix: 2026-10-03..2026-10-06 billing figures still need to
 be ingested so reconciliation is current.
+
+## Also approaching the cap: TSYS Stats .xlsx (added 2026-10-19)
+
+The TSYS "Safecypher Stats" exports have grown from ~11KB (Sept) to 2-4MB (Oct): ~1000x
+more rows plus the new `trace_id` column. "Safecypher Stats 1610 to 1710.xlsx" is 4.17MB,
+83% of the cap. Any fix here should cover Stats files too, not only billing. Netlify
+memory/time on an 80k-row workbook is untested (local replay: claim 0.7s + process 0.75s).
+
+Same caution as above applies: `apigee-row-hash-collapses-distinct-calls.md` means
+~7-9% of each large Stats file is already miscounted as duplicates.
