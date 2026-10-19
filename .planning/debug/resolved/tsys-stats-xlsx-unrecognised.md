@@ -1,5 +1,5 @@
 ---
-status: awaiting_human_verify
+status: resolved
 trigger: "the TSYS (Safecypher Stats XX10.xlsx) files have all been failing recently wit the message \"Unrecognised file. This doesn't match any known report type — check you're uploading the daily verification report (CSV or XLSX).\" Here are a couple of recent examples (which look right to me). /Users/markwright/Downloads/Safecypher\\ Stats\\ 1610\\ to\\ 1710.xlsx /Users/markwright/Downloads/Safecypher\\ Stats\\ 1810\\ to\\ 1910.xlsx /Users/markwright/Downloads/Safecypher\\ Stats\\ 1710\\ to\\ 1810.xlsx"
 created: 2026-10-19
 updated: 2026-10-19
@@ -97,4 +97,4 @@ verification:
   adjacent_tests: { result: pass, suites_run: ["vitest run: 51 files / 926 tests", "tsc --noEmit", "eslint on changed files"] }
   revert_and_reconfirm: { result: pass, bug_returned_on_revert: true, fixed_on_reapply: true, note: "pre-fix: real claimFile on 5 real 4-col files -> unrecognised and new tests RED; post-fix: all claimed. Done by comparing pre/post states without git stash." }
   guardrail_verdict: accepted
-  human_verify: pending
+  human_verify: { result: pass, note: "user uploaded a real 4-col Stats file on the deployed site (cebf236), 2026-10-19" }
