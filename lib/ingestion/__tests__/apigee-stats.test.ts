@@ -72,6 +72,52 @@ describe("apigeeStatsHandler.classify (direct, via registry import)", () => {
   });
 });
 
+describe("apigeeStatsHandler.classify — trailing trace_id column (TSYS added it from the 0710-to-0810 file, Oct 2026)", () => {
+  const sigWith = (header: string[]) => ({
+    kind: "xlsx" as const,
+    sheetNames: ["APIGEE Calls"],
+    headerRowsBySheet: { "APIGEE Calls": header },
+  });
+
+  it("classifies the 4-column header [Time, what_proxy_pathsuffix, response_code, trace_id]", async () => {
+    const { apigeeStatsHandler } = await import("../handlers/apigee-stats");
+    expect(
+      apigeeStatsHandler.classify(
+        "Safecypher Stats 1610 to 1710.xlsx",
+        sigWith(["Time", "what_proxy_pathsuffix", "response_code", "trace_id"])
+      )
+    ).toBe(true);
+  });
+
+  it("still classifies the original 3-column header (September files)", async () => {
+    const { apigeeStatsHandler } = await import("../handlers/apigee-stats");
+    expect(
+      apigeeStatsHandler.classify("x.xlsx", sigWith(["Time", "what_proxy_pathsuffix", "response_code"]))
+    ).toBe(true);
+  });
+
+  it("boundary neighbours stay rejected: only the known 4th column `trace_id` is tolerated", async () => {
+    const { apigeeStatsHandler } = await import("../handlers/apigee-stats");
+    const base = ["Time", "what_proxy_pathsuffix", "response_code"];
+    // an unknown 4th column is NOT silently accepted
+    expect(apigeeStatsHandler.classify("x.xlsx", sigWith([...base, "something_else"]))).toBe(false);
+    // case-sensitive, like every other header match
+    expect(apigeeStatsHandler.classify("x.xlsx", sigWith([...base, "Trace_ID"]))).toBe(false);
+    // 5 columns (known + unknown) is rejected
+    expect(apigeeStatsHandler.classify("x.xlsx", sigWith([...base, "trace_id", "extra"]))).toBe(false);
+    // trace_id must be the TRAILING column — the parser reads cells 1-3 by position
+    expect(
+      apigeeStatsHandler.classify("x.xlsx", sigWith(["trace_id", "Time", "what_proxy_pathsuffix", "response_code"]))
+    ).toBe(false);
+    // the three required columns are still required, in order
+    expect(apigeeStatsHandler.classify("x.xlsx", sigWith(["Time", "what_proxy_pathsuffix"]))).toBe(false);
+    expect(
+      apigeeStatsHandler.classify("x.xlsx", sigWith(["Time", "response_code", "what_proxy_pathsuffix", "trace_id"]))
+    ).toBe(false);
+    expect(apigeeStatsHandler.classify("x.xlsx", sigWith(["Time", "what_proxy_pathsuffix", "trace_id"]))).toBe(false);
+  });
+});
+
 describe("parseApigeeStats", () => {
   it("reads exactly 46 data rows from the real fixture, INCLUDING the 28 hidden by a saved AutoFilter (Pitfall 1)", async () => {
     const rows = await parseApigeeStats(fixtureBytes);
@@ -306,6 +352,45 @@ describe("ingest (apigee-stats end-to-end)", () => {
     expect(result.accepted).toBe(46);
     expect(result.accepted + result.duplicates + result.rejected + result.excluded).toBe(46);
     expect(deps.finalizedStatus()).toBe("done");
+  });
+
+  it("4-column workbook (trace_id) ingests exactly like the same data without the column (metamorphic)", async () => {
+    // Synthetic workbook mirroring the structure TSYS switched to from the "0710 to 0810" file (Oct 2026):
+    // one sheet "APIGEE Calls", header Time | what_proxy_pathsuffix | response_code | trace_id.
+    const WINDOW_START_MS = Date.parse("2026-10-01T00:00:00Z");
+    const paths = ["/Verify", "/activateCardEntity", "/CardEntities/525346abcdEF1234/DynamicSecurityCode"];
+    const build = async (withTraceId: boolean) => {
+      const wb = new ExcelJS.Workbook();
+      const sheet = wb.addWorksheet("APIGEE Calls");
+      sheet.addRow(
+        withTraceId
+          ? ["Time", "what_proxy_pathsuffix", "response_code", "trace_id"]
+          : ["Time", "what_proxy_pathsuffix", "response_code"]
+      );
+      for (let i = 0; i < 30; i++) {
+        const row: (Date | string | number)[] = [new Date(WINDOW_START_MS + i * 1000), paths[i % 3], 200];
+        if (withTraceId) row.push(`1-6ad2e8b6-${String(i).padStart(24, "0")}`);
+        sheet.addRow(row);
+      }
+      return new Uint8Array((await wb.xlsx.writeBuffer()) as ArrayBuffer);
+    };
+    const bytes3 = await build(false);
+    const bytes4 = await build(true);
+
+    // parser output is identical: column D is never read
+    expect(await parseApigeeStats(bytes4)).toEqual(await parseApigeeStats(bytes3));
+
+    const deps3 = makeFakeDeps();
+    const deps4 = makeFakeDeps();
+    const r3 = await ingest({ fileName: "Safecypher Stats three.xlsx", bytes: bytes3, uploadedBy: "user-1" }, deps3);
+    const r4 = await ingest({ fileName: "Safecypher Stats four.xlsx", bytes: bytes4, uploadedBy: "user-1" }, deps4);
+
+    expect(r4.reportType).toBe("apigee-stats");
+    expect(r4.accepted).toBe(30);
+    expect(r4.rejected).toBe(0);
+    expect(r4.rejectReasons).toEqual([]);
+    expect(deps4.finalizedStatus()).toBe("done");
+    expect({ ...r4, ingestedFileId: null }).toEqual({ ...r3, ingestedFileId: null });
   });
 
   it("re-ingesting the identical workbook yields 0 new inserts on the second pass (whole-row-hash idempotency)", async () => {
