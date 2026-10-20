@@ -3,11 +3,15 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database } from "@/types/db";
 import { MAX_UPLOAD_BYTES } from "@/lib/ingestion/claim-upload";
 import {
+  MANUAL_DRAIN_BYTE_BUDGET,
+  MANUAL_INBOX_GRACE_MINUTES,
   MANUAL_PREFIX,
   buildManualObjectKey,
   ingestInboxObject,
   parseManualObjectKey,
   resolveManualDisplayName,
+  selectDrainableInboxNames,
+  type InboxListEntry,
 } from "@/lib/ingestion/inbox-object";
 import type { TriggerBackgroundProcessingResult } from "@/lib/ingestion/process-trigger";
 import {
@@ -240,6 +244,143 @@ describe("ingestInboxObject - the one per-object step (P14-06, D-08)", () => {
     expect(outcome.kind).toBe("terminal");
     if (outcome.kind === "terminal") expect(outcome.result.alreadyUploaded?.date).toBe("2026-10-20T10:00:00.000Z");
     expect(trigger).not.toHaveBeenCalled();
+  });
+});
+
+describe("selectDrainableInboxNames - the drain's manual listing rules (D-17, T-14-21, T-14-22)", () => {
+  const AS_OF = new Date("2026-10-20T12:00:00.000Z");
+  const minutesBefore = (n: number) => new Date(AS_OF.getTime() - n * 60_000).toISOString();
+  const MB = 1_000_000;
+
+  /** A manual-prefix entry named from a real minted key, so the name parses. */
+  function manualEntry(opts: { mintedMinutesAgo?: number; createdMinutesAgo?: number | null; size?: number; tag?: string }) {
+    const minted = new Date(AS_OF.getTime() - (opts.mintedMinutesAgo ?? 120) * 60_000);
+    const key = buildManualObjectKey(TEST_USER_ID, `${opts.tag ?? "a"}.csv`, minted, NONCE);
+    return {
+      name: key.slice(`${MANUAL_PREFIX}/`.length),
+      created_at: opts.createdMinutesAgo === null ? null : minutesBefore(opts.createdMinutesAgo ?? 120),
+      metadata: { size: opts.size ?? 1000 },
+    };
+  }
+
+  it("pins the two constants", () => {
+    expect(MANUAL_INBOX_GRACE_MINUTES).toBe(15);
+    expect(MANUAL_DRAIN_BYTE_BUDGET).toBe(104_857_600);
+    expect(MANUAL_DRAIN_BYTE_BUDGET).toBe(MAX_UPLOAD_BYTES);
+  });
+
+  it("returns every ordinary name under a push prefix and drops folder entries and dot-files", () => {
+    const entries: InboxListEntry[] = [
+      { name: "20261007T061400Z-0-aaaa-daily.csv", created_at: minutesBefore(1), metadata: { size: 10 } },
+      { name: "sub", created_at: null, metadata: null },
+      { name: ".emptyFolderPlaceholder", created_at: minutesBefore(500), metadata: { size: 0 } },
+      { name: "b.csv", created_at: null, metadata: {} },
+    ];
+
+    expect(selectDrainableInboxNames(CREDENTIAL_ID, entries, AS_OF)).toEqual({
+      names: ["20261007T061400Z-0-aaaa-daily.csv", "b.csv"],
+      deferred: [],
+    });
+  });
+
+  it("never applies the grace or the budget to a push prefix", () => {
+    const entries: InboxListEntry[] = [
+      { name: "a.csv", created_at: minutesBefore(0), metadata: { size: 900 * MB } },
+      { name: "b.csv", created_at: minutesBefore(0), metadata: { size: 900 * MB } },
+    ];
+
+    expect(selectDrainableInboxNames(CREDENTIAL_ID, entries, AS_OF).names).toEqual(["a.csv", "b.csv"]);
+  });
+
+  it("defers a manual entry created 5 minutes ago as young and returns one created 20 minutes ago", () => {
+    const young = manualEntry({ createdMinutesAgo: 5, tag: "young" });
+    const old = manualEntry({ createdMinutesAgo: 20, tag: "old" });
+
+    const result = selectDrainableInboxNames(MANUAL_PREFIX, [young, old], AS_OF);
+
+    expect(result.names).toEqual([old.name]);
+    expect(result.deferred).toEqual([{ name: young.name, reason: "young" }]);
+  });
+
+  it("falls back to the key's minted timestamp when created_at is null", () => {
+    const youngByKey = manualEntry({ createdMinutesAgo: null, mintedMinutesAgo: 3, tag: "youngkey" });
+    const oldByKey = manualEntry({ createdMinutesAgo: null, mintedMinutesAgo: 90, tag: "oldkey" });
+
+    const result = selectDrainableInboxNames(MANUAL_PREFIX, [youngByKey, oldByKey], AS_OF);
+
+    expect(result.names).toEqual([oldByKey.name]);
+    expect(result.deferred).toEqual([{ name: youngByKey.name, reason: "young" }]);
+  });
+
+  it("treats an entry with neither a timestamp nor a parseable key as old and returns it", () => {
+    const entry: InboxListEntry = { name: "hand-dropped.csv", created_at: null, metadata: { size: 5 } };
+
+    expect(selectDrainableInboxNames(MANUAL_PREFIX, [entry], AS_OF).names).toEqual(["hand-dropped.csv"]);
+  });
+
+  it("drops .emptyFolderPlaceholder and folder entries under the manual prefix", () => {
+    const old = manualEntry({ tag: "real" });
+    const entries: InboxListEntry[] = [
+      { name: ".emptyFolderPlaceholder", created_at: minutesBefore(900), metadata: { size: 0 } },
+      { name: "nested", created_at: null, metadata: null },
+      old,
+    ];
+
+    expect(selectDrainableInboxNames(MANUAL_PREFIX, entries, AS_OF)).toEqual({ names: [old.name], deferred: [] });
+  });
+
+  it("returns manual names oldest first (the key starts with its mint timestamp)", () => {
+    const newer = manualEntry({ mintedMinutesAgo: 60, tag: "newer" });
+    const older = manualEntry({ mintedMinutesAgo: 600, tag: "older" });
+
+    expect(selectDrainableInboxNames(MANUAL_PREFIX, [newer, older], AS_OF).names).toEqual([older.name, newer.name]);
+  });
+
+  it("returns the first of two 60 MB old entries and defers the second as budget", () => {
+    const first = manualEntry({ mintedMinutesAgo: 300, size: 60 * MB, tag: "first" });
+    const second = manualEntry({ mintedMinutesAgo: 200, size: 60 * MB, tag: "second" });
+
+    const result = selectDrainableInboxNames(MANUAL_PREFIX, [second, first], AS_OF);
+
+    expect(result.names).toEqual([first.name]);
+    expect(result.deferred).toEqual([{ name: second.name, reason: "budget" }]);
+  });
+
+  it("returns a single entry of exactly the budget on its own", () => {
+    const exact = manualEntry({ size: MANUAL_DRAIN_BYTE_BUDGET, tag: "exact" });
+
+    expect(selectDrainableInboxNames(MANUAL_PREFIX, [exact], AS_OF)).toEqual({ names: [exact.name], deferred: [] });
+  });
+
+  it("defers an entry above the budget as oversize and still returns the rest", () => {
+    const huge = manualEntry({ mintedMinutesAgo: 400, size: MANUAL_DRAIN_BYTE_BUDGET + 1, tag: "huge" });
+    const ok = manualEntry({ mintedMinutesAgo: 300, size: 10, tag: "ok" });
+
+    const result = selectDrainableInboxNames(MANUAL_PREFIX, [huge, ok], AS_OF);
+
+    expect(result.names).toEqual([ok.name]);
+    expect(result.deferred).toEqual([{ name: huge.name, reason: "oversize" }]);
+  });
+
+  it("keeps oldest-first strict: once one entry does not fit, every later entry waits too", () => {
+    const a = manualEntry({ mintedMinutesAgo: 500, size: 70 * MB, tag: "a" });
+    const b = manualEntry({ mintedMinutesAgo: 400, size: 70 * MB, tag: "b" });
+    const tiny = manualEntry({ mintedMinutesAgo: 300, size: 1, tag: "tiny" });
+
+    const result = selectDrainableInboxNames(MANUAL_PREFIX, [a, b, tiny], AS_OF);
+
+    expect(result.names).toEqual([a.name]);
+    expect(result.deferred).toEqual([
+      { name: b.name, reason: "budget" },
+      { name: tiny.name, reason: "budget" },
+    ]);
+  });
+
+  it("spends no budget on a young entry", () => {
+    const young = manualEntry({ createdMinutesAgo: 2, size: 100 * MB, tag: "young" });
+    const old = manualEntry({ size: 100 * MB, tag: "old" });
+
+    expect(selectDrainableInboxNames(MANUAL_PREFIX, [young, old], AS_OF).names).toEqual([old.name]);
   });
 });
 
