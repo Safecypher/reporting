@@ -1,0 +1,61 @@
+-- 0051_ingested_files_grants.sql
+-- Phase 14 (P14-12, T-14-12/13/14): table-level grant hardening for
+-- public.ingested_files. Closes the folded todo
+-- .planning/todos/pending/ingested-files-grants-rely-on-rls-alone.md.
+--
+-- WHAT WAS OBSERVED
+-- Found while verifying 0048 against the live catalog (plan 13-01), and
+-- re-read by the orchestrator on 2026-10-20: both `anon` and `authenticated`
+-- each held DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE and UPDATE
+-- on public.ingested_files (84 derived information_schema.column_privileges
+-- rows each). That is Supabase's default table-wide grant on every table in
+-- `public`, not something this project wrote. It also covers the processing-
+-- lease columns 0048 added (processing_started_at, processing_attempts).
+--
+-- WHY IT WAS SAFE, AND WHY IT IS STILL WORTH FIXING
+-- RLS is enabled on the table (0004) with exactly one policy,
+-- ingested_files_select_authenticated (SELECT, authenticated, using (true)).
+-- With no INSERT / UPDATE / DELETE policy, RLS denies client writes by
+-- default, so a browser client cannot forge a lease today. But the protection
+-- was single-layer: the grants said "yes" and only RLS said "no". A later
+-- permissive write policy, added for a legitimate reason in a hurry, would
+-- silently open client-side writes to the lease columns that make "two
+-- triggers, one file" safe by construction (Phase 13 D-01/D-08). Phase 14
+-- adds a new writer to this table (the claim endpoint, through the secret
+-- key), which is the moment to put a grant layer underneath RLS.
+--
+-- WHY THE FIX IS TABLE-LEVEL
+-- Per 0042_fix_token_digest_column_grants.sql: a COLUMN-level REVOKE cannot
+-- carve a hole out of a TABLE-level grant. Postgres emits a warning, not an
+-- error, so the migration reports success while nothing changes. The working
+-- form drops the table-wide grant and then grants back what is wanted.
+--
+-- WHY authenticated KEEPS SELECT
+-- Every client-side use of ingested_files is a read made as the caller:
+--   - /uploads (app/(dashboard)/uploads/page.tsx) renders the history table
+--   - GET /api/ingest/status (app/api/ingest/status/route.ts) polls a row
+--   - the security_invoker=on freshness and coverage views read the table
+--     with the invoking role's privileges
+-- Revoking SELECT would break all of those. The RLS policy is unchanged.
+--
+-- WHY NOTHING ELSE BREAKS
+-- Every writer is the secret-key client (service_role), which is unaffected
+-- by grants on anon/authenticated. The two lease functions
+-- (claim/release, 0048/0049) are SECURITY DEFINER and run as their owner.
+--
+-- SCOPE
+-- This touches ONE table. The six report tables (verifications,
+-- billing_transactions, dcvv_fetches, card_inventory, removed_cards,
+-- apigee_calls) may share the same default-grant pattern; that is a read-only
+-- follow-up observation (see supabase/tests/ingested_files_grants_test.sql,
+-- NOTICE section), deliberately not changed here.
+--
+-- NOT applied live by this plan's executor (no Supabase MCP access from a
+-- subagent). The orchestrator applies it via MCP apply_migration and proves it
+-- against the live catalog with supabase/tests/ingested_files_grants_test.sql.
+--
+-- DO NOT "simplify" this to a column-level revoke. It does not work.
+
+revoke all on table public.ingested_files from anon, authenticated;
+
+grant select on table public.ingested_files to authenticated;
