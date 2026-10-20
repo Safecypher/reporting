@@ -2,6 +2,8 @@ import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import type { ReportSourceRow, SourceFreshnessRow } from "@/lib/dashboard/freshness";
 import { sha256 } from "@/lib/ingestion/hash";
 import { MAX_PROCESSING_ATTEMPTS } from "@/lib/ingestion/pending-state";
+import { buildManualObjectKey } from "@/lib/ingestion/inbox-object";
+import { TEST_USER_ID, loadVerificationFixture } from "@/lib/ingestion/__tests__/inbox-fakes";
 
 // Task 2: the route's own dependencies are mocked so POST
 // /api/ingest/drain's real handler (app/api/ingest/drain/route.ts) can be
@@ -15,6 +17,23 @@ vi.mock("@/lib/ingestion/supabase-writer", async (importOriginal) => {
   return {
     ...actual,
     buildSecretClient: () => routeSupabaseClient,
+  };
+});
+
+// 14-05 (D-08 invariant): a transparent spy over the shared per-object step.
+// It delegates to the real implementation, so every other case in this file is
+// unaffected; the invariant case reads the recorded keys. Hoisted because
+// vi.resetModules() in the suites' beforeEach re-evaluates this factory, and a
+// module-local array would not survive that.
+const ingestInboxObjectKeys = vi.hoisted(() => [] as string[]);
+vi.mock("@/lib/ingestion/inbox-object", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@/lib/ingestion/inbox-object")>();
+  return {
+    ...actual,
+    ingestInboxObject: vi.fn((input: { key: string }, deps: Parameters<typeof actual.ingestInboxObject>[1]) => {
+      ingestInboxObjectKeys.push(input.key);
+      return actual.ingestInboxObject(input as Parameters<typeof actual.ingestInboxObject>[0], deps);
+    }),
   };
 });
 
@@ -53,14 +72,22 @@ interface FakeInboxObject {
   prefix: string;
   name: string;
   failDownload?: boolean;
+  /** Storage's created_at for the list entry (14-05: the manual grace window reads it). */
+  createdAt?: string;
+  /** Storage's metadata.size for the list entry (14-05: the manual byte budget reads it). */
+  size?: number;
+  /** Real bytes for download(); omitted means an empty buffer, as before 14-05. */
+  bytes?: Uint8Array;
 }
 
 function makeFakeInboxStorage(objects: FakeInboxObject[] = []) {
   const removed: string[] = [];
   const uploaded: string[] = [];
+  const downloaded: string[] = [];
   return {
     removed,
     uploaded,
+    downloaded,
     // The fake is keyed to the "inbox" shape (list/download/remove) for
     // every bucket, with one addition: upload() (used by recordFile when
     // the D-09 per-object step claims a file and writes its bytes to the
@@ -73,15 +100,27 @@ function makeFakeInboxStorage(objects: FakeInboxObject[] = []) {
           return { data: prefixes.map((p) => ({ name: p, metadata: null })), error: null };
         }
         const inPrefix = objects.filter((o) => o.prefix === prefix);
-        return { data: inPrefix.map((o) => ({ name: o.name, metadata: {} })), error: null };
+        return {
+          data: inPrefix.map((o) => ({
+            name: o.name,
+            created_at: o.createdAt ?? null,
+            metadata: o.size === undefined ? {} : { size: o.size },
+          })),
+          error: null,
+        };
       },
       download: async (objectKey: string) => {
+        downloaded.push(objectKey);
         const prefix = objectKey.split("/")[0];
         const name = objectKey.slice(prefix.length + 1);
         const obj = objects.find((o) => o.prefix === prefix && o.name === name);
         if (!obj) return { data: null, error: new Error(`not found: ${objectKey}`) };
         if (obj.failDownload) {
           return { data: null, error: new Error(`simulated download failure: ${objectKey}`) };
+        }
+        if (obj.bytes) {
+          const copy = obj.bytes.buffer.slice(obj.bytes.byteOffset, obj.bytes.byteOffset + obj.bytes.byteLength);
+          return { data: { arrayBuffer: async () => copy as ArrayBuffer }, error: null };
         }
         return { data: { arrayBuffer: async () => new ArrayBuffer(0) }, error: null };
       },
@@ -950,6 +989,252 @@ describe("POST /api/ingest/drain — D-09 converged per-object step and the 13-0
     expect(triggeredFileIds).toEqual(["young-not-stuck"]); // the sweep did fire at it
     expect(alertRunsRows).toHaveLength(1);
     expect(alertRunsRows[0].reasons).toEqual({}); // not stuck -- too young
+  });
+});
+
+describe("POST /api/ingest/drain — Phase 14 manual objects in the shared drain (D-08, D-09, D-17)", () => {
+  const originalSecret = process.env.DRAIN_CRON_SECRET;
+  const originalWebhook = process.env.SLACK_WEBHOOK_URL;
+  const originalOrigin = process.env.NEXT_PUBLIC_SITE_URL;
+  const originalProcessSecret = process.env.INGEST_PROCESS_SECRET;
+  const PUSH_PREFIX = "11111111-1111-1111-1111-111111111111";
+
+  beforeEach(() => {
+    vi.resetModules();
+    ingestInboxObjectKeys.length = 0;
+    process.env.DRAIN_CRON_SECRET = DRAIN_CRON_SECRET;
+    delete process.env.SLACK_WEBHOOK_URL;
+    process.env.NEXT_PUBLIC_SITE_URL = "https://screporting.netlify.app";
+    process.env.INGEST_PROCESS_SECRET = "test-ingest-process-secret";
+  });
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
+    process.env.DRAIN_CRON_SECRET = originalSecret;
+    if (originalWebhook === undefined) delete process.env.SLACK_WEBHOOK_URL;
+    else process.env.SLACK_WEBHOOK_URL = originalWebhook;
+    if (originalOrigin === undefined) delete process.env.NEXT_PUBLIC_SITE_URL;
+    else process.env.NEXT_PUBLIC_SITE_URL = originalOrigin;
+    if (originalProcessSecret === undefined) delete process.env.INGEST_PROCESS_SECRET;
+    else process.env.INGEST_PROCESS_SECRET = originalProcessSecret;
+  });
+
+  const minutesAgo = (n: number) => new Date(Date.now() - n * 60_000).toISOString();
+
+  /** A manual inbox object whose name comes from a real minted key. */
+  function manualObject(
+    overrides: Partial<FakeInboxObject> & { mintedAt?: Date; fileName?: string } = {}
+  ): { object: FakeInboxObject; key: string } {
+    const { mintedAt, fileName, ...rest } = overrides;
+    const key = buildManualObjectKey(
+      TEST_USER_ID,
+      fileName ?? "daily-ver-report_2026-08-13.csv",
+      mintedAt ?? new Date("2026-10-19T09:00:00.000Z"),
+      "0123456789abcdef"
+    );
+    return { key, object: { prefix: "manual", name: key.slice("manual/".length), ...rest } };
+  }
+
+  it("an old manual object is claimed with manual provenance attributed from its key, the trigger fires once, and it is removed", async () => {
+    const { fn: fakeFetch, triggeredFileIds } = makeFakeTriggerAndSlackFetch();
+    vi.stubGlobal("fetch", fakeFetch);
+
+    const { key, object } = manualObject({ createdAt: minutesAgo(20), bytes: loadVerificationFixture() });
+    const { client, ingestedFilesRows } = makeFakeDrainSupabase({ inboxObjects: [object], ingestedFiles: [] });
+    routeSupabaseClient = client;
+
+    const { POST } = await import("@/app/api/ingest/drain/route");
+    const response = await POST(buildDrainRequest());
+
+    expect(response.status).toBe(200);
+    expect(await response.json()).toEqual({ processed: 1 });
+    expect(ingestedFilesRows).toHaveLength(1);
+    expect(ingestedFilesRows[0]).toMatchObject({
+      source: "manual",
+      source_ref: null,
+      source_credential_id: null,
+      uploaded_by: TEST_USER_ID,
+      file_name: "daily-ver-report_2026-08-13.csv",
+      status: "pending",
+    });
+    expect(triggeredFileIds).toEqual([ingestedFilesRows[0].id]);
+    expect(client.storage.removed).toEqual([key]);
+  });
+
+  it("a manual object younger than the grace window is not downloaded, not removed, and not counted stuck", async () => {
+    const { fn: fakeFetch, triggeredFileIds } = makeFakeTriggerAndSlackFetch();
+    vi.stubGlobal("fetch", fakeFetch);
+
+    const { object } = manualObject({ createdAt: minutesAgo(5), bytes: loadVerificationFixture() });
+    const { client, alertRunsRows, ingestedFilesRows } = makeFakeDrainSupabase({
+      inboxObjects: [object],
+      ingestedFiles: [],
+    });
+    routeSupabaseClient = client;
+
+    const { POST } = await import("@/app/api/ingest/drain/route");
+    const response = await POST(buildDrainRequest());
+
+    expect(response.status).toBe(200);
+    expect(await response.json()).toEqual({ processed: 0 });
+    expect(client.storage.downloaded).toEqual([]);
+    expect(client.storage.removed).toEqual([]);
+    expect(ingestedFilesRows).toHaveLength(0);
+    expect(triggeredFileIds).toEqual([]);
+    expect(alertRunsRows).toHaveLength(1);
+    expect(alertRunsRows[0].inbox_stuck_count).toBe(0);
+    expect(alertRunsRows[0].inbox_oldest_stuck_at).toBeNull();
+  });
+
+  it("a dot-file under the manual prefix is never downloaded", async () => {
+    const { fn: fakeFetch } = makeFakeTriggerAndSlackFetch();
+    vi.stubGlobal("fetch", fakeFetch);
+
+    const placeholder: FakeInboxObject = {
+      prefix: "manual",
+      name: ".emptyFolderPlaceholder",
+      createdAt: minutesAgo(900),
+      size: 0,
+    };
+    const { client } = makeFakeDrainSupabase({ inboxObjects: [placeholder], ingestedFiles: [] });
+    routeSupabaseClient = client;
+
+    const { POST } = await import("@/app/api/ingest/drain/route");
+    const response = await POST(buildDrainRequest());
+
+    expect(await response.json()).toEqual({ processed: 0 });
+    expect(client.storage.downloaded).toEqual([]);
+    expect(client.storage.removed).toEqual([]);
+  });
+
+  it("a dot-file under a push prefix is never downloaded either", async () => {
+    const { fn: fakeFetch } = makeFakeTriggerAndSlackFetch();
+    vi.stubGlobal("fetch", fakeFetch);
+
+    const { client } = makeFakeDrainSupabase({
+      inboxObjects: [{ prefix: PUSH_PREFIX, name: ".emptyFolderPlaceholder", size: 0 }],
+      ingestedFiles: [],
+    });
+    routeSupabaseClient = client;
+
+    const { POST } = await import("@/app/api/ingest/drain/route");
+    await POST(buildDrainRequest());
+
+    expect(client.storage.downloaded).toEqual([]);
+  });
+
+  it("a manual object whose download fails is counted stuck with the key's own minted instant, and stays in the inbox", async () => {
+    const { fn: fakeFetch } = makeFakeTriggerAndSlackFetch();
+    vi.stubGlobal("fetch", fakeFetch);
+
+    const { object } = manualObject({
+      createdAt: minutesAgo(60),
+      failDownload: true,
+      mintedAt: new Date("2026-10-19T09:00:00.000Z"),
+    });
+    const { client, alertRunsRows } = makeFakeDrainSupabase({ inboxObjects: [object], ingestedFiles: [] });
+    routeSupabaseClient = client;
+
+    const { POST } = await import("@/app/api/ingest/drain/route");
+    const response = await POST(buildDrainRequest());
+
+    expect(await response.json()).toEqual({ processed: 0 });
+    expect(client.storage.removed).toEqual([]);
+    expect(alertRunsRows).toHaveLength(1);
+    expect(alertRunsRows[0].inbox_stuck_count).toBe(1);
+    expect(alertRunsRows[0].inbox_oldest_stuck_at).toBe("2026-10-19T09:00:00Z");
+  });
+
+  it("stuck manual uploads reach the existing Slack inboxStuck group with no copy change", async () => {
+    process.env.SLACK_WEBHOOK_URL = "https://hooks.slack.com/services/MANUALSTUCK";
+    const { fn: fakeFetch, slackPostBodies } = makeFakeTriggerAndSlackFetch();
+    vi.stubGlobal("fetch", fakeFetch);
+
+    const { object } = manualObject({ createdAt: minutesAgo(60), failDownload: true });
+    const { client, alertRunsRows } = makeFakeDrainSupabase({ inboxObjects: [object], ingestedFiles: [] });
+    routeSupabaseClient = client;
+
+    const { POST } = await import("@/app/api/ingest/drain/route");
+    await POST(buildDrainRequest());
+
+    expect(slackPostBodies).toHaveLength(1);
+    expect(alertRunsRows[0].reasons).toMatchObject({ inboxStuck: 1 });
+  });
+
+  it("D-08 invariant: one run over one push object and one old manual object calls ingestInboxObject exactly twice, once per key", async () => {
+    const { fn: fakeFetch } = makeFakeTriggerAndSlackFetch();
+    vi.stubGlobal("fetch", fakeFetch);
+
+    const pushName = "20261007T061400Z-0-aaaa-daily-ver-report.csv";
+    const { key: manualKey, object: manual } = manualObject({
+      createdAt: minutesAgo(30),
+      bytes: new TextEncoder().encode(
+        "CreatedAt,ExternalCardReference,Cvi2Value,duration,Authenticated\n2026-08-14T01:00:00.000,AAAA1111BBBB2222,111,50.5,False\n"
+      ),
+    });
+    const { client } = makeFakeDrainSupabase({
+      inboxObjects: [{ prefix: PUSH_PREFIX, name: pushName, bytes: loadVerificationFixture() }, manual],
+      ingestedFiles: [],
+    });
+    routeSupabaseClient = client;
+
+    const { POST } = await import("@/app/api/ingest/drain/route");
+    const response = await POST(buildDrainRequest());
+
+    expect(await response.json()).toEqual({ processed: 2 });
+    expect(ingestInboxObjectKeys).toEqual([`${PUSH_PREFIX}/${pushName}`, manualKey]);
+  });
+
+  it("drains pushed files before manual ones (the manual prefix sorts after every credential id)", async () => {
+    const { fn: fakeFetch } = makeFakeTriggerAndSlackFetch();
+    vi.stubGlobal("fetch", fakeFetch);
+
+    const { object: manual } = manualObject({ createdAt: minutesAgo(30), bytes: loadVerificationFixture() });
+    const { client } = makeFakeDrainSupabase({
+      // Listed manual-first on purpose.
+      inboxObjects: [manual, { prefix: "ffffffff-ffff-ffff-ffff-ffffffffffff", name: "20261007T061400Z-0-aaaa-x.csv" }],
+      ingestedFiles: [],
+    });
+    routeSupabaseClient = client;
+
+    const { POST } = await import("@/app/api/ingest/drain/route");
+    await POST(buildDrainRequest());
+
+    expect(ingestInboxObjectKeys[0]).toBe("ffffffff-ffff-ffff-ffff-ffffffffffff/20261007T061400Z-0-aaaa-x.csv");
+    expect(ingestInboxObjectKeys[1]).toMatch(/^manual\//);
+  });
+
+  it("two old 60 MB manual objects: the first is ingested, the second is deferred, not errored and not stuck", async () => {
+    const { fn: fakeFetch } = makeFakeTriggerAndSlackFetch();
+    vi.stubGlobal("fetch", fakeFetch);
+
+    const first = manualObject({
+      createdAt: minutesAgo(300),
+      size: 60_000_000,
+      mintedAt: new Date("2026-10-19T08:00:00.000Z"),
+      fileName: "first.csv",
+      bytes: loadVerificationFixture(),
+    });
+    const second = manualObject({
+      createdAt: minutesAgo(200),
+      size: 60_000_000,
+      mintedAt: new Date("2026-10-19T09:00:00.000Z"),
+      fileName: "second.csv",
+      bytes: loadVerificationFixture(),
+    });
+    const { client, alertRunsRows } = makeFakeDrainSupabase({
+      inboxObjects: [second.object, first.object],
+      ingestedFiles: [],
+    });
+    routeSupabaseClient = client;
+
+    const { POST } = await import("@/app/api/ingest/drain/route");
+    const response = await POST(buildDrainRequest());
+
+    expect(await response.json()).toEqual({ processed: 1 });
+    expect(client.storage.removed).toEqual([first.key]);
+    expect(client.storage.downloaded).toEqual([first.key]);
+    expect(alertRunsRows[0].inbox_stuck_count).toBe(0);
   });
 });
 

@@ -5,14 +5,18 @@
  * freshness, writes its evidence, then posts at most one grouped Slack
  * message.
  *
- * D-09: the per-object step below no longer runs the whole ingestion
- * pipeline in-process. It claims the file and fires the background-function
- * trigger exactly as `/api/ingest` does — so a push-delivered file is no
- * longer bound by the measured ~30-second synchronous ceiling that
- * falsified the original single-attempt design (13-01/D-07). This is
- * TRIGGER convergence, not STORAGE convergence: manual upload still does
- * not move onto the inbox bucket (D-02), and both paths keep their own
- * storage and entry points, sharing one asynchronous processor.
+ * D-09: the per-object step below does not run the whole ingestion pipeline
+ * in-process. It claims the file and fires the background-function trigger
+ * exactly as `/api/ingest` does — so a delivered file is not bound by the
+ * measured ~30-second synchronous ceiling that falsified the original
+ * single-attempt design (13-01/D-07).
+ *
+ * Phase 14 (D-08): manual uploads now land in the same inbox bucket, under
+ * `manual/`, so the inbox holds two kinds of object — push deliveries under a
+ * credential-id prefix, and manual uploads the claim route never got to. This
+ * route's per-object step is the shared `ingestInboxObject`, the very function
+ * the claim route calls for a manual upload, so the two callers cannot drift
+ * apart on provenance, writer lifetime or trigger handling.
  *
  * 13-07: the sweep fires the background-function trigger for pending rows
  * old enough that neither the client's fire-and-forget request nor a prior
@@ -31,8 +35,8 @@
  */
 import { NextResponse } from "next/server";
 import { timingSafeEqual } from "node:crypto";
-import { claimFile } from "@/lib/ingestion";
 import { triggerBackgroundProcessing } from "@/lib/ingestion/process-trigger";
+import { ingestInboxObject, selectDrainableInboxNames } from "@/lib/ingestion/inbox-object";
 // Namespace import (not named) for both of these: this file's own ordering
 // gates assert the real CALL to the sweep sits after the held-mutex
 // short-circuit, and the real CALL to the Slack post sits after the
@@ -41,7 +45,7 @@ import { triggerBackgroundProcessing } from "@/lib/ingestion/process-trigger";
 // make the gate measure an import statement instead of the call it exists
 // to order.
 import * as pendingRunner from "@/lib/ingestion/pending-runner";
-import { createSupabaseWriter, createPendingFileAccess, buildSecretClient } from "@/lib/ingestion/supabase-writer";
+import { createPendingFileAccess, buildSecretClient } from "@/lib/ingestion/supabase-writer";
 import { pushRpc } from "@/lib/push/tables";
 import { hashToken } from "@/lib/push/tokens";
 import { drainInbox, type DrainDeps } from "@/lib/push/drain";
@@ -75,8 +79,6 @@ export const runtime = "nodejs";
 // of which scale with the size of any individual delivered file now that
 // row-writing happens in the background function instead of this request.
 export const maxDuration = 60;
-
-const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 /**
  * Untyped accessor for `alert_runs` -- mirrors lib/dashboard/freshness.ts's
@@ -166,7 +168,15 @@ export async function POST(request: Request) {
     async listObjectsInPrefix(prefix) {
       const { data, error } = await supabase.storage.from("inbox").list(prefix, { limit: 1000 });
       if (error) throw error;
-      return (data ?? []).filter((entry) => entry.metadata !== null).map((entry) => entry.name);
+      // The manual rules (grace window, per-run byte budget, dot-file and
+      // folder filtering) live in selectDrainableInboxNames; a push prefix
+      // passes through it unchanged. drainInbox's prefix sort runs "manual"
+      // after every hex credential id, so pushed files always drain first.
+      const { names, deferred } = selectDrainableInboxNames(prefix, data ?? [], new Date());
+      if (deferred.length > 0) {
+        console.info("[drain] deferred inbox objects", JSON.stringify(deferred));
+      }
+      return names;
     },
     async downloadObject(objectKey) {
       const { data, error } = await supabase.storage.from("inbox").download(objectKey);
@@ -178,67 +188,37 @@ export async function POST(request: Request) {
       if (error) throw error;
     },
     async ingestOne(objectKey, bytes) {
-      // Pitfall 4: one writer per file, never reused across the batch — the
-      // writer's own doc comment states its per-call closure state, and
-      // reusing one across a batch would cross-wire file ids and provenance.
-      const leadingSegment = objectKey.split("/")[0];
-      const sourceCredentialId = UUID_RE.test(leadingSegment) ? leadingSegment : undefined;
-      const writer = createSupabaseWriter(supabase, {
-        source: "push",
-        sourceRef: objectKey,
-        sourceCredentialId,
-      });
-      const baseName = objectKey.split("/").pop() ?? objectKey;
-
-      // D-09: claims the file (cheap -- hash, classify, record) and hands
-      // processing to the background function, instead of running the
-      // whole pipeline in-process. This is what removes the drain from the
-      // measured ~30s synchronous ceiling (13-RESEARCH.md Pitfall 2) --
-      // exactly the exposure that falsified /api/ingest's original design.
-      const claimResult = await claimFile(
-        { fileName: baseName, bytes, contentType: undefined, uploadedBy: null },
-        writer
+      // D-08: the per-object step is the ONE shared ingestInboxObject the
+      // claim route uses too -- push provenance, the per-file writer and the
+      // trigger handling live there and nowhere else. Its result is mapped
+      // back to exactly what this closure resolved before the extraction, so
+      // every DrainObjectOutcome value is unchanged for a push key.
+      //
+      // A pending outcome is still a TERMINAL outcome for the drain's loop
+      // (DrainDeps.ingestOne's contract, unchanged) and the object is still
+      // removed, whether or not the trigger fired: the bytes are already in
+      // the reports bucket and the row is already pending, so a file whose
+      // background processing is later lost is recoverable by the sweep
+      // below, which does not care where the file came from. Leaving the
+      // object in the inbox instead would make the inbox-stuck alert fire at
+      // a perfectly recoverable file.
+      const outcome = await ingestInboxObject(
+        { key: objectKey, bytes },
+        {
+          supabase,
+          trigger: (fileId) =>
+            triggerBackgroundProcessing(fileId, {
+              fetchImpl: fetch,
+              origin: process.env.NEXT_PUBLIC_SITE_URL,
+              secret: process.env.INGEST_PROCESS_SECRET,
+            }),
+          logLabel: "[drain]",
+        }
       );
-
-      if (claimResult.kind !== "claimed") {
-        // Already-uploaded / unrecognised: terminal inside claimFile, same
-        // as /api/ingest's own early return -- there is no processing left
-        // to start, so no trigger is fired.
-        return claimResult.result;
-      }
-
-      // Fire the trigger the SAME way /api/ingest does (D-08/D-09): read the
-      // secret and the canonical origin here, await briefly, log and
-      // swallow any failure. A failed or not-configured trigger must never
-      // fail this drain run -- the row is already correctly pending, and
-      // the sweep below (and tomorrow's run) is the backstop.
-      const triggerResult = await triggerBackgroundProcessing(claimResult.claim.ingestedFileId, {
-        fetchImpl: fetch,
-        origin: process.env.NEXT_PUBLIC_SITE_URL,
-        secret: process.env.INGEST_PROCESS_SECRET,
-      });
-      if (triggerResult.outcome !== "fired") {
-        console.error(
-          "[drain] background trigger did not fire",
-          claimResult.claim.ingestedFileId,
-          triggerResult.outcome,
-          triggerResult.outcome === "failed" ? triggerResult.message : undefined
-        );
-      }
-
-      // Resolving here is still a TERMINAL outcome for the drain's loop and
-      // the object is still removed (DrainDeps.ingestOne's contract,
-      // unchanged) -- whether or not the trigger fired. The bytes are
-      // already in the reports bucket and the row is already pending, so a
-      // file whose background processing is later lost is recoverable from
-      // there, by the sweep below, which does not care where the file came
-      // from. Leaving the object in the inbox instead would make the
-      // inbox-stuck alert fire at a perfectly recoverable file, and Phase
-      // 9's contract treats a left object as a delivery that was not
-      // ingested -- which would be false.
+      if (outcome.kind === "terminal") return outcome.result;
       return {
-        ingestedFileId: claimResult.claim.ingestedFileId,
-        reportType: claimResult.claim.reportType,
+        ingestedFileId: outcome.ingestedFileId,
+        reportType: outcome.reportType,
         status: "pending",
       };
     },

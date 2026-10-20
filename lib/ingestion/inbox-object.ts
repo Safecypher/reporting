@@ -98,6 +98,94 @@ export function resolveManualDisplayName(parsed: ParsedManualObjectKey, supplied
   return parsed.fileName;
 }
 
+/**
+ * A manual object younger than this is left alone by the drain (D-17, T-14-21):
+ * the claim that follows an upload runs within seconds, so anything this old
+ * was abandoned, and anything younger may still be being claimed.
+ */
+export const MANUAL_INBOX_GRACE_MINUTES = 15;
+
+/**
+ * The most manual bytes one drain run will take (T-14-22). A literal rather
+ * than an import of `MAX_UPLOAD_BYTES`, because claim-upload.ts imports this
+ * module and the reverse import would be a runtime cycle; a test pins the two
+ * equal. The unit is the claim's own ceiling, so a run always has room for at
+ * least one maximum-size object and never for a backlog that would push the
+ * evidence row and Slack alert past the request's measured ~30 s ceiling.
+ */
+export const MANUAL_DRAIN_BYTE_BUDGET = 104_857_600;
+
+/** The slice of a Storage `list()` entry the drain's selection reads. */
+export interface InboxListEntry {
+  name: string;
+  created_at: string | null;
+  /** Null for a folder pseudo-entry; an object for a real file. */
+  metadata: { size?: number } | null;
+}
+
+export interface DrainableSelection {
+  names: string[];
+  deferred: { name: string; reason: "young" | "budget" | "oversize" }[];
+}
+
+/**
+ * Decides which listed names under one inbox prefix the drain may take this run.
+ *
+ * Every prefix: folder entries (null metadata) and any name starting with a dot
+ * (the dashboard's `.emptyFolderPlaceholder`) are dropped, never deferred -- they
+ * are not uploads.
+ *
+ * A push prefix returns everything else untouched, exactly as before Phase 14.
+ *
+ * The manual prefix is taken oldest first (the flat key starts with its mint
+ * timestamp, so name order is time order), skipping what is still inside the
+ * grace window and stopping at the per-run byte budget. The budget is strict
+ * oldest-first: once an entry does not fit, every later one waits too, so a
+ * large old object cannot be starved by smaller newer ones. The first eligible
+ * entry is always taken, so an object of exactly the budget still moves.
+ * Deferral is not failure: deferred names stay in the inbox and the next run
+ * (and /uploads) sees them.
+ */
+export function selectDrainableInboxNames(prefix: string, entries: InboxListEntry[], asOf: Date): DrainableSelection {
+  const real = entries.filter((entry) => entry.metadata !== null && !entry.name.startsWith("."));
+  if (prefix !== MANUAL_PREFIX) {
+    return { names: real.map((entry) => entry.name), deferred: [] };
+  }
+
+  const names: string[] = [];
+  const deferred: DrainableSelection["deferred"] = [];
+  const graceMs = MANUAL_INBOX_GRACE_MINUTES * 60_000;
+  let budgetSpent = 0;
+  let budgetClosed = false;
+
+  for (const entry of [...real].sort((a, b) => (a.name < b.name ? -1 : a.name > b.name ? 1 : 0))) {
+    const createdMs = entry.created_at ? Date.parse(entry.created_at) : NaN;
+    const mintedAt = parseManualObjectKey(`${MANUAL_PREFIX}/${entry.name}`)?.mintedAt;
+    const receivedMs = Number.isNaN(createdMs) ? (mintedAt ? Date.parse(mintedAt) : NaN) : createdMs;
+    // No usable timestamp at all: treat as old. Deferring forever would hide an
+    // object nothing else can place in time; the claim never leaves one.
+    if (!Number.isNaN(receivedMs) && asOf.getTime() - receivedMs < graceMs) {
+      deferred.push({ name: entry.name, reason: "young" });
+      continue;
+    }
+
+    const size = entry.metadata?.size ?? 0;
+    if (size > MANUAL_DRAIN_BYTE_BUDGET) {
+      deferred.push({ name: entry.name, reason: "oversize" });
+      continue;
+    }
+    if (budgetClosed || (names.length > 0 && budgetSpent + size > MANUAL_DRAIN_BYTE_BUDGET)) {
+      budgetClosed = true;
+      deferred.push({ name: entry.name, reason: "budget" });
+      continue;
+    }
+    names.push(entry.name);
+    budgetSpent += size;
+  }
+
+  return { names, deferred };
+}
+
 export type InboxObjectOutcome =
   | { kind: "terminal"; result: IngestionResult }
   | { kind: "pending"; ingestedFileId: string; reportType: ReportType };

@@ -6,6 +6,7 @@ import { drainInbox, type DrainDeps } from "../drain";
 import { generateToken } from "../tokens";
 import { createSupabaseWriter } from "@/lib/ingestion/supabase-writer";
 import { ingest } from "@/lib/ingestion";
+import { buildManualObjectKey, ingestInboxObject } from "@/lib/ingestion/inbox-object";
 
 const VERIFICATION_CSV =
   "CreatedAt,ExternalCardReference,Cvi2Value,duration,Authenticated\n" +
@@ -316,6 +317,140 @@ describe("Phase 9 tracer: push -> inbox -> drain -> ingest", () => {
     expect(rows).toHaveLength(2);
     const sourceRefs = rows.map((r) => r.source_ref).sort();
     expect(sourceRefs).toEqual([refA, refB].sort());
+  });
+});
+
+/**
+ * 14-05 Task 1 (D-08, P14-06): the drain's per-object step is now the shared
+ * `ingestInboxObject`. These cases drive it through the real `drainInbox`
+ * core and the same fake ingest client the Phase 9 tracer uses, so push
+ * provenance is pinned byte-for-byte against what the pre-phase closure wrote
+ * and the manual branch is shown to land beside it without cross-wiring.
+ */
+describe("Phase 14: the drain's per-object step is the shared ingestInboxObject (D-08)", () => {
+  const MANUAL_USER_ID = "44444444-4444-4444-8444-444444444444";
+  const MANUAL_MINTED = new Date("2026-10-20T10:15:30.000Z");
+  const MANUAL_NONCE = "0123456789abcdef";
+
+  /** The route's ingestOne, minus the HTTP: ingestInboxObject plus the pending/terminal mapping. */
+  function ingestOneViaSharedStep(ingestSupabase: ReturnType<typeof makeFakeIngestSupabase>) {
+    const trigger = vi.fn<(fileId: string) => Promise<{ outcome: "fired" }>>(async () => ({ outcome: "fired" }));
+    const ingestOne = async (key: string, bytes: Uint8Array) => {
+      const outcome = await ingestInboxObject(
+        { key, bytes },
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        { supabase: ingestSupabase as any, trigger, logLabel: "[drain]" }
+      );
+      return outcome.kind === "pending"
+        ? { ingestedFileId: outcome.ingestedFileId, reportType: outcome.reportType, status: "pending" }
+        : outcome.result;
+    };
+    return { ingestOne, trigger };
+  }
+
+  async function drainWith(inbox: ReturnType<typeof makeFakeInbox>, ingestOne: DrainDeps["ingestOne"]) {
+    return drainInbox({
+      tryAcquireLock: async () => true,
+      releaseLock: async () => {},
+      listPrefixes: inbox.listPrefixes,
+      listObjectsInPrefix: inbox.listObjectsInPrefix,
+      downloadObject: inbox.downloadObject,
+      removeObject: inbox.removeObject,
+      ingestOne,
+    });
+  }
+
+  it("a pushed object records push provenance exactly as the pre-phase closure did: source push, source_ref the key, credential from the leading UUID, uploaded_by null, file_name the last segment", async () => {
+    const { token, hash } = generateToken();
+    const credStore = makeFakeCredentialStore();
+    credStore.addCredential(hash, CREDENTIAL_ID, "TSYS");
+    const inbox = makeFakeInbox();
+    const pushResult = await acceptPush(
+      {
+        lookupCredentialByTokenHash: credStore.lookupCredentialByTokenHash,
+        touchLastUsed: credStore.touchLastUsed,
+        putObject: inbox.putObject,
+        recordRejection: makeFakeRejectionRecorder().recordRejection,
+      },
+      {
+        authorizationHeader: `Bearer ${token}`,
+        declaredContentLength: verificationBytes.length,
+        files: [{ filename: "daily-ver-report_2026-08-13.csv", bytes: verificationBytes }],
+      }
+    );
+    const reference = pushResult.results[0].reference!;
+
+    const ingestSupabase = makeFakeIngestSupabase();
+    const { ingestOne, trigger } = ingestOneViaSharedStep(ingestSupabase);
+    const drainResult = await drainWith(inbox, ingestOne);
+
+    expect(drainResult.processed).toBe(1);
+    expect(inbox.objects.size).toBe(0);
+    const rows = [...ingestSupabase.byId.values()];
+    expect(rows).toHaveLength(1);
+    expect(rows[0]).toMatchObject({
+      source: "push",
+      source_ref: reference,
+      source_credential_id: CREDENTIAL_ID,
+      uploaded_by: null,
+      file_name: reference.split("/").pop(),
+    });
+    expect(trigger).toHaveBeenCalledExactlyOnceWith(rows[0].id);
+  });
+
+  it("a manual object in the inbox records manual provenance attributed from the flat key and is removed after the trigger fires", async () => {
+    const inbox = makeFakeInbox();
+    const manualKey = buildManualObjectKey(MANUAL_USER_ID, "daily-ver-report_manual.csv", MANUAL_MINTED, MANUAL_NONCE);
+    await inbox.putObject(manualKey, verificationBytes, "text/csv");
+
+    const ingestSupabase = makeFakeIngestSupabase();
+    const { ingestOne, trigger } = ingestOneViaSharedStep(ingestSupabase);
+    const drainResult = await drainWith(inbox, ingestOne);
+
+    expect(drainResult.processed).toBe(1);
+    expect(drainResult.outcomes).toEqual([
+      {
+        key: manualKey,
+        outcome: "terminal",
+        result: { ingestedFileId: "file-1", reportType: "verification", status: "pending" },
+      },
+    ]);
+    const rows = [...ingestSupabase.byId.values()];
+    expect(rows).toHaveLength(1);
+    expect(rows[0]).toMatchObject({
+      source: "manual",
+      source_ref: null,
+      source_credential_id: null,
+      uploaded_by: MANUAL_USER_ID,
+      file_name: "daily-ver-report_manual.csv",
+    });
+    expect(trigger).toHaveBeenCalledExactlyOnceWith("file-1");
+    expect(inbox.objects.size).toBe(0);
+  });
+
+  it("one push and one manual object in one run produce two distinct writers (never cross-wired provenance) and both are removed", async () => {
+    const inbox = makeFakeInbox();
+    const pushKey = `${CREDENTIAL_ID}/20261020T060000Z-0-aaaa-daily-ver-report.csv`;
+    const manualKey = buildManualObjectKey(MANUAL_USER_ID, "daily-ver-report_manual.csv", MANUAL_MINTED, MANUAL_NONCE);
+    await inbox.putObject(pushKey, verificationBytes, "text/csv");
+    await inbox.putObject(manualKey, otherVerificationBytes, "text/csv");
+
+    const ingestSupabase = makeFakeIngestSupabase();
+    const { ingestOne } = ingestOneViaSharedStep(ingestSupabase);
+    const drainResult = await drainWith(inbox, ingestOne);
+
+    expect(drainResult.processed).toBe(2);
+    expect(inbox.objects.size).toBe(0);
+    // The drain's prefix sort puts the credential id before "manual".
+    expect(drainResult.outcomes.map((o) => o.key)).toEqual([pushKey, manualKey]);
+
+    const rows = [...ingestSupabase.byId.values()];
+    expect(rows).toHaveLength(2);
+    const push = rows.find((r) => r.source === "push");
+    const manual = rows.find((r) => r.source === "manual");
+    expect(push).toMatchObject({ source_ref: pushKey, source_credential_id: CREDENTIAL_ID, uploaded_by: null });
+    expect(manual).toMatchObject({ source_ref: null, source_credential_id: null, uploaded_by: MANUAL_USER_ID });
+    expect(push?.id).not.toBe(manual?.id);
   });
 });
 
