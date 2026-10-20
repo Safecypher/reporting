@@ -49,7 +49,26 @@ describe("csvWindows equivalence with whole-file Papa.parse", () => {
       "\r\n" +
       '4,"say ""hi""",end\r\n'
   );
+  // Papa's own stream mode rewrites repeated values in rows it resumes after
+  // backpressure (every 16 rows); rows with equal or empty cells past row 16
+  // are the regression guard for csvWindows doing its own header handling.
+  const repeatedCells = encode(
+    "id,left,right\n" +
+      Array.from({ length: 60 }, (_, i) => `${i},same,same`).join("\n") +
+      "\n" +
+      Array.from({ length: 40 }, (_, i) => `e${i},,`).join("\n") +
+      "\n"
+  );
+  const ragged = encode(
+    "a,b,c\n" +
+      Array.from({ length: 50 }, (_, i) => (i % 3 === 0 ? `${i},x` : i % 3 === 1 ? `${i},x,y,z,w` : `${i},y,y`)).join("\n") +
+      "\n"
+  );
+  const duplicateHeader = encode("a,a,b,a_1\n1,2,3,4\n5,5,5,5\n");
   const inputs: [string, Uint8Array][] = [
+    ["rows with repeated and empty cells past the first 16 rows", repeatedCells],
+    ["ragged rows (too few and too many fields)", ragged],
+    ["duplicate header names", duplicateHeader],
     ["BOM + CRLF + quoted commas + quoted newline + multibyte + blank lines", tricky],
     ["billing fixture", fixture("billing.fixture.csv")],
     ["card-inventory fixture", fixture("card-inventory.fixture.csv")],

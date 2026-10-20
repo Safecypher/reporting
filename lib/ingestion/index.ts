@@ -6,6 +6,7 @@ import { dcvvHandler } from "./handlers/dcvv";
 import { removedCardsHandler } from "./handlers/removed-cards";
 import { verificationHandler } from "./handlers/verification";
 import { sha256 } from "./hash";
+import { csvWindows } from "./csv-windows";
 import { MAX_XLSX_BYTES, XLSX_TOO_LARGE_REASON } from "./xlsx-cap";
 import type {
   ClaimedFile,
@@ -15,6 +16,7 @@ import type {
   IngestionInput,
   IngestionResult,
   ReportHandler,
+  ReportType,
   RejectedRow,
 } from "./types";
 
@@ -239,6 +241,97 @@ export async function claimFile(input: IngestionInput, deps: IngestDeps): Promis
 }
 
 /**
+ * Report types processed in bounded-memory row windows (D-06/D-03). Billing
+ * is the cumulative, month-end-sized report; the others stay whole-file.
+ */
+const WINDOWED_REPORT_TYPES: ReadonlySet<ReportType> = new Set<ReportType>(["billing"]);
+
+/**
+ * Windowed branch of `processClaimedFile` (14-02). Produces results identical
+ * to the whole-file branch while holding only one window of parsed rows at a
+ * time. The handler is used exactly as the whole-file branch uses it
+ * (`parse` for the header assertion, then `validate`, `normalise`, `upsert`
+ * per window), so no fenced parser, handler or normaliser changes.
+ *
+ * Windows run strictly sequentially: parallel ON CONFLICT DO NOTHING batches
+ * over reused transaction ids can deadlock.
+ */
+async function processClaimedFileWindowed(
+  handler: ReportHandler,
+  claim: ClaimedFile,
+  deps: IngestDeps,
+  windowRows?: number
+): Promise<IngestionResult> {
+  // The existing header assertion: parse only the head of the file. It throws
+  // the same missing-column message as whole-file parsing; its rows are
+  // discarded. CR-01 guard preserved: a throw finalises the file failed.
+  try {
+    await handler.parse(claim.bytes.subarray(0, HEADER_SLICE_BYTES), claim.fileName);
+  } catch (err) {
+    const reason = err instanceof Error ? err.message : "unparsable file";
+    const rejectReasons: RejectedRow[] = [{ row: 0, reasons: [reason] }];
+    await deps.finalizeFile(claim.ingestedFileId, {
+      accepted: 0,
+      duplicates: 0,
+      rejected: 0,
+      excluded: 0,
+      rejectReasons,
+      status: "failed",
+    });
+    return {
+      reportType: claim.reportType,
+      accepted: 0,
+      duplicates: 0,
+      rejected: 0,
+      excluded: 0,
+      rejectReasons,
+      ingestedFileId: claim.ingestedFileId,
+    };
+  }
+
+  let accepted = 0;
+  let duplicates = 0;
+  let excluded = 0;
+  const rejectedAll: RejectedRow[] = [];
+  let rowsConsumed = 0;
+
+  for await (const window of csvWindows(claim.bytes, windowRows)) {
+    const { valid, rejected } = handler.validate(window);
+    // validate numbers rows from 1 within the window it is given; offset by
+    // the rows consumed before this window to keep whole-file row numbers.
+    for (const r of rejected) {
+      rejectedAll.push({ row: r.row + rowsConsumed, reasons: r.reasons });
+    }
+    rowsConsumed += window.length;
+
+    const { rows: normalised, excludedPreWindow } = handler.normalise(valid);
+    excluded += excludedPreWindow;
+    const inserted = await handler.upsert(deps, normalised);
+    accepted += inserted;
+    duplicates += normalised.length - inserted;
+  }
+
+  await deps.finalizeFile(claim.ingestedFileId, {
+    accepted,
+    duplicates,
+    rejected: rejectedAll.length,
+    excluded,
+    rejectReasons: rejectedAll,
+    status: "done",
+  });
+
+  return {
+    reportType: claim.reportType,
+    accepted,
+    duplicates,
+    rejected: rejectedAll.length,
+    excluded,
+    rejectReasons: rejectedAll,
+    ingestedFileId: claim.ingestedFileId,
+  };
+}
+
+/**
  * The expensive half of ingestion (13-03): handler lookup by report type →
  * guarded parse → validate → normalise → upsert → finalize. Never calls
  * `recordFile` — the row was already recorded by `claimFile`.
@@ -249,7 +342,11 @@ export async function claimFile(input: IngestionInput, deps: IngestDeps): Promis
  * `runPendingFile`) can drive it with no dependency on `claimFile` having
  * run in the same process.
  */
-export async function processClaimedFile(claim: ClaimedFile, deps: IngestDeps): Promise<IngestionResult> {
+export async function processClaimedFile(
+  claim: ClaimedFile,
+  deps: IngestDeps,
+  options?: { windowRows?: number }
+): Promise<IngestionResult> {
   const handler = REPORT_HANDLERS.find((h) => h.reportType === claim.reportType);
   if (!handler) {
     // Unreachable in practice: claimFile only produces a `claimed` result
@@ -258,6 +355,10 @@ export async function processClaimedFile(claim: ClaimedFile, deps: IngestDeps): 
     // claim ever disagree (e.g. a future handler removed without a
     // corresponding data migration).
     throw new Error(`processClaimedFile: no handler registered for report type "${claim.reportType}"`);
+  }
+
+  if (WINDOWED_REPORT_TYPES.has(claim.reportType) && !isXlsx(claim.bytes)) {
+    return processClaimedFileWindowed(handler, claim, deps, options?.windowRows);
   }
 
   // CR-01: classify() can match on filename alone, so the file may still be
