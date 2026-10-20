@@ -1,14 +1,17 @@
 /**
  * Pure batch-upload model for the multi-file `/uploads` dropzone.
  *
- * `POST /api/ingest` stays a single-file endpoint (INGEST-03/04 unchanged) —
- * the batch itself is a client-side concern. This module owns every
+ * Each file travels the storage-first path (14-01): mint a signed upload URL
+ * (`/api/ingest/upload-url`), PUT the bytes straight to Storage, then claim
+ * the object (`/api/ingest/claim`). The batch itself is a client-side
+ * concern. This module owns every
  * user-visible string for that concern (progress text, per-file failure
  * copy, the summary line, the toast) so the dropzone and `BatchResults`
  * both read from one place and cannot drift apart, and so the logic is
  * testable without a DOM.
  */
 import type { IngestionResult, ReportType } from "@/lib/ingestion/types";
+import { XLSX_TOO_LARGE_REASON } from "@/lib/ingestion/xlsx-cap";
 
 /** One file's outcome in a batch upload. Every file the user handed to the
  *  dropzone produces exactly one of these — none are dropped silently.
@@ -24,6 +27,7 @@ import type { IngestionResult, ReportType } from "@/lib/ingestion/types";
 export type BatchFileOutcome =
   | { fileName: string; kind: "result"; result: IngestionResult }
   | { fileName: string; kind: "pending"; fileId: string; reportType: ReportType }
+  | { fileName: string; kind: "received"; message: string }
   | { fileName: string; kind: "failed"; message: string }
   | { fileName: string; kind: "skipped"; message: string };
 
@@ -32,6 +36,7 @@ export interface BatchTotals {
   imported: number; // kind "result", reportType !== null, no alreadyUploaded
   alreadyUploaded: number; // kind "result" with alreadyUploaded set
   pending: number; // kind "pending" — files accepted for processing whose outcome is not yet known
+  received: number; // kind "received" — bytes safely held in Storage, outcome not yet known; never a failure
   unrecognised: number; // kind "result", reportType === null, no alreadyUploaded
   failed: number; // kind "failed" — the request did not return a result
   skipped: number; // kind "skipped" — never uploaded (accept-filter rejected)
@@ -44,6 +49,22 @@ export interface BatchTotals {
 export const UPLOAD_FAILED_MESSAGE =
   "Upload failed. This file couldn't be processed — try again, and if it keeps happening, check the file isn't corrupted.";
 
+/** D-13: shown only after the one fresh-URL retry has also failed to move the
+ * bytes into Storage. Nothing was kept, so asking the user to try again is
+ * honest; it deliberately avoids the word "failed". */
+export const UPLOAD_INTERRUPTED_MESSAGE = "Upload interrupted — try again.";
+
+/** D-15: the transfer succeeded, so the system already holds the bytes; any
+ * trouble after that point is ours to finish, never the user's to retry. */
+export const RECEIVED_MESSAGE =
+  "Received — will be processed. Its outcome will appear in the upload history below.";
+
+export const FILE_TOO_LARGE_MESSAGE = "File too large. The limit is 100 MB per file.";
+
+/** D-16: an XLSX over the spreadsheet cap is kept but not imported. */
+export const XLSX_TOO_LARGE_MESSAGE =
+  "Spreadsheet too large to process. XLSX files are limited to 15 MB; this file was kept but not imported.";
+
 export const FILTER_REJECTED_MESSAGE = "Not a CSV or XLSX file. This file wasn't uploaded.";
 
 /** Per-file copy for a `"pending"` outcome, whether the follow loop is still
@@ -55,7 +76,7 @@ export const FILTER_REJECTED_MESSAGE = "Not a CSV or XLSX file. This file wasn't
 export const STILL_PROCESSING_MESSAGE =
   "Still processing. Check the upload history below for its outcome.";
 
-/** Maps an `/api/ingest` non-ok HTTP status to fixed, curated copy — the
+/** Maps a mint or claim non-ok HTTP status to fixed, curated copy — the
  * response body is never parsed or rendered (T-ILI-02), so no server-side
  * detail reaches the screen. */
 export function describeIngestFailure(status: number): string {
@@ -65,7 +86,7 @@ export function describeIngestFailure(status: number): string {
     case 400:
       return "The server didn't receive this file. Try adding it again.";
     case 413:
-      return "File too large. Report files should be at most a few MB.";
+      return FILE_TOO_LARGE_MESSAGE;
     default:
       return UPLOAD_FAILED_MESSAGE;
   }
@@ -83,6 +104,7 @@ export function summariseBatch(outcomes: BatchFileOutcome[]): BatchTotals {
     imported: 0,
     alreadyUploaded: 0,
     pending: 0,
+    received: 0,
     unrecognised: 0,
     failed: 0,
     skipped: 0,
@@ -118,6 +140,13 @@ export function summariseBatch(outcomes: BatchFileOutcome[]): BatchTotals {
       continue;
     }
 
+    // D-15: the bytes are held; the outcome simply is not known yet. Own
+    // bucket, never failed, no row totals.
+    if (outcome.kind === "received") {
+      totals.received += 1;
+      continue;
+    }
+
     const { result } = outcome;
     if (result.alreadyUploaded) {
       totals.alreadyUploaded += 1;
@@ -144,8 +173,33 @@ function pluralizeFile(n: number): string {
   return n === 1 ? "file" : "files";
 }
 
-export function formatBatchProgress(index: number, total: number, fileName: string): string {
-  return `Uploading and processing file ${index} of ${total} — ${fileName}`;
+/** Decimal units, matching how a user reads a file size in their file manager. */
+export function formatFileSize(bytes: number): string {
+  if (bytes < 1_000_000) return `${Math.max(0, Math.round(bytes / 1_000))} KB`;
+  return `${(bytes / 1_000_000).toFixed(1)} MB`;
+}
+
+/** D-11 stage one: the bytes are moving to Storage. No percentage bar. */
+export function formatUploadingStage(
+  index: number,
+  total: number,
+  fileName: string,
+  sizeBytes: number
+): string {
+  return `Uploading file ${index} of ${total} — ${fileName} (${formatFileSize(sizeBytes)})…`;
+}
+
+/** D-11 stage two: the bytes landed and the server is identifying them. */
+export function formatCheckingStage(index: number, total: number): string {
+  return `Checking file ${index} of ${total}…`;
+}
+
+/** D-16: true only for the instant verdict on an XLSX refused for size. */
+export function isXlsxTooLarge(result: IngestionResult): boolean {
+  return (
+    result.reportType === null &&
+    result.rejectReasons.some((r) => r.reasons.includes(XLSX_TOO_LARGE_REASON))
+  );
 }
 
 /** The imported clause is unconditional — a batch that imported nothing must
@@ -162,6 +216,11 @@ export function formatBatchFileCounts(totals: BatchTotals): string {
   }
   if (totals.pending > 0) {
     clauses.push(`${formatCount(totals.pending)} ${pluralizeFile(totals.pending)} pending`);
+  }
+  if (totals.received > 0) {
+    clauses.push(
+      `${formatCount(totals.received)} ${pluralizeFile(totals.received)} received for processing`
+    );
   }
   if (totals.unrecognised > 0) {
     clauses.push(`${formatCount(totals.unrecognised)} unrecognised`);

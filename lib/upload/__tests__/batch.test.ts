@@ -1,19 +1,27 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  FILE_TOO_LARGE_MESSAGE,
   FILTER_REJECTED_MESSAGE,
+  RECEIVED_MESSAGE,
   STILL_PROCESSING_MESSAGE,
   UPLOAD_FAILED_MESSAGE,
+  UPLOAD_INTERRUPTED_MESSAGE,
+  XLSX_TOO_LARGE_MESSAGE,
   batchToastTone,
   describeIngestFailure,
   formatBatchFileCounts,
-  formatBatchProgress,
   formatBatchRowCounts,
   formatBatchSummary,
+  formatCheckingStage,
+  formatFileSize,
+  formatUploadingStage,
   formatZoneErrorMessage,
+  isXlsxTooLarge,
   summariseBatch,
   type BatchFileOutcome,
 } from "../batch";
+import { XLSX_TOO_LARGE_REASON } from "@/lib/ingestion/xlsx-cap";
 import type { IngestionResult, ReportType } from "@/lib/ingestion/types";
 
 /** Builds an `IngestionResult` fixture by hand — this module must not import
@@ -46,6 +54,10 @@ function skippedOutcome(fileName: string, message = FILTER_REJECTED_MESSAGE): Ba
   return { fileName, kind: "skipped", message };
 }
 
+function receivedOutcome(fileName: string, message = RECEIVED_MESSAGE): BatchFileOutcome {
+  return { fileName, kind: "received", message };
+}
+
 function pendingOutcome(
   fileName: string,
   fileId = "pending-file-1",
@@ -67,6 +79,7 @@ describe("summariseBatch", () => {
       imported: 0,
       alreadyUploaded: 0,
       pending: 0,
+      received: 0,
       unrecognised: 0,
       failed: 0,
       skipped: 0,
@@ -190,9 +203,8 @@ describe("describeIngestFailure", () => {
     expect(describeIngestFailure(400)).toBe(
       "The server didn't receive this file. Try adding it again."
     );
-    expect(describeIngestFailure(413)).toBe(
-      "File too large. Report files should be at most a few MB."
-    );
+    expect(describeIngestFailure(413)).toBe(FILE_TOO_LARGE_MESSAGE);
+    expect(FILE_TOO_LARGE_MESSAGE).toBe("File too large. The limit is 100 MB per file.");
   });
 
   it("returns UPLOAD_FAILED_MESSAGE for 500 and for an unmapped status such as 502", () => {
@@ -380,10 +392,118 @@ describe("formatBatchSummary", () => {
   });
 });
 
-describe("formatBatchProgress", () => {
-  it("formats the pinned progress copy", () => {
-    expect(formatBatchProgress(3, 25, "x.xlsx")).toBe(
-      "Uploading and processing file 3 of 25 — x.xlsx"
+describe("received outcomes (D-15)", () => {
+  it("a received outcome lands in the received bucket only and contributes no row totals", () => {
+    const totals = summariseBatch([receivedOutcome("a.csv")]);
+    expect(totals.files).toBe(1);
+    expect(totals.received).toBe(1);
+    expect(totals.failed).toBe(0);
+    expect(totals.pending).toBe(0);
+    expect(totals.imported).toBe(0);
+    expect(totals.alreadyUploaded).toBe(0);
+    expect(totals.unrecognised).toBe(0);
+    expect(totals.skipped).toBe(0);
+    expect(totals.accepted + totals.duplicates + totals.rejected + totals.excluded).toBe(0);
+  });
+
+  it("files equals the sum of all buckets including received", () => {
+    const totals = summariseBatch([
+      resultOutcome("a.csv"),
+      pendingOutcome("b.csv"),
+      receivedOutcome("c.csv"),
+      failedOutcome("d.csv"),
+      skippedOutcome("e.txt"),
+    ]);
+    expect(
+      totals.imported +
+        totals.alreadyUploaded +
+        totals.pending +
+        totals.received +
+        totals.unrecognised +
+        totals.failed +
+        totals.skipped
+    ).toBe(totals.files);
+  });
+
+  it("formatBatchFileCounts places the received clause after pending and before unrecognised", () => {
+    const totals = summariseBatch([
+      resultOutcome("a.csv", { alreadyUploaded: { date: "2026-09-20T00:00:00Z" } }),
+      pendingOutcome("b.xlsx"),
+      receivedOutcome("c.csv"),
+      resultOutcome("d.csv", { reportType: null, accepted: 0, duplicates: 0, rejected: 0 }),
+    ]);
+    expect(formatBatchFileCounts(totals)).toBe(
+      "0 files imported, 1 already uploaded, 1 file pending, 1 file received for processing, 1 unrecognised."
+    );
+  });
+
+  it("pluralises the received clause at two and omits it at zero", () => {
+    expect(
+      formatBatchFileCounts(summariseBatch([receivedOutcome("a.csv"), receivedOutcome("b.csv")]))
+    ).toBe("0 files imported, 2 files received for processing.");
+    expect(formatBatchFileCounts(summariseBatch([resultOutcome("a.csv")]))).not.toContain(
+      "received"
+    );
+  });
+
+  it("an all-received batch has toast tone 'info' and does not satisfy the dropzone's error condition", () => {
+    const totals = summariseBatch([receivedOutcome("a.csv"), receivedOutcome("b.csv")]);
+    expect(batchToastTone(totals)).toBe("info");
+    expect(totals.failed + totals.skipped).not.toBe(totals.files);
+  });
+
+  it("pins RECEIVED_MESSAGE and UPLOAD_INTERRUPTED_MESSAGE and neither says 'failed'", () => {
+    expect(RECEIVED_MESSAGE).toBe(
+      "Received — will be processed. Its outcome will appear in the upload history below."
+    );
+    expect(UPLOAD_INTERRUPTED_MESSAGE).toBe("Upload interrupted — try again.");
+    expect(RECEIVED_MESSAGE.toLowerCase()).not.toContain("failed");
+    expect(UPLOAD_INTERRUPTED_MESSAGE.toLowerCase()).not.toContain("failed");
+  });
+});
+
+describe("upload stage copy (D-11)", () => {
+  it("formatUploadingStage names file position, name and size", () => {
+    expect(formatUploadingStage(2, 5, "billing-report_2026-10-14.csv", 22_400_000)).toBe(
+      "Uploading file 2 of 5 — billing-report_2026-10-14.csv (22.4 MB)…"
+    );
+  });
+
+  it("formatCheckingStage names file position only", () => {
+    expect(formatCheckingStage(2, 5)).toBe("Checking file 2 of 5…");
+  });
+
+  it("formatFileSize uses decimal units", () => {
+    expect(formatFileSize(0)).toBe("0 KB");
+    expect(formatFileSize(512)).toBe("1 KB");
+    expect(formatFileSize(22_400_000)).toBe("22.4 MB");
+    expect(formatFileSize(104_857_600)).toBe("104.9 MB");
+  });
+});
+
+describe("isXlsxTooLarge (D-16)", () => {
+  const base: IngestionResult = {
+    reportType: null,
+    accepted: 0,
+    duplicates: 0,
+    rejected: 0,
+    excluded: 0,
+    rejectReasons: [{ row: 0, reasons: [XLSX_TOO_LARGE_REASON] }] as IngestionResult["rejectReasons"],
+    ingestedFileId: "f",
+  };
+
+  it("is true for a null-reportType result carrying the XLSX reason", () => {
+    expect(isXlsxTooLarge(base)).toBe(true);
+  });
+
+  it("is false when the report type is known, or the reason is absent", () => {
+    expect(isXlsxTooLarge({ ...base, reportType: "billing" })).toBe(false);
+    expect(isXlsxTooLarge({ ...base, rejectReasons: [] })).toBe(false);
+  });
+
+  it("XLSX_TOO_LARGE_MESSAGE names the 15 MB limit and says the file was kept", () => {
+    expect(XLSX_TOO_LARGE_MESSAGE).toBe(
+      "Spreadsheet too large to process. XLSX files are limited to 15 MB; this file was kept but not imported."
     );
   });
 });

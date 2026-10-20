@@ -1,6 +1,7 @@
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
 import type { IngestionResult, RejectedRow } from "@/lib/ingestion/types";
+import { XLSX_TOO_LARGE_MESSAGE, isXlsxTooLarge } from "@/lib/upload/batch";
 
 /** Aggregates per-row reject reasons into `{n} — {reason}` counts, matching
  * the UI-SPEC copywriting contract example (`12 — missing timestamp`). */
@@ -51,8 +52,14 @@ export function UploadResult({ result }: { result: IngestionResult }) {
             <use href="/icons.svg#alert" />
           </svg>
           <p className="text-sm font-light text-foreground">
-            Unrecognised file. This doesn&apos;t match any known report type — check
-            you&apos;re uploading the daily verification report (CSV or XLSX).
+            {isXlsxTooLarge(result) ? (
+              XLSX_TOO_LARGE_MESSAGE
+            ) : (
+              <>
+                Unrecognised file. This doesn&apos;t match any known report type — check
+                you&apos;re uploading the daily verification report (CSV or XLSX).
+              </>
+            )}
           </p>
         </CardContent>
       </Card>
