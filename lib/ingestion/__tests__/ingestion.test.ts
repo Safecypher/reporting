@@ -1,4 +1,4 @@
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, vi, afterEach } from "vitest";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import Papa from "papaparse";
@@ -6,7 +6,8 @@ import { classify } from "../classify";
 import { sha256 } from "../hash";
 import { parseVerification, validateVerificationRows } from "../parsers/verification";
 import { normaliseVerification } from "../normalise";
-import { ingest, claimFile, processClaimedFile } from "../index";
+import { ingest, claimFile, processClaimedFile, HEADER_SLICE_BYTES } from "../index";
+import { MAX_XLSX_BYTES, XLSX_TOO_LARGE_REASON } from "../xlsx-cap";
 import type { ClaimedFile, IngestDeps, NormalisedVerificationRow, ReportType } from "../types";
 
 const FIXTURE_PATH = join(__dirname, "verification.fixture.csv");
@@ -443,5 +444,156 @@ describe("makeFakeDeps().upsertRows (generic dep used by all five Wave 2 handler
   it("returns 0 for an empty row set without mutating any dedup state", async () => {
     const deps = makeFakeDeps();
     expect(await deps.upsertRows("billing_transactions", [], { onConflict: "transaction_id", ignoreDuplicates: true })).toBe(0);
+  });
+});
+
+/**
+ * Task 1 (14-02): the synchronous claim must not scale with file size.
+ * `extractHeaderSignature` decodes only HEADER_SLICE_BYTES and parses one row
+ * (P14-10), and an XLSX above MAX_XLSX_BYTES never reaches ExcelJS (D-16).
+ */
+describe("claimFile memory bounds (14-02)", () => {
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  const fixtureFor = (name: string) => new Uint8Array(readFileSync(join(__dirname, name)));
+
+  const CSV_FIXTURES: { file: string; reportType: ReportType }[] = [
+    { file: "verification.fixture.csv", reportType: "verification" },
+    { file: "billing.fixture.csv", reportType: "billing" },
+    { file: "dcvv.fixture.csv", reportType: "dcvv" },
+    { file: "card-inventory.fixture.csv", reportType: "card-inventory" },
+    { file: "removed-cards.fixture.csv", reportType: "removed-cards" },
+  ];
+
+  /** Longest string handed to Papa.parse while `fn` runs. */
+  async function maxPapaInputDuring(fn: () => Promise<unknown>): Promise<{ max: number; calls: number }> {
+    const real = Papa.parse.bind(Papa) as (...a: unknown[]) => unknown;
+    let max = 0;
+    let calls = 0;
+    vi.spyOn(Papa, "parse").mockImplementation(((input: unknown, ...rest: unknown[]) => {
+      calls++;
+      if (typeof input === "string") max = Math.max(max, input.length);
+      return real(input, ...rest);
+    }) as unknown as typeof Papa.parse);
+    await fn();
+    return { max, calls };
+  }
+
+  it("HEADER_SLICE_BYTES is 64 KiB", () => {
+    expect(HEADER_SLICE_BYTES).toBe(65_536);
+  });
+
+  for (const { file, reportType } of CSV_FIXTURES) {
+    it(`classifies ${file} as ${reportType} and never hands Papa.parse more than 64 KiB`, async () => {
+      const deps = makeFakeDeps();
+      const bytes = fixtureFor(file);
+      let result: Awaited<ReturnType<typeof claimFile>> | undefined;
+      const { max, calls } = await maxPapaInputDuring(async () => {
+        result = await claimFile({ fileName: "upload.csv", bytes, uploadedBy: "user-1" }, deps);
+      });
+      expect(result?.kind).toBe("claimed");
+      if (result?.kind !== "claimed") throw new Error("expected claimed");
+      expect(result.claim.reportType).toBe(reportType);
+      expect(calls).toBeGreaterThan(0);
+      expect(max).toBeLessThanOrEqual(65_536);
+    });
+  }
+
+  it("classifies a ~2 MB synthetic billing CSV as billing with Papa.parse input bounded to 64 KiB", async () => {
+    const header = fixtureFor("billing.fixture.csv");
+    const headerLine = new TextDecoder().decode(header).split(/\r?\n/)[0].replace(/^\uFEFF/, "");
+    const lines = [headerLine];
+    let i = 0;
+    while (lines.join("\n").length < 2 * 1024 * 1024) {
+      const batch: string[] = [];
+      for (let k = 0; k < 5000; k++, i++) {
+        batch.push(`2026-07-01T00:00:00.0000000Z,2026-07-01,00:00:00,SYNTHETIC,Synthetic Bank,synth-${i},tok${i},True,DCVV,Unknown`);
+      }
+      lines.push(...batch);
+    }
+    const bytes = new TextEncoder().encode(lines.join("\n") + "\n");
+    expect(bytes.length).toBeGreaterThan(2 * 1024 * 1024);
+    const deps = makeFakeDeps();
+    let result: Awaited<ReturnType<typeof claimFile>> | undefined;
+    const { max } = await maxPapaInputDuring(async () => {
+      result = await claimFile({ fileName: "upload.csv", bytes, uploadedBy: "user-1" }, deps);
+    });
+    expect(result?.kind).toBe("claimed");
+    if (result?.kind !== "claimed") throw new Error("expected claimed");
+    expect(result.claim.reportType).toBe("billing");
+    expect(max).toBeLessThanOrEqual(65_536);
+  });
+
+  it("classifies a BOM-prefixed billing file identically", async () => {
+    const raw = fixtureFor("billing.fixture.csv");
+    const hasBom = raw[0] === 0xef && raw[1] === 0xbb && raw[2] === 0xbf;
+    const withBom = hasBom ? raw : new Uint8Array([0xef, 0xbb, 0xbf, ...raw]);
+    const result = await claimFile({ fileName: "upload.csv", bytes: withBom, uploadedBy: "user-1" }, makeFakeDeps());
+    expect(result.kind).toBe("claimed");
+    if (result.kind !== "claimed") throw new Error("expected claimed");
+    expect(result.claim.reportType).toBe("billing");
+  });
+
+  it("still classifies the real apigee-stats XLSX fixture as apigee-stats", async () => {
+    const bytes = fixtureFor("apigee-stats.fixture.xlsx");
+    const result = await claimFile({ fileName: "Safecypher Stats.xlsx", bytes, uploadedBy: "user-1" }, makeFakeDeps());
+    expect(result.kind).toBe("claimed");
+    if (result.kind !== "claimed") throw new Error("expected claimed");
+    expect(result.claim.reportType).toBe("apigee-stats");
+  });
+});
+
+describe("claimFile XLSX cap (14-02, D-16)", () => {
+  function zipShaped(length: number): Uint8Array {
+    const bytes = new Uint8Array(length);
+    bytes.set([0x50, 0x4b, 0x03, 0x04]);
+    return bytes;
+  }
+
+  it("MAX_XLSX_BYTES is 15 MiB", () => {
+    expect(MAX_XLSX_BYTES).toBe(15_728_640);
+  });
+
+  it("an XLSX one byte over the cap is kept, finalised failed with the cap reason, and never reaches ExcelJS", async () => {
+    const deps = makeFakeDeps();
+    const recordSpy = vi.spyOn(deps, "recordFile");
+    const finalizeSpy = vi.spyOn(deps, "finalizeFile");
+    const bytes = zipShaped(MAX_XLSX_BYTES + 1);
+    const result = await claimFile({ fileName: "Safecypher Stats.xlsx", bytes, uploadedBy: "user-1" }, deps);
+
+    expect(result.kind).toBe("unrecognised");
+    if (result.kind !== "unrecognised") throw new Error("expected unrecognised");
+    expect(result.result.reportType).toBeNull();
+    expect(result.result.rejectReasons).toEqual([{ row: 0, reasons: [XLSX_TOO_LARGE_REASON] }]);
+    expect(result.result.ingestedFileId).toBeTruthy();
+    expect(recordSpy).toHaveBeenCalledTimes(1);
+    expect(recordSpy.mock.calls[0][0].reportType).toBeNull();
+    expect(recordSpy.mock.calls[0][0].bytes).toBe(bytes);
+    expect(finalizeSpy).toHaveBeenCalledTimes(1);
+    expect(finalizeSpy.mock.calls[0][1].status).toBe("failed");
+    expect(finalizeSpy.mock.calls[0][1].rejectReasons).toEqual([{ row: 0, reasons: [XLSX_TOO_LARGE_REASON] }]);
+  });
+
+  it("an XLSX exactly at the cap does NOT carry the cap reason (falls through to normal classification)", async () => {
+    const deps = makeFakeDeps();
+    const result = await claimFile(
+      { fileName: "garbage.xlsx", bytes: zipShaped(MAX_XLSX_BYTES), uploadedBy: "user-1" },
+      deps
+    );
+    expect(result.kind).toBe("unrecognised");
+    if (result.kind !== "unrecognised") throw new Error("expected unrecognised");
+    expect(result.result.rejectReasons[0].reasons).toEqual(["unrecognised report type"]);
+  });
+
+  it("a bytes-identical second claim of an over-cap XLSX short-circuits as already-uploaded before the cap is consulted", async () => {
+    const deps = makeFakeDeps();
+    const bytes = zipShaped(MAX_XLSX_BYTES + 1);
+    await claimFile({ fileName: "Safecypher Stats.xlsx", bytes, uploadedBy: "user-1" }, deps);
+    const recordSpy = vi.spyOn(deps, "recordFile");
+    const second = await claimFile({ fileName: "Safecypher Stats.xlsx", bytes, uploadedBy: "user-1" }, deps);
+    expect(second.kind).toBe("already-uploaded");
+    expect(recordSpy).not.toHaveBeenCalled();
   });
 });
