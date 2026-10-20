@@ -6,6 +6,7 @@ import { dcvvHandler } from "./handlers/dcvv";
 import { removedCardsHandler } from "./handlers/removed-cards";
 import { verificationHandler } from "./handlers/verification";
 import { sha256 } from "./hash";
+import { MAX_XLSX_BYTES, XLSX_TOO_LARGE_REASON } from "./xlsx-cap";
 import type {
   ClaimedFile,
   ClaimFileResult,
@@ -33,6 +34,15 @@ export const REPORT_HANDLERS: ReportHandler[] = [
   removedCardsHandler,
   apigeeStatsHandler,
 ];
+
+/**
+ * How much of a CSV is decoded to read its header row (P14-10). Real report
+ * headers are under 1 KiB; a header longer than this slice classifies as
+ * unrecognised, which is the safe direction. Bounding it keeps the
+ * synchronous claim's memory flat regardless of file size (measured before
+ * this change: 973 MB RSS to classify a 100 MB CSV).
+ */
+export const HEADER_SLICE_BYTES = 64 * 1024;
 
 /** ZIP magic number — XLSX is a ZIP container; CSV/text never starts with this (T-02-01). */
 function isXlsx(bytes: Uint8Array): boolean {
@@ -79,8 +89,10 @@ async function extractHeaderSignature(
     return { kind: "xlsx", sheetNames, headerRowsBySheet };
   }
 
-  const text = new TextDecoder("utf-8").decode(bytes);
-  const parsed = Papa.parse<Record<string, string>>(text, { header: true });
+  // Decode only the head of the file; the TextDecoder strips a BOM exactly as
+  // it did for the whole buffer. preview: 1 stops Papa after the header row.
+  const text = new TextDecoder("utf-8").decode(bytes.subarray(0, HEADER_SLICE_BYTES));
+  const parsed = Papa.parse<Record<string, string>>(text, { header: true, preview: 1 });
   return { kind: "csv", headerRow: parsed.meta.fields ?? [] };
 }
 
@@ -121,6 +133,42 @@ export async function claimFile(input: IngestionInput, deps: IngestDeps): Promis
         rejectReasons: [],
         ingestedFileId: existing.id,
         alreadyUploaded: { date: existing.uploaded_at },
+      },
+    };
+  }
+
+  // D-16: an oversized XLSX is never handed to ExcelJS (a 17 MB workbook
+  // measured 1.25 GB RSS). It is kept in reports like any unrecognised file
+  // and finalised failed, so it is terminal: the claim route, the drain and
+  // any later caller see a non-"claimed" result and never retry it into an
+  // OOM. The kind stays "unrecognised" so no caller needs to change.
+  if (isXlsx(input.bytes) && input.bytes.length > MAX_XLSX_BYTES) {
+    const ingestedFileId = await deps.recordFile({
+      fileName: input.fileName,
+      contentSha256,
+      uploadedBy: input.uploadedBy,
+      reportType: null,
+      bytes: input.bytes,
+    });
+    const rejectReasons: RejectedRow[] = [{ row: 0, reasons: [XLSX_TOO_LARGE_REASON] }];
+    await deps.finalizeFile(ingestedFileId, {
+      accepted: 0,
+      duplicates: 0,
+      rejected: 0,
+      excluded: 0,
+      rejectReasons,
+      status: "failed",
+    });
+    return {
+      kind: "unrecognised",
+      result: {
+        reportType: null,
+        accepted: 0,
+        duplicates: 0,
+        rejected: 0,
+        excluded: 0,
+        rejectReasons,
+        ingestedFileId,
       },
     };
   }
