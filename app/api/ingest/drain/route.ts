@@ -36,7 +36,7 @@
 import { NextResponse } from "next/server";
 import { timingSafeEqual } from "node:crypto";
 import { triggerBackgroundProcessing } from "@/lib/ingestion/process-trigger";
-import { ingestInboxObject } from "@/lib/ingestion/inbox-object";
+import { ingestInboxObject, selectDrainableInboxNames } from "@/lib/ingestion/inbox-object";
 // Namespace import (not named) for both of these: this file's own ordering
 // gates assert the real CALL to the sweep sits after the held-mutex
 // short-circuit, and the real CALL to the Slack post sits after the
@@ -168,7 +168,15 @@ export async function POST(request: Request) {
     async listObjectsInPrefix(prefix) {
       const { data, error } = await supabase.storage.from("inbox").list(prefix, { limit: 1000 });
       if (error) throw error;
-      return (data ?? []).filter((entry) => entry.metadata !== null).map((entry) => entry.name);
+      // The manual rules (grace window, per-run byte budget, dot-file and
+      // folder filtering) live in selectDrainableInboxNames; a push prefix
+      // passes through it unchanged. drainInbox's prefix sort runs "manual"
+      // after every hex credential id, so pushed files always drain first.
+      const { names, deferred } = selectDrainableInboxNames(prefix, data ?? [], new Date());
+      if (deferred.length > 0) {
+        console.info("[drain] deferred inbox objects", JSON.stringify(deferred));
+      }
+      return names;
     },
     async downloadObject(objectKey) {
       const { data, error } = await supabase.storage.from("inbox").download(objectKey);
