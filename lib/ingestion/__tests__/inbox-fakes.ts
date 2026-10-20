@@ -17,7 +17,7 @@ export const TEST_USER_ID = "11111111-1111-4111-8111-111111111111";
 export const OTHER_USER_ID = "22222222-2222-4222-8222-222222222222";
 export const FIXTURE_NAME = "daily-ver-report_2026-08-13.csv";
 
-export function loadVerificationFixture(): Uint8Array {
+export function loadVerificationFixture(): Uint8Array<ArrayBuffer> {
   return new Uint8Array(readFileSync(path.join(import.meta.dirname, "verification.fixture.csv")));
 }
 
