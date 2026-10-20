@@ -167,7 +167,14 @@ export function makeFakeSecretClient() {
     },
   };
 
-  return { client, inbox, reportUploads, signedCalls, tokenByPath, calls, flags, files };
+  /** Marks a recorded row done, as the background processor's finalizeFile would (only a done row dedups). */
+  const markDone = (id: string) => {
+    for (const entry of byHash.values()) {
+      if (entry.id === id) entry.status = "done";
+    }
+  };
+
+  return { client, inbox, reportUploads, signedCalls, tokenByPath, calls, flags, files, markDone };
 }
 
 export type FakeSecretClient = ReturnType<typeof makeFakeSecretClient>;

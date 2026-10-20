@@ -83,12 +83,24 @@ export async function claimManualUpload(
       // The double-claim case: the object is already gone.
       return { kind: "not-found", timings: finish() };
     }
+    // First size guard (P14-03, D-04): refuse before downloading a byte. A
+    // null size means Storage gave no metadata; the second guard covers it.
+    if (info.size !== null && info.size > MAX_UPLOAD_BYTES) {
+      await removeQuietly(deps, input.key);
+      return { kind: "too-large", timings: finish() };
+    }
 
-    // (3) Read the bytes back.
+    // (3) Read the bytes back, then check the real byte length: metadata can
+    // be absent, and this is the measurement the parser is about to trust.
     const downloadStartedAt = now();
     const bytes = await deps.download(input.key);
     timings.downloadMs = now() - downloadStartedAt;
     timings.bytes = bytes.length;
+    // Second size guard: before any parsing, on the bytes actually received.
+    if (bytes.length > MAX_UPLOAD_BYTES) {
+      await removeQuietly(deps, input.key);
+      return { kind: "too-large", timings: finish() };
+    }
 
     // (4) The shared per-object step: hash, classify, record, trigger.
     const ingestStartedAt = now();

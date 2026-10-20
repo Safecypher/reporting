@@ -232,7 +232,7 @@ describe("ingestInboxObject - the one per-object step (P14-06, D-08)", () => {
     await ingestInboxObject({ key, bytes }, { supabase: supabase(), trigger });
     // Only a DONE row counts as already uploaded (findFileByHash), and a claimed
     // file stays pending until the background processor finalises it.
-    await fake.client.from("ingested_files").update({ status: "done" }).eq("id", "file-1");
+    fake.markDone("file-1");
     trigger.mockClear();
 
     const outcome = await ingestInboxObject({ key, bytes }, { supabase: supabase(), trigger });
