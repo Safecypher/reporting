@@ -11,6 +11,10 @@ import { createClient } from "@/lib/supabase/server";
 import { pushTable } from "@/lib/push/tables";
 import { fetchActorEmails } from "@/lib/identity/profiles";
 import { mergeHistory, type IngestedFileRow, type RejectionRow } from "@/lib/upload/history";
+import { InboxReceivedList } from "@/components/upload/inbox-received-list";
+import { buildSecretClient } from "@/lib/ingestion/supabase-writer";
+import { MANUAL_PREFIX, parseManualObjectKey } from "@/lib/ingestion/inbox-object";
+import { buildReceivedList, listReceivedManualObjects } from "@/lib/upload/inbox-received";
 
 export const metadata: Metadata = {
   title: "Uploads — Safecypher Reporting",
@@ -89,6 +93,44 @@ async function UploadsHistory() {
   return <UploadsHistoryTable rows={rows} asOf={asOf.toISOString()} />;
 }
 
+/**
+ * D-10: manual uploads that reached the inbox and were never claimed (a closed
+ * tab, a lost connection, a claim error), listed until the next drain
+ * processes them. The inbox has no client policy, so the listing runs here
+ * with the secret key and only rows cross into the presentational block; the
+ * client never leaves this file. Every failure logs and renders nothing --
+ * this block is a courtesy, and must not blank the dropzone or the history.
+ */
+async function ReceivedUploads() {
+  let storage: ReturnType<typeof buildSecretClient>["storage"];
+  try {
+    storage = buildSecretClient().storage;
+  } catch (err) {
+    console.error("ReceivedUploads: secret client unavailable", err);
+    return null;
+  }
+
+  const { entries, error } = await listReceivedManualObjects(storage);
+  if (error) {
+    console.error("ReceivedUploads: inbox list failed", error);
+    return null;
+  }
+  if (entries.length === 0) return null;
+
+  // As UploadsHistory does: losing an email is not losing a row, so a failed
+  // resolution continues with the "unknown user" fallback.
+  const supabase = await createClient();
+  const { emails, error: emailsError } = await fetchActorEmails(
+    supabase,
+    entries.map((entry) => parseManualObjectKey(`${MANUAL_PREFIX}/${entry.name}`)?.userId)
+  );
+  if (emailsError) {
+    console.error("ReceivedUploads: fetchActorEmails failed", emailsError);
+  }
+
+  return <InboxReceivedList rows={buildReceivedList(entries, new Date(), emails)} />;
+}
+
 export default function UploadsPage() {
   return (
     <div className="flex flex-1 flex-col gap-6 p-6">
@@ -108,6 +150,15 @@ export default function UploadsPage() {
       <TileErrorBoundary label="Freshness">
         <Suspense fallback={<FreshnessStripSkeleton />}>
           <FreshnessStripSection />
+        </Suspense>
+      </TileErrorBoundary>
+
+      {/* D-10: files that reached the inbox but have not been claimed. Its own
+          boundary and Suspense, so a failure here cannot blank the dropzone
+          or the history; renders nothing when there is nothing waiting. */}
+      <TileErrorBoundary label="Received uploads">
+        <Suspense fallback={null}>
+          <ReceivedUploads />
         </Suspense>
       </TileErrorBoundary>
 

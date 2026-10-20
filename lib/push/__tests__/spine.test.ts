@@ -334,7 +334,7 @@ describe("Phase 14: the drain's per-object step is the shared ingestInboxObject 
 
   /** The route's ingestOne, minus the HTTP: ingestInboxObject plus the pending/terminal mapping. */
   function ingestOneViaSharedStep(ingestSupabase: ReturnType<typeof makeFakeIngestSupabase>) {
-    const trigger = vi.fn(async (_fileId: string) => ({ outcome: "fired" as const }));
+    const trigger = vi.fn<(fileId: string) => Promise<{ outcome: "fired" }>>(async () => ({ outcome: "fired" }));
     const ingestOne = async (key: string, bytes: Uint8Array) => {
       const outcome = await ingestInboxObject(
         { key, bytes },
