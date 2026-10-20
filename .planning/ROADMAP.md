@@ -254,16 +254,17 @@ it with the push path. Source: `/gsd-explore` 2026-10-20, recorded in
 **Depends on:** Phase 13
 **Success Criteria** (what must be TRUE):
 
-  1. A TSYS Stats file larger than 4.5 MB uploads from the browser and reaches
-     `done` on /uploads on the deployed site.
+  1. A real billing file larger than 4.5 MB (e.g. the 22.4 MB 14 Oct file) uploads from
+     the browser and reaches `done` on /uploads on the deployed site.
   2. The user still gets the instant verdict (unrecognised / duplicate / accepted)
      before the upload completes, as today.
   3. The server never trusts browser-supplied type, size or hash: classification,
      size and dedup are decided from the bytes read back from Storage.
   4. A rejected or abandoned upload does not linger in Storage: the claim step
      deletes rejects, and a sweep removes unclaimed objects.
-  5. Billing files above the old 5 MB limit are refused with a clear message until
-     `billing-transaction-id-is-not-unique.md` is fixed (per-type gate).
+  5. A synthetic billing-shaped file of at least ~50 MB (month-end size) uploads AND
+     completes processing in the background function on the deployed site; the route
+     accepts files up to 100 MB (requires Supabase Pro — human-action prerequisite).
   6. No regression in the push/drain path, the `status = 'done'` de-dup filter,
      `recordFile`'s upsert on `content_sha256`, or the Phase 13 background processor.
 
@@ -271,8 +272,11 @@ it with the push path. Source: `/gsd-explore` 2026-10-20, recorded in
 
   - Every manual upload goes via Storage, not only large ones.
   - Keep the instant verdict (synchronous claim: download, classify, dedup).
-  - Upload first, billing gated: ship now for Stats; billing over the old limit
-    stays refused until its dedup key is fixed.
+  - ~~Upload first, billing gated~~ — REVISED 2026-10-20 in discuss-phase (14-CONTEXT
+    D-03): billing goes through at any size; the 3.8% transactionId loss stays a separate
+    open todo.
+  - Design ceiling 100 MB per file; Supabase must move from Free (50 MB cap) to Pro.
+  - Manual uploads land in the `inbox` bucket under `manual/` (revises Phase 13 D-02).
 **Plans:** 0 plans
 
 Plans:

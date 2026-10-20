@@ -27,7 +27,7 @@ does not converge on the push path's inbox bucket in this phase".
    handing off to the background processor, as today. The server never trusts a
    browser-supplied hash, type or size. Rejected objects are deleted from Storage
    (claim step, or a sweep for abandoned uploads).
-3. **Upload first, billing gated.** Ship Storage-first now; it unblocks large TSYS
+3. **~~Upload first, billing gated.~~ SUPERSEDED 2026-10-20 by 14-CONTEXT.md D-03: billing goes through at any size (up to a 100 MB ceiling, which needs Supabase Pro).** Original reasoning, kept for the record: Ship Storage-first now; it unblocks large TSYS
    Stats files. Billing files above the old limit stay refused, with a clear
    message, until `billing-transaction-id-is-not-unique.md` is fixed, because lifting
    the cap would ingest the ~97k-row backlog with ~3.8% silent loss ("a visible gap

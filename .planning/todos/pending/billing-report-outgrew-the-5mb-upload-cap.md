@@ -113,3 +113,12 @@ Same caution as above applies: `apigee-row-hash-collapses-distinct-calls.md` mea
 - **Billing stays gated:** that phase keeps billing files above the old limit refused until
   `billing-transaction-id-is-not-unique.md` is fixed. Lifting the cap for billing is still
   blocked, exactly as stated above.
+
+## Update 2026-10-20 (discuss-phase 14): the gate is dropped
+
+The user decided billing should go through (14-CONTEXT D-03): the 14 Oct file is 22.4 MB,
+month-end is projected ~48-50 MB, and reused transactionIds "may be allowable". Phase 14
+designs for 100 MB per file (needs Supabase Pro) and proves processing at ~50 MB. The
+"do not lift the cap before the dedup key is settled" caution above is overridden by that
+decision; the 3.8% loss remains tracked in `billing-transaction-id-is-not-unique.md`, and
+billing bytes are retained in `reports` for reprocessing after a key fix.
