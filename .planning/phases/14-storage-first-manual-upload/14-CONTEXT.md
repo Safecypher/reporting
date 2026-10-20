@@ -90,6 +90,21 @@ reports mean.
   semantics) so the drain or a retry ingests it, and it shows on /uploads as received.
   Never ask the user to re-upload a file the system already holds.
 
+### Added after research (2026-10-20, with the user)
+- **D-16:** **XLSX is capped at 15 MiB** (CSV keeps D-04's 100 MB). Measured: a 17 MB
+  workbook reached 1.25 GB through ExcelJS against a 1024 MB function. An XLSX over the cap
+  gets a failed row with a clear message; its bytes are kept like any unrecognised file.
+  Revisit streaming XLSX if a TSYS Stats file nears 8 MB. — **Reversibility:** reversible — a constant.
+- **D-17:** **Flat inbox key** `manual/<ISO-ts>-<userId>-<nonce>-<safeName>` replaces D-08's
+  nested example, because the drain lists only two levels and a nested object would be
+  silently invisible to it (breaking D-09). The drain gets a 15-minute grace for young
+  `manual/` objects and skips dot-files. — **Reversibility:** costly — same reason as D-08.
+- **D-18:** **Retire `POST /api/ingest`** (the 5 MB multipart route) in this phase, once the
+  mint + claim routes are proven on the deployed site, so D-01's single path is literal.
+- **D-19:** **Netlify is on Pro or higher.** Function region (e.g. `fra`, near Supabase
+  `eu-north-1`) and function memory are available levers; the plan should check the current
+  region and use a move if claim latency or 100 MB write time needs it.
+
 ### Claude's Discretion
 - Signed URL path naming, `upsert: false`, and how the claim step guarantees one object is
   claimed once (lease / content-hash idempotency already used by Phase 13).
