@@ -40,6 +40,8 @@ describe("proxy matcher — routes that MUST stay gated", () => {
     "/settings/sources",
     "/set-password",
     "/api/ingest",
+    "/api/ingest/upload-url",
+    "/api/ingest/claim",
   ])("%s is gated", (path) => {
     expect(isGated(path)).toBe(true);
   });
