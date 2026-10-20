@@ -14,3 +14,13 @@ Resolved debug sessions. Used by `gsd-debugger` to surface known-pattern hypothe
 - **Recurrence guard:** lib/ingestion/__tests__/apigee-stats.test.ts boundary-neighbour tests pin the accepted shapes; a future TSYS header change still fails loudly by design. Diagnostic shortcut: when an upstream file suddenly reads "Unrecognised", diff its row-1 header against the handler's expected header first
 ---
 
+## freshness-view-statement-timeout — "Freshness could not be loaded": coverage views seq-scanned whole fact tables past the 8s timeout
+- **Date:** 2026-10-20
+- **Error patterns:** Freshness could not be loaded, canceling statement due to statement timeout, v_source_freshness, v_*_coverage_daily, TileErrorBoundary Try again does nothing
+- **Root cause(s):** five coverage views computed per-file min/max timestamps with a whole-table GROUP BY source_file_id; no (source_file_id, time) index existed on any fact table; v_source_freshness reads all six, so cost was O(total rows) and crossed the authenticated role's 8s statement_timeout at ~1.9M rows (7.1s as postgres)
+- **Fix:** migration 0050 adds a (source_file_id, time) btree per fact table (apigee partial on endpoint_category is not null) and rewrites the five views to probe min/max per ingested_files row through it; output fingerprint-identical on live, 7124ms -> 77ms
+- **Files changed:** supabase/migrations/0050_coverage_views_index_probe.sql, supabase/tests/coverage_views_index_probe_test.sql
+- **Why not caught:** no gate existed for this class: verification ran at data volumes far below the limit, and nothing compares a view's cost against the role timeout
+- **Recurrence guard:** supabase/tests/coverage_views_index_probe_test.sql (output identical to legacy definitions; indexes valid; no Seq Scan on fact tables with enable_seqscan off; security_invoker on). Rule: a view on the freshness/alignment path over an append-only fact table must be index-answerable and EXPLAINed as `authenticated` at production scale. Diagnostic shortcut: a TileErrorBoundary that "Try again" can't clear usually means a deterministic slow query; check Postgres logs for statement timeouts first. Next O(rows) readers: v_inventory_coverage_daily, v_alignment_daily, v_alignment_live_cards_daily
+---
+

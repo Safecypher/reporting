@@ -1,8 +1,8 @@
 ---
-status: verifying
+status: resolved
 trigger: "That seems to be working, although I get a message that \"Freshness could not be loaded\" The Try again button below it doesn't seem to work"
 created: 2026-10-19
-updated: 2026-10-19
+updated: 2026-10-20
 ---
 
 # Debug: "Freshness could not be loaded" — v_source_freshness exceeds the 8s statement timeout
@@ -126,7 +126,13 @@ verification:
     adjacent_tests: { result: pass, suites_run: ["8 existing read-only SQL oracles on scratch", "npx vitest run: 51 files / 926 tests"] }
     revert_and_reconfirm: { result: pass, bug_returned_on_revert: true, fixed_on_reapply: true, detail: "scale-model: statement_timeout cancels the pre-0050 query, passes post-0050" }
     guardrail_verdict: accepted
-  live_pending: "NOT RUN. Orchestrator: apply 0050, then run the before/after fingerprint, the oracle as postgres, and the authenticated timing check (see the checkpoint message). Final confirmation by the user (strip renders on /uploads) is required before resolving."
+  live:
+    applied: "2026-10-19 via MCP apply_migration (0050_coverage_views_index_probe), DB quiet (0 pending files, 0 open transactions), Postgres 17.6"
+    fingerprint: { result: pass, detail: "all 6 coverage views + v_source_freshness + ingested_files guard: md5 fingerprints identical before and after (8/8)" }
+    indexes: { result: pass, detail: "5 idx_*_file_* indexes valid; apigee 21MB, dcvv 15MB, verifications 11MB, billing 1MB, removed_cards 0.2MB" }
+    security_invoker: { result: pass, detail: "all six coverage views still security_invoker=on" }
+    timing: { result: pass, detail: "v_source_freshness as authenticated: 7124ms -> 77ms; every fact table read by Index Only Scan on its idx_*_file_* index, no Seq Scan; remaining cost v_inventory_coverage_daily 67ms" }
+    human_verify: { result: pass, detail: "user confirmed the freshness strip loads, 2026-10-20" }
   oracle_type: "derived (the new views are compared against the verbatim pre-0050 definitions: a specification-by-reference oracle) plus structural (index/plan/security invariants). Boundary neighbors seeded on scratch: exact floor instant, 1 microsecond before floor, UTC-midnight straddle, single-day and multi-day spans, empty/failed files, all-pre-floor files, apigee unclassified-only and mixed files. Those write-fixtures live only in the throwaway scratch DB; the committed oracle is read-only by design (destructive fixtures against live have burned this project before)."
 files_changed:
   - supabase/migrations/0050_coverage_views_index_probe.sql
