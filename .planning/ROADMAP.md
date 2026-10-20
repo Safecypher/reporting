@@ -237,3 +237,43 @@ entry point after the measured ~30s ceiling falsified the synchronous design (D-
   - [x] 13-06-PLAN.md — the browser follows the file and reports the truth (wave 4)
   - [x] 13-07-PLAN.md — the drain converges, sweeps what was lost, and says so in Slack (wave 4)
   - [ ] 13-08-PLAN.md — the phase fence, and the deployed proof that closes SC-1 (wave 5)
+
+### Phase 14: Storage-first manual upload
+
+**Goal:** A manual upload is never refused for its size by Netlify. Every manual
+upload goes browser → server-minted signed upload URL (server-chosen path,
+`upsert: false`) → Supabase Storage → a claim endpoint that reads the bytes back,
+verifies their real size and content hash, classifies and dedups them
+synchronously, and only then hands off to the Phase 13 background processor. This
+removes Netlify's 4.5 MB binary request limit (6 MB buffered, Base64-encoded:
+docs.netlify.com/build/functions/configuration) from the manual path and converges
+it with the push path. Source: `/gsd-explore` 2026-10-20, recorded in
+`.planning/notes/storage-first-upload.md`; open questions in
+`.planning/research/questions.md`.
+**Requirements**: TBD
+**Depends on:** Phase 13
+**Success Criteria** (what must be TRUE):
+
+  1. A TSYS Stats file larger than 4.5 MB uploads from the browser and reaches
+     `done` on /uploads on the deployed site.
+  2. The user still gets the instant verdict (unrecognised / duplicate / accepted)
+     before the upload completes, as today.
+  3. The server never trusts browser-supplied type, size or hash: classification,
+     size and dedup are decided from the bytes read back from Storage.
+  4. A rejected or abandoned upload does not linger in Storage: the claim step
+     deletes rejects, and a sweep removes unclaimed objects.
+  5. Billing files above the old 5 MB limit are refused with a clear message until
+     `billing-transaction-id-is-not-unique.md` is fixed (per-type gate).
+  6. No regression in the push/drain path, the `status = 'done'` de-dup filter,
+     `recordFile`'s upsert on `content_sha256`, or the Phase 13 background processor.
+
+**Decisions already taken** (2026-10-20, with the user — do not re-litigate):
+
+  - Every manual upload goes via Storage, not only large ones.
+  - Keep the instant verdict (synchronous claim: download, classify, dedup).
+  - Upload first, billing gated: ship now for Stats; billing over the old limit
+    stays refused until its dedup key is fixed.
+**Plans:** 0 plans
+
+Plans:
+- [ ] TBD (run /gsd-plan-phase 14 to break down)

@@ -99,3 +99,17 @@ memory/time on an 80k-row workbook is untested (local replay: claim 0.7s + proce
 
 Same caution as above applies: `apigee-row-hash-collapses-distinct-calls.md` means
 ~7-9% of each large Stats file is already miscounted as duplicates.
+
+## Update 2026-10-20: limit confirmed, fix designed
+
+- **Limit confirmed:** Netlify's buffered request payload limit is 6 MB, not configurable;
+  binary bodies are Base64-encoded, "effectively reducing the binary request payload size
+  limit to 4.5 MB" (docs.netlify.com/build/functions/configuration). The "confirm the exact
+  limit first" item above is answered. Why an 8.1 MB request still reached the handler is
+  undocumented; do not design around it.
+- **Fix designed:** every manual upload goes browser -> signed URL -> Storage -> server
+  claim, bypassing the function body limit entirely. See
+  `.planning/notes/storage-first-upload.md` and the Storage-first upload phase in ROADMAP.md.
+- **Billing stays gated:** that phase keeps billing files above the old limit refused until
+  `billing-transaction-id-is-not-unique.md` is fixed. Lifting the cap for billing is still
+  blocked, exactly as stated above.
