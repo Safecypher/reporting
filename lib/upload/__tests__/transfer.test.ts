@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from "vitest";
+import { describe, expect, it, vi, type Mock } from "vitest";
 
 import {
   FILE_TOO_LARGE_MESSAGE,
@@ -59,7 +59,7 @@ describe("uploadViaStorage: happy path", () => {
     expect(deps.put).toHaveBeenCalledWith("inbox/key-1", "tok-1");
     expect(deps.claim).toHaveBeenCalledTimes(1);
     expect(deps.claim).toHaveBeenCalledWith("inbox/key-1");
-    expect(deps.onStage.mock.calls.map((c) => c[0])).toEqual(["uploading", "checking"]);
+    expect((deps.onStage as Mock).mock.calls.map((c: unknown[]) => c[0])).toEqual(["uploading", "checking"]);
   });
 
   it("claim 200 with an IngestionResult body becomes a result outcome", async () => {

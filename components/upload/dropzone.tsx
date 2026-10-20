@@ -5,18 +5,20 @@ import { useRouter } from "next/navigation";
 import { useDropzone, type FileRejection } from "react-dropzone";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
+import { createClient } from "@/lib/supabase/client";
 import type { IngestionResult, ReportType } from "@/lib/ingestion/types";
 import {
   FILTER_REJECTED_MESSAGE,
   UPLOAD_FAILED_MESSAGE,
   batchToastTone,
-  describeIngestFailure,
-  formatBatchProgress,
   formatBatchSummary,
+  formatCheckingStage,
+  formatUploadingStage,
   formatZoneErrorMessage,
   summariseBatch,
   type BatchFileOutcome,
 } from "@/lib/upload/batch";
+import { uploadViaStorage, type ClaimResponse, type MintResult } from "@/lib/upload/transfer";
 import { BatchResults } from "@/components/upload/batch-results";
 
 type UploadState = "idle" | "uploading" | "error";
@@ -25,7 +27,14 @@ interface BatchProgress {
   index: number;
   total: number;
   fileName: string;
+  size: number;
+  stage: "uploading" | "checking";
 }
+
+/** The private Storage bucket every manual upload lands in (14-01). */
+const INBOX_BUCKET = "inbox";
+
+type BrowserClient = ReturnType<typeof createClient>;
 
 /**
  * How long to wait between each `/api/ingest/status` poll, and the total
@@ -85,71 +94,73 @@ function outcomeFromStatusRow(fileName: string, row: IngestStatusRow): BatchFile
 }
 
 /**
- * Uploads a single file to `/api/ingest` and returns a `BatchFileOutcome`
- * for every path — ok, not ok, or thrown. This function must never throw:
- * that total-function property is what makes the batch's continue-on-
- * failure behaviour structural rather than incidental, and it is also what
- * covers a response body that isn't valid JSON (the `response.json()`
- * rejection lands in the same catch as a network error). The server
- * contract is unchanged — one file per request.
+ * Uploads one file down the storage-first path and returns a
+ * `BatchFileOutcome` for every outcome — it never throws, because
+ * `uploadViaStorage` is a total function and every dependency handed to it is
+ * wrapped so a thrown error becomes a normal outcome. That total-function
+ * property is what makes the batch's continue-on-failure behaviour structural.
  *
- * A 202 is accepted, not finished — branch on it BEFORE treating the body
- * as a terminal `IngestionResult`, a shape a 202 body does not carry.
- * Under D-08 the server already fired the background-function trigger
- * inside the same request that produced this 202, before the response
- * left, so this helper dispatches nothing itself. The original design had
- * the browser fire a request of its own after the 202; it was replaced
- * (D-08) because a bare background function sits outside Next's routing
- * tree and never sees the Supabase session cookie, so a browser-originated
- * call would have needed a token minted just for that one hop, and would
- * still have depended on the tab surviving. Firing server-side removes the
- * closed-tab window entirely. A future reader who adds a client dispatch
- * back here is reintroducing an authentication problem, not restoring a
- * feature.
+ * The path is: mint a signed upload URL (`/api/ingest/upload-url`), PUT the
+ * bytes straight to Storage with the browser's publishable-key client, then
+ * claim the object (`/api/ingest/claim`). A failed transfer is retried once
+ * with a fresh signed URL; once the bytes are in Storage, any claim failure
+ * is reported as "received", never as a failure (D-15). The claim's 200
+ * verdict and 202 pending are handled exactly as the old single request's
+ * were: a pending file is followed through `/api/ingest/status`.
+ *
+ * The browser never invokes the background function (D-08): the claim route
+ * fires it server-side, because a bare background function never sees the
+ * Supabase session cookie. A future reader who adds a client dispatch back
+ * here is reintroducing an authentication problem, not restoring a feature.
  */
-async function uploadOne(file: File): Promise<BatchFileOutcome> {
-  try {
-    const formData = new FormData();
-    formData.append("file", file);
-
-    const response = await fetch("/api/ingest", {
-      method: "POST",
-      body: formData,
-    });
-
-    if (!response.ok) {
-      return {
-        fileName: file.name,
-        kind: "failed",
-        message: describeIngestFailure(response.status),
-      };
-    }
-
-    if (response.status === 202) {
-      const body: { fileId: string; reportType: ReportType; status: "pending" } =
-        await response.json();
-      return {
-        fileName: file.name,
-        kind: "pending",
-        fileId: body.fileId,
-        reportType: body.reportType,
-      };
-    }
-
-    const result: IngestionResult = await response.json();
-    return { fileName: file.name, kind: "result", result };
-  } catch (error) {
-    console.error("upload failed", error);
-    return { fileName: file.name, kind: "failed", message: UPLOAD_FAILED_MESSAGE };
-  }
+function uploadOne(
+  file: File,
+  supabase: BrowserClient,
+  onStage: (stage: "uploading" | "checking") => void
+): Promise<BatchFileOutcome> {
+  return uploadViaStorage({
+    fileName: file.name,
+    onStage,
+    mint: async (): Promise<MintResult> => {
+      const response = await fetch("/api/ingest/upload-url", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ fileName: file.name, size: file.size }),
+      });
+      if (!response.ok) return { ok: false, status: response.status };
+      const body: { path?: unknown; token?: unknown } | null = await response
+        .json()
+        .catch(() => null);
+      if (!body || typeof body.path !== "string" || typeof body.token !== "string") {
+        return { ok: false, status: 500 };
+      }
+      return { ok: true, path: body.path, token: body.token };
+    },
+    put: async (path, token) => {
+      const { error } = await supabase.storage
+        .from(INBOX_BUCKET)
+        .uploadToSignedUrl(path, token, file);
+      return error === null;
+    },
+    claim: async (path): Promise<ClaimResponse> => {
+      const response = await fetch("/api/ingest/claim", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ path, fileName: file.name }),
+      });
+      const body: unknown = await response.json().catch(() => null);
+      return { status: response.status, body };
+    },
+  });
 }
 
 /**
  * Drag-and-drop upload zone (INGEST-01) implementing the four-state
  * contract from 01-UI-SPEC.md: idle, drag-over, uploading, error. Accepts a
- * multi-file drop and uploads sequentially — one request in flight at a
- * time, by construction, never `Promise.all` — to the unchanged single-file
- * `/api/ingest` endpoint. A file that fails never stops the batch: every
+ * multi-file drop and sends each file through Storage (mint, signed PUT,
+ * claim) one at a time (D-12): a sequential for/await, never `Promise.all`.
+ * Each file shows two named stages, uploading then checking (D-11). A file
+ * that fails never stops the batch: every
  * remaining file is still attempted, because `uploadOne` is a total
  * function and nothing thrown can escape the loop. Files the accept filter
  * rejects are appended to the same result list rather than vanishing.
@@ -249,11 +260,20 @@ export function Dropzone() {
       setOutcomes([]);
 
       const collected: BatchFileOutcome[] = [];
+      const supabase = createClient();
 
       for (let i = 0; i < acceptedFiles.length; i++) {
         const file = acceptedFiles[i];
-        setProgress({ index: i + 1, total: acceptedFiles.length, fileName: file.name });
-        const outcome = await uploadOne(file);
+        const base = {
+          index: i + 1,
+          total: acceptedFiles.length,
+          fileName: file.name,
+          size: file.size,
+        };
+        setProgress({ ...base, stage: "uploading" });
+        const outcome = await uploadOne(file, supabase, (stage) =>
+          setProgress({ ...base, stage })
+        );
         collected.push(outcome);
         setOutcomes([...collected]);
       }
@@ -324,8 +344,15 @@ export function Dropzone() {
         {state === "uploading" ? (
           <p className="text-sm font-medium text-foreground">
             {progress
-              ? formatBatchProgress(progress.index, progress.total, progress.fileName)
-              : "Uploading and processing…"}
+              ? progress.stage === "uploading"
+                ? formatUploadingStage(
+                    progress.index,
+                    progress.total,
+                    progress.fileName,
+                    progress.size
+                  )
+                : formatCheckingStage(progress.index, progress.total)
+              : "Uploading…"}
           </p>
         ) : isDragActive ? (
           <p className="text-sm font-medium text-foreground">Drop to upload</p>

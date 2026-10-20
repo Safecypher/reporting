@@ -12,13 +12,15 @@ import { UploadResult } from "@/components/upload/upload-result";
  * so it reads muted; `"pending"` (13-06 — the file was accepted and is
  * still being followed in the background) reads muted too, with the same
  * clock treatment `upload-result.tsx` already uses for "already uploaded" —
- * a processing state is not an error and must never look like one. */
+ * a processing state is not an error and must never look like one.
+ * `"received"` (14-04, D-15 — the bytes are safely held in Storage and will be
+ * processed) is the same: muted, clock icon, never failure styling. */
 function FileNotice({
   message,
   tone,
 }: {
   message: string;
-  tone: "failed" | "skipped" | "pending";
+  tone: "failed" | "skipped" | "pending" | "received";
 }) {
   return (
     <Card>
@@ -31,7 +33,7 @@ function FileNotice({
               : "mt-0.5 size-5 shrink-0 text-muted-foreground"
           }
         >
-          <use href={`/icons.svg#${tone === "pending" ? "clock" : "alert"}`} />
+          <use href={`/icons.svg#${tone === "pending" || tone === "received" ? "clock" : "alert"}`} />
         </svg>
         <p className="text-sm font-light text-foreground">{message}</p>
       </CardContent>
@@ -73,6 +75,8 @@ export function BatchResults({
               <UploadResult result={outcome.result} />
             ) : outcome.kind === "pending" ? (
               <FileNotice message={STILL_PROCESSING_MESSAGE} tone="pending" />
+            ) : outcome.kind === "received" ? (
+              <FileNotice message={outcome.message} tone="received" />
             ) : (
               <FileNotice message={outcome.message} tone={outcome.kind} />
             )}
