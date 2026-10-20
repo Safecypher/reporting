@@ -277,7 +277,21 @@ it with the push path. Source: `/gsd-explore` 2026-10-20, recorded in
     open todo.
   - Design ceiling 100 MB per file; Supabase must move from Free (50 MB cap) to Pro.
   - Manual uploads land in the `inbox` bucket under `manual/` (revises Phase 13 D-02).
-**Plans:** 0 plans
+
+**Plans:** 7 plans
 
 Plans:
-- [ ] TBD (run /gsd-plan-phase 14 to break down)
+**Wave 1**
+- [ ] 14-01-PLAN.md — storage-first spine: mint + claim routes, shared ingestInboxObject, tracer through signed PUT (wave 1)
+- [ ] 14-02-PLAN.md — memory-safe ingestion: 64 KiB header read, 15 MiB XLSX cap, windowed billing, bench tools (wave 1)
+- [ ] 14-03-PLAN.md — migrations 0051 (ingested_files grants) and 0052 (inbox 100 MiB) with the D-05 Pro upgrade checkpoint (wave 1)
+
+**Wave 2** *(blocked on Wave 1 completion)*
+- [ ] 14-04-PLAN.md — dropzone through Storage: named stages, one fresh-URL retry, "received" outcome (wave 2)
+- [ ] 14-05-PLAN.md — drain on the shared step with manual grace/budget; /uploads "Received, not yet processed" (wave 2)
+
+**Wave 3** *(blocked on Wave 2 completion)*
+- [ ] 14-06-PLAN.md — phase fence and deployed proofs: real 22.4 MB billing, 52/99 MiB synthetics, abandoned upload, cleanup (wave 3)
+
+**Wave 4** *(blocked on Wave 3 completion)*
+- [ ] 14-07-PLAN.md — D-19 lever decision, retire POST /api/ingest, confirm on the deployed site (wave 4)

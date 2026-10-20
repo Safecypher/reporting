@@ -2,20 +2,20 @@
 gsd_state_version: "1.0"
 milestone: v1.1
 milestone_name: Nothing Silently Missing
-current_phase: 13
-current_phase_name: Async Ingestion — Return 202 and Process in the Background
+current_phase: 14
+current_phase_name: Storage-first manual upload
 status: executing
 stopped_at: Phase 14 context gathered
-last_updated: "2026-10-20T16:52:05.315Z"
+last_updated: "2026-10-20T18:06:25.908Z"
 last_activity: 2026-10-06
 last_activity_desc: Phase 13 execution started
-state_head: 8852d660efbc62c3d7cb42520ed1eea77de4928d
+state_head: 747b88ceefef5e0ab2ff86cefa63b52eb5269122
 progress:
   total_phases: 6
   completed_phases: 9
-  total_plans: 21
+  total_plans: 28
   completed_plans: 21
-  percent: 100
+  percent: 75
 ---
 
 # Project State
@@ -29,9 +29,9 @@ See: .planning/PROJECT.md (updated 2026-09-25)
 
 ## Current Position
 
-Phase: 13 (Async Ingestion — Return 202 and Process in the Background) — EXECUTING
+Phase: 14 (Storage-first manual upload) — READY TO EXECUTE
 Plan: 1 of 8
-Status: Executing Phase 13
+Status: Ready to execute
 `human_needed` — three items close the phase:
   1. A real Slack message reaching a real channel (FRESH-04's actual end-to-end proof)
   2. The daily-check run time changed through the deployed app's own request path (D-14/T-10-27)
