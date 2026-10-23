@@ -105,6 +105,21 @@ reports mean.
   `eu-north-1`) and function memory are available levers; the plan should check the current
   region and use a move if claim latency or 100 MB write time needs it.
 
+### Revised mid-execution (2026-10-23, with the user) — SUPERSEDES D-04 and D-05
+- **D-20:** **Finish on the Supabase Free plan with a 50 MiB per-file ceiling**
+  (`MAX_UPLOAD_BYTES = 52_428_800`, = 50 * 1024 * 1024). **No Pro upgrade** (D-05 withdrawn)
+  and no 100 MB claim (D-04 withdrawn). Why: Bit Addict will push report CSVs to SharePoint
+  (emailed attachments were being blocked for size), and the longer-term plan is to mirror the
+  production DB into a reporting DB, so file-upload headroom only has to last until then.
+  Consequences to state plainly: month-end billing is projected at ~48-50 MB, i.e. right at the
+  cap; the trigger to upgrade to Pro is the first real file that exceeds it (raising the ceiling
+  is then the constant + the bucket limit). The synthetic processing proof (D-06) is sized at or
+  just under the cap (~49 MiB pre-window), not 52/99 MiB. The exact Free-plan global boundary is
+  confirmed empirically on the deployed site (cap accepted, cap+1 refused); if Storage's real
+  global limit is lower than 52,428,800, the constant drops to match it.
+  `MANUAL_DRAIN_BYTE_BUDGET` follows `MAX_UPLOAD_BYTES`. The XLSX cap (D-16, 15 MiB) is unchanged.
+  — **Reversibility:** reversible — a constant plus the bucket limit; the Pro upgrade remains available.
+
 ### Claude's Discretion
 - Signed URL path naming, `upsert: false`, and how the claim step guarantees one object is
   claimed once (lease / content-hash idempotency already used by Phase 13).
