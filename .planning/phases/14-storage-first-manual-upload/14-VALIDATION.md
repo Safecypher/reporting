@@ -82,8 +82,8 @@ Framework install: none.
 | Behavior | Requirement | Why Manual | Test Instructions |
 |----------|-------------|------------|-------------------|
 | `ingested_files` grants: anon none, authenticated SELECT only | P14-12 | Live catalog; executors lack Supabase MCP | Orchestrator runs catalog queries from RESEARCH Code Examples before and after migration 0051 |
-| Inbox bucket limit 104,857,600, MIME null; over-limit refused | P14-13 | Needs Supabase Pro upgrade (D-05, human action) | Live SQL + one over-limit upload on the deployed site |
-| Real 22.4 MB billing → `done`; synthetic ≥50 MiB pre-window → `done`; 99 MiB transfer + claim latency | P14-14 | Deployed site only | Deployed checkpoints; record rows/s and latency in SUMMARY; clean up synthetic rows/objects |
+| Inbox bucket limit 52,428,800 (50 MiB, D-20; supersedes the 100 MiB / Pro row), MIME null; exact cap accepted, cap + 1 refused | P14-13 | Live catalog; executors lack Supabase MCP (no Pro upgrade under D-20) | Orchestrator applies 0052 and runs its oracle via MCP (14-03 Task 4); boundary probe through signed upload URLs on the deployed project (14-06 Task 3 step A) |
+| Real 22.4 MB billing → `done`; ~49 MiB pre-window synthetic → `done` with transfer + claim latency (D-20; replaces the 99 MiB proof) | P14-14 | Deployed site only | Deployed checkpoints; record rows/s, the 52,428,800-byte projection and latency in SUMMARY; clean up synthetic rows/objects |
 
 ---
 

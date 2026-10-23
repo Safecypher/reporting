@@ -262,9 +262,12 @@ it with the push path. Source: `/gsd-explore` 2026-10-20, recorded in
      size and dedup are decided from the bytes read back from Storage.
   4. A rejected or abandoned upload does not linger in Storage: the claim step
      deletes rejects, and a sweep removes unclaimed objects.
-  5. A synthetic billing-shaped file of at least ~50 MB (month-end size) uploads AND
-     completes processing in the background function on the deployed site; the route
-     accepts files up to 100 MB (requires Supabase Pro — human-action prerequisite).
+  5. A synthetic billing-shaped file at or just under the ceiling (~49 MiB pre-window,
+     month-end size) uploads AND completes processing in the background function on the
+     deployed site; the route accepts files up to 52,428,800 bytes (50 MiB) on the Supabase
+     Free plan, and Storage's real Free boundary is confirmed empirically (the cap accepted,
+     cap + 1 refused; a lower real boundary drops the constant to match). REVISED 2026-10-23
+     (14-CONTEXT D-20): no Pro upgrade and no 100 MB claim.
   6. No regression in the push/drain path, the `status = 'done'` de-dup filter,
      `recordFile`'s upsert on `content_sha256`, or the Phase 13 background processor.
 
@@ -275,7 +278,10 @@ it with the push path. Source: `/gsd-explore` 2026-10-20, recorded in
   - ~~Upload first, billing gated~~ — REVISED 2026-10-20 in discuss-phase (14-CONTEXT
     D-03): billing goes through at any size; the 3.8% transactionId loss stays a separate
     open todo.
-  - Design ceiling 100 MB per file; Supabase must move from Free (50 MB cap) to Pro.
+  - ~~Design ceiling 100 MB per file; Supabase must move from Free (50 MB cap) to Pro.~~ —
+    REVISED 2026-10-23 (14-CONTEXT D-20, superseding D-04/D-05): finish on Supabase Free with
+    a 50 MiB (52,428,800-byte) per-file ceiling; no Pro upgrade. Month-end billing (~48-50 MB)
+    sits at the cap; the first real file over it is the trigger to upgrade.
   - Manual uploads land in the `inbox` bucket under `manual/` (revises Phase 13 D-02).
 
 **Plans:** 4/7 plans executed
@@ -284,14 +290,16 @@ Plans:
 **Wave 1**
 - [x] 14-01-PLAN.md — storage-first spine: mint + claim routes, shared ingestInboxObject, tracer through signed PUT (wave 1)
 - [x] 14-02-PLAN.md — memory-safe ingestion: 64 KiB header read, 15 MiB XLSX cap, windowed billing, bench tools (wave 1)
-- [ ] 14-03-PLAN.md — migrations 0051 (ingested_files grants) and 0052 (inbox 100 MiB) with the D-05 Pro upgrade checkpoint (wave 1)
 
 **Wave 2** *(blocked on Wave 1 completion)*
 - [x] 14-04-PLAN.md — dropzone through Storage: named stages, one fresh-URL retry, "received" outcome (wave 2)
 - [x] 14-05-PLAN.md — drain on the shared step with manual grace/budget; /uploads "Received, not yet processed" (wave 2)
 
 **Wave 3** *(blocked on Wave 2 completion)*
-- [ ] 14-06-PLAN.md — phase fence and deployed proofs: real 22.4 MB billing, 52/99 MiB synthetics, abandoned upload, cleanup (wave 3)
+- [ ] 14-03-PLAN.md — migrations 0051 (ingested_files grants, live 2026-10-20) and 0052 (inbox 50 MiB), and the code ceiling lowered to 52,428,800 bytes per D-20; no Pro upgrade (Tasks 1-2 ran in wave 1; moved to wave 3 because Task 3 edits constants that 14-01/14-02/14-04/14-05 created) (wave 3)
 
 **Wave 4** *(blocked on Wave 3 completion)*
-- [ ] 14-07-PLAN.md — D-19 lever decision, retire POST /api/ingest, confirm on the deployed site (wave 4)
+- [ ] 14-06-PLAN.md — phase fence and deployed proofs: real 22.4 MB billing, the 50 MiB Storage boundary, a ~49 MiB synthetic, abandoned upload, cleanup (wave 4)
+
+**Wave 5** *(blocked on Wave 4 completion)*
+- [ ] 14-07-PLAN.md — D-19 lever only if the ~50 MB projection needs one, retire POST /api/ingest, confirm on the deployed site (wave 5)
