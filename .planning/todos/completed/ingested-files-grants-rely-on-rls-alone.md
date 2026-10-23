@@ -3,7 +3,7 @@ created: 2026-10-06T09:50:00.000Z
 title: ingested_files write protection rests on RLS alone — no grant-layer defence in depth
 area: security
 severity: minor
-status: pending
+status: completed
 source: found while verifying migration 0048 against the live catalog (Phase 13, plan 13-01 Task 3)
 files:
   - supabase/migrations/0004_rls_and_storage.sql
@@ -60,3 +60,21 @@ SELECT, and verify against the live catalog afterwards — grants and RLS both, 
 project has already been bitten once by a privilege change that reported success and did
 nothing (`0042_fix_token_digest_column_grants.sql`). Worth checking whether the same
 default grant pattern applies to the six report tables while you are there.
+
+## Resolution (2026-10-20, Phase 14 plan 14-03)
+
+Closed by migration `0051_ingested_files_grants` (ledger `20261020182506`), applied by the
+orchestrator via MCP and proven against the live catalog by
+`supabase/tests/ingested_files_grants_test.sql` (CHECK 1-3 passed, sent as one query).
+
+| grantee | before | after |
+|---|---|---|
+| `anon` | DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE (84 column rows) | none (0 column rows) |
+| `authenticated` | DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE (84 column rows) | SELECT only (21 column SELECT rows) |
+| `service_role` | all | unchanged |
+
+RLS stays enabled with the single `ingested_files_select_authenticated` SELECT policy.
+
+Follow-up observation (no change made): the six report tables (`verifications`,
+`billing_transactions`, `dcvv_fetches`, `card_inventory`, `removed_cards`, `apigee_calls`)
+still carry the same default anon/authenticated full-privilege grants.
