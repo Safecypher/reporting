@@ -204,7 +204,7 @@ describe("describeIngestFailure", () => {
       "The server didn't receive this file. Try adding it again."
     );
     expect(describeIngestFailure(413)).toBe(FILE_TOO_LARGE_MESSAGE);
-    expect(FILE_TOO_LARGE_MESSAGE).toBe("File too large. The limit is 100 MB per file.");
+    expect(FILE_TOO_LARGE_MESSAGE).toBe("File too large. The limit is 50 MB per file.");
   });
 
   it("returns UPLOAD_FAILED_MESSAGE for 500 and for an unmapped status such as 502", () => {

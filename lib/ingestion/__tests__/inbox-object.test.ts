@@ -265,7 +265,7 @@ describe("selectDrainableInboxNames - the drain's manual listing rules (D-17, T-
 
   it("pins the two constants", () => {
     expect(MANUAL_INBOX_GRACE_MINUTES).toBe(15);
-    expect(MANUAL_DRAIN_BYTE_BUDGET).toBe(104_857_600);
+    expect(MANUAL_DRAIN_BYTE_BUDGET).toBe(52_428_800);
     expect(MANUAL_DRAIN_BYTE_BUDGET).toBe(MAX_UPLOAD_BYTES);
   });
 
@@ -336,9 +336,9 @@ describe("selectDrainableInboxNames - the drain's manual listing rules (D-17, T-
     expect(selectDrainableInboxNames(MANUAL_PREFIX, [newer, older], AS_OF).names).toEqual([older.name, newer.name]);
   });
 
-  it("returns the first of two 60 MB old entries and defers the second as budget", () => {
-    const first = manualEntry({ mintedMinutesAgo: 300, size: 60 * MB, tag: "first" });
-    const second = manualEntry({ mintedMinutesAgo: 200, size: 60 * MB, tag: "second" });
+  it("returns the first of two 30 MB old entries and defers the second as budget", () => {
+    const first = manualEntry({ mintedMinutesAgo: 300, size: 30 * MB, tag: "first" });
+    const second = manualEntry({ mintedMinutesAgo: 200, size: 30 * MB, tag: "second" });
 
     const result = selectDrainableInboxNames(MANUAL_PREFIX, [second, first], AS_OF);
 
@@ -363,8 +363,8 @@ describe("selectDrainableInboxNames - the drain's manual listing rules (D-17, T-
   });
 
   it("keeps oldest-first strict: once one entry does not fit, every later entry waits too", () => {
-    const a = manualEntry({ mintedMinutesAgo: 500, size: 70 * MB, tag: "a" });
-    const b = manualEntry({ mintedMinutesAgo: 400, size: 70 * MB, tag: "b" });
+    const a = manualEntry({ mintedMinutesAgo: 500, size: 35 * MB, tag: "a" });
+    const b = manualEntry({ mintedMinutesAgo: 400, size: 35 * MB, tag: "b" });
     const tiny = manualEntry({ mintedMinutesAgo: 300, size: 1, tag: "tiny" });
 
     const result = selectDrainableInboxNames(MANUAL_PREFIX, [a, b, tiny], AS_OF);
@@ -377,8 +377,8 @@ describe("selectDrainableInboxNames - the drain's manual listing rules (D-17, T-
   });
 
   it("spends no budget on a young entry", () => {
-    const young = manualEntry({ createdMinutesAgo: 2, size: 100 * MB, tag: "young" });
-    const old = manualEntry({ size: 100 * MB, tag: "old" });
+    const young = manualEntry({ createdMinutesAgo: 2, size: 50 * MB, tag: "young" });
+    const old = manualEntry({ size: 50 * MB, tag: "old" });
 
     expect(selectDrainableInboxNames(MANUAL_PREFIX, [young, old], AS_OF).names).toEqual([old.name]);
   });

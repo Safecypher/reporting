@@ -49,6 +49,10 @@ beforeEach(() => {
 });
 
 describe("claimManualUpload - size guards (P14-03)", () => {
+  it("pins the transfer ceiling at 52,428,800 bytes (50 MiB, D-20)", () => {
+    expect(MAX_UPLOAD_BYTES).toBe(52_428_800);
+  });
+
   it("removes the object and answers too-large when Storage metadata size is MAX + 1, never downloading", async () => {
     const deps = makeDeps({ getObjectSize: vi.fn(async () => ({ found: true as const, size: MAX_UPLOAD_BYTES + 1 })) });
 
