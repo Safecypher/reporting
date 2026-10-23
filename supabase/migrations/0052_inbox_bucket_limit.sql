@@ -1,18 +1,23 @@
 -- 0052_inbox_bucket_limit.sql
--- Phase 14 (P14-13, D-04, T-14-15/16): set the inbox bucket's own object size
--- limit to 100 MiB.
+-- Phase 14 (P14-13, D-20, T-14-15/16): set the inbox bucket's own object size
+-- limit to 50 MiB.
 --
--- APPLY ORDER (D-05, one-way). This migration must be applied only AFTER a
--- human has upgraded the Supabase organization from Free to Pro AND raised the
--- project's Global file size limit to at least 100 MB (dashboard: Storage ->
--- Settings). Free caps every object at 50 MB. Supabase's effective limit is
--- the MINIMUM of the global limit and the bucket limit, so applying this
--- first would advertise 100 MiB on the bucket while the 50 MB global cap
--- still refused larger objects.
+-- NO PRO PREREQUISITE (D-20, which supersedes D-04 and D-05). The project
+-- stays on the Supabase Free plan, so there is no plan upgrade to wait for and
+-- no dashboard change this migration depends on. It can be applied as soon as
+-- it is committed.
 --
--- THE NUMBER. 104,857,600 bytes = 100 MiB (100 * 1024 * 1024), the ceiling
--- chosen in D-04. Storage enforces it at upload time; the claim endpoint
--- re-checks the real size as a backstop (14-01).
+-- THE NUMBER. 52,428,800 bytes = 50 MiB (50 * 1024 * 1024), the Free plan's
+-- per-object cap. Storage enforces it at upload time; the claim endpoint
+-- re-checks the real size as a backstop (14-01), and MAX_UPLOAD_BYTES,
+-- MANUAL_DRAIN_BYTE_BUDGET and the user-facing copy carry the same value.
+--
+-- EFFECTIVE LIMIT. Supabase enforces the MINIMUM of the global file size limit
+-- and the bucket limit. On Free the global limit is 50 MB, so this bucket limit
+-- states the ceiling explicitly rather than raising it. 14-06 confirms the real
+-- boundary empirically (52,428,800 bytes accepted, 52,428,801 refused through
+-- a signed upload URL); if Storage's real boundary turns out lower, the
+-- constants and this limit drop to match in a follow-up migration.
 --
 -- WHY allowed_mime_types STAYS NULL. Browsers report a CSV as text/csv,
 -- application/vnd.ms-excel or an empty type depending on the operating system.
@@ -28,11 +33,11 @@
 -- by the server, SC-3). There is still no client RLS policy on the bucket: the
 -- browser cannot list, read or overwrite objects, and the bucket stays private.
 --
--- NOT applied live by this plan's executor (no Supabase MCP access from a
--- subagent). The orchestrator applies it via MCP apply_migration after the
--- human's Pro confirmation, then runs supabase/tests/inbox_bucket_limit_test.sql.
+-- Applied by the orchestrator through MCP apply_migration after the D-20 code
+-- change is committed (executors have no Supabase MCP access), then verified
+-- with supabase/tests/inbox_bucket_limit_test.sql.
 
 update storage.buckets
-   set file_size_limit = 104857600,
+   set file_size_limit = 52428800,
        allowed_mime_types = null
  where id = 'inbox';

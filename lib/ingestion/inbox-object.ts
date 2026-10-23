@@ -112,8 +112,9 @@ export const MANUAL_INBOX_GRACE_MINUTES = 15;
  * equal. The unit is the claim's own ceiling, so a run always has room for at
  * least one maximum-size object and never for a backlog that would push the
  * evidence row and Slack alert past the request's measured ~30 s ceiling.
+ * 52,428,800 bytes (50 MiB) under D-20, which supersedes D-04's 100 MiB.
  */
-export const MANUAL_DRAIN_BYTE_BUDGET = 104_857_600;
+export const MANUAL_DRAIN_BYTE_BUDGET = 52_428_800;
 
 /** The slice of a Storage `list()` entry the drain's selection reads. */
 export interface InboxListEntry {

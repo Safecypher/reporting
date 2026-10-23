@@ -1,17 +1,17 @@
 -- inbox_bucket_limit_test.sql
--- Executable acceptance oracle for 0052_inbox_bucket_limit.sql (P14-13, D-04).
+-- Executable acceptance oracle for 0052_inbox_bucket_limit.sql (P14-13, D-20).
 --
 -- STRICTLY READ-ONLY. No INSERT, UPDATE, DELETE, TRUNCATE or DDL, and no
 -- transaction wrapper -- safe to run anywhere (psql, the SQL editor, an MCP
 -- execute_sql call). Send it as ONE whole query.
 --
--- Run it AFTER 0052 is applied (which itself waits for the D-05 Pro upgrade).
--- Before 0052 it is EXPECTED to raise (file_size_limit is null on Free).
+-- Run it AFTER 0052 is applied. Before 0052 it is EXPECTED to raise
+-- (file_size_limit is null on both buckets).
 --
--- It proves the BUCKET configuration only. That Storage actually refuses a
--- 104,857,601-byte object, and accepts a 51 MB one, is the deployed proof in
--- 14-06; the effective limit is min(global limit, bucket limit) and the global
--- limit lives in the dashboard, not in this catalog.
+-- It proves the BUCKET configuration only. That Storage actually accepts a
+-- 52,428,800-byte object and refuses a 52,428,801-byte one is the deployed
+-- proof in 14-06 Task 3; the effective limit is min(global limit, bucket
+-- limit) and the global limit lives in the dashboard, not in this catalog.
 
 do $$
 declare
@@ -35,8 +35,8 @@ begin
   from storage.buckets
   where id = 'inbox';
 
-  if v_limit is distinct from 104857600 then
-    raise exception 'FAIL: inbox file_size_limit is %, expected exactly 104857600 (100 MiB)', coalesce(v_limit::text, 'null');
+  if v_limit is distinct from 52428800 then
+    raise exception 'FAIL: inbox file_size_limit is %, expected exactly 52428800 (50 MiB, D-20)', coalesce(v_limit::text, 'null');
   end if;
 
   if v_mimes is not null then
@@ -60,7 +60,7 @@ begin
     raise exception 'FAIL: reports bucket is public; it must stay private';
   end if;
 
-  raise notice 'inbox_bucket_limit_test ok: inbox limit 104857600, allowed_mime_types null, both buckets private';
+  raise notice 'inbox_bucket_limit_test ok: inbox limit 52428800, allowed_mime_types null, both buckets private';
 end
 $$;
 

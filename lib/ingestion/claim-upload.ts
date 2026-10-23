@@ -24,8 +24,15 @@ import {
   type InboxObjectOutcome,
 } from "./inbox-object";
 
-/** The transfer ceiling: 100 MiB per file (D-04). Reversible: a constant. */
-export const MAX_UPLOAD_BYTES = 104_857_600;
+/**
+ * The transfer ceiling: 50 MiB (52,428,800 bytes) per file. This is the
+ * Supabase Free plan's per-object cap, and the project stays on Free (D-20,
+ * which supersedes D-04's 100 MiB). Raising it after a Pro upgrade is four
+ * edits that must move together: this constant, MANUAL_DRAIN_BYTE_BUDGET in
+ * inbox-object.ts, FILE_TOO_LARGE_MESSAGE in lib/upload/batch.ts and the
+ * inbox bucket's file_size_limit.
+ */
+export const MAX_UPLOAD_BYTES = 52_428_800;
 
 export interface ClaimUploadDeps {
   /** Storage metadata size for the object; `found: false` when it does not exist (already claimed, or never uploaded). */

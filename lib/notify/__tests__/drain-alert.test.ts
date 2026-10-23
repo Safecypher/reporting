@@ -1204,20 +1204,20 @@ describe("POST /api/ingest/drain — Phase 14 manual objects in the shared drain
     expect(ingestInboxObjectKeys[1]).toMatch(/^manual\//);
   });
 
-  it("two old 60 MB manual objects: the first is ingested, the second is deferred, not errored and not stuck", async () => {
+  it("two old 30 MB manual objects: the first is ingested, the second is deferred, not errored and not stuck", async () => {
     const { fn: fakeFetch } = makeFakeTriggerAndSlackFetch();
     vi.stubGlobal("fetch", fakeFetch);
 
     const first = manualObject({
       createdAt: minutesAgo(300),
-      size: 60_000_000,
+      size: 30_000_000,
       mintedAt: new Date("2026-10-19T08:00:00.000Z"),
       fileName: "first.csv",
       bytes: loadVerificationFixture(),
     });
     const second = manualObject({
       createdAt: minutesAgo(200),
-      size: 60_000_000,
+      size: 30_000_000,
       mintedAt: new Date("2026-10-19T09:00:00.000Z"),
       fileName: "second.csv",
       bytes: loadVerificationFixture(),
