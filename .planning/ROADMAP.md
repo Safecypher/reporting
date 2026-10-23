@@ -284,7 +284,7 @@ it with the push path. Source: `/gsd-explore` 2026-10-20, recorded in
     sits at the cap; the first real file over it is the trigger to upgrade.
   - Manual uploads land in the `inbox` bucket under `manual/` (revises Phase 13 D-02).
 
-**Plans:** 4/7 plans executed
+**Plans:** 5/7 plans executed
 
 Plans:
 **Wave 1**
@@ -296,7 +296,7 @@ Plans:
 - [x] 14-05-PLAN.md — drain on the shared step with manual grace/budget; /uploads "Received, not yet processed" (wave 2)
 
 **Wave 3** *(blocked on Wave 2 completion)*
-- [ ] 14-03-PLAN.md — migrations 0051 (ingested_files grants, live 2026-10-20) and 0052 (inbox 50 MiB), and the code ceiling lowered to 52,428,800 bytes per D-20; no Pro upgrade (Tasks 1-2 ran in wave 1; moved to wave 3 because Task 3 edits constants that 14-01/14-02/14-04/14-05 created) (wave 3)
+- [x] 14-03-PLAN.md — migrations 0051 (ingested_files grants, live 2026-10-20) and 0052 (inbox 50 MiB), and the code ceiling lowered to 52,428,800 bytes per D-20; no Pro upgrade (Tasks 1-2 ran in wave 1; moved to wave 3 because Task 3 edits constants that 14-01/14-02/14-04/14-05 created) (wave 3)
 
 **Wave 4** *(blocked on Wave 3 completion)*
 - [ ] 14-06-PLAN.md — phase fence and deployed proofs: real 22.4 MB billing, the 50 MiB Storage boundary, a ~49 MiB synthetic, abandoned upload, cleanup (wave 4)
