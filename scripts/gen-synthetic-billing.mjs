@@ -4,8 +4,8 @@
  * Writes the ten billing columns (BILLING_HEADER order) followed by random,
  * entirely synthetic rows until the byte count reaches the target. The target
  * is a FLOOR: the last batch can overshoot it slightly, so re-check the
- * printed `bytes` against 104,857,600 (the inbox bucket limit) when generating
- * files near 100 MiB.
+ * printed `bytes` against 52,428,800 (the inbox bucket limit, D-20) when
+ * generating files near 50 MiB.
  *
  * SAFETY (T-14-11): by default every timestamp falls BEFORE the DATA-06 cutoff
  * (2026-08-13T00:00:00Z), so a file from this script, uploaded to a deployed
@@ -15,8 +15,8 @@
  * billing data is used or needed.
  *
  * Usage:
- *   node scripts/gen-synthetic-billing.mjs --target-mib 99 --out /tmp/b.csv
- *   node scripts/gen-synthetic-billing.mjs --target-mib 99 --in-window --out /tmp/b.csv
+ *   node scripts/gen-synthetic-billing.mjs --target-mib 49 --out /tmp/b.csv
+ *   node scripts/gen-synthetic-billing.mjs --target-mib 49 --in-window --out /tmp/b.csv
  *
  * Options:
  *   --target-mib N   required, 1..1024, minimum size in MiB
@@ -43,7 +43,7 @@ const BILLING_HEADER = [
   "region",
 ];
 
-const MAX_BUCKET_BYTES = 104_857_600;
+const MAX_BUCKET_BYTES = 52_428_800;
 const CUTOFF_MS = Date.parse("2026-08-13T00:00:00Z");
 
 function fail(message) {

@@ -59,7 +59,7 @@ export const UPLOAD_INTERRUPTED_MESSAGE = "Upload interrupted — try again.";
 export const RECEIVED_MESSAGE =
   "Received — will be processed. Its outcome will appear in the upload history below.";
 
-export const FILE_TOO_LARGE_MESSAGE = "File too large. The limit is 100 MB per file.";
+export const FILE_TOO_LARGE_MESSAGE = "File too large. The limit is 50 MB per file.";
 
 /** D-16: an XLSX over the spreadsheet cap is kept but not imported. */
 export const XLSX_TOO_LARGE_MESSAGE =
